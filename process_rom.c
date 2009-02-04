@@ -40,6 +40,7 @@ unsigned char** chr_banks;
 unsigned char trainer[TRAINER_SIZE];
 int chr_index = 0;
 int prg_index = 0;
+int inst_ptr = 0;
 NES_header head;
 
 
@@ -159,8 +160,13 @@ int main(int argc, char* argv[]) {
 		}
 	}
 	
-	// clean up
 	fclose(in);
+	
+	// emulate
+	
+	
+	
+	// clean up
 	
 	for(i=0; i<head.prg_banks; ++i){
 		free(prg_banks[i]);
