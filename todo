@@ -1,0 +1,3 @@
+* don't depend on fixed byte variables. this goes for chars, short ints, etc
+* don't depend on big endian. watch for bitshift operations
+* make the emulator thread safe. this includes putting locks around accesses to static data
