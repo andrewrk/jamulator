@@ -1,16 +1,21 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 
 #include "cpu6502.h"
 #include "debug.h"
+#include "utility.h"
 
 #define SET_SIGN(x)	status &= (((x) & 0x80) << 7)
 #define SET_ZERO(x) if( x ) status &= 0xfd; else status &= 0x02
 
-#define IF_CARRY()	
+//#define IF_CARRY()	
 
 // static information
+bool Cpu6502::init_static = false;
+map<unsigned char, Instruction> Cpu6502::spec;
+
 void Cpu6502::initializeStaticData() {
 	// load the disassembly information into the map
 	ifstream in("cpu6502.spec", ifstream::in);
@@ -22,7 +27,7 @@ void Cpu6502::initializeStaticData() {
 		// trim
 		trim(line);
 		// if empty or first char is #
-		if( line.compare("") == 0 || line[0] == "#" ){
+		if( line.size() == 0 || line[0] == '#' ){
 			// ignore
 			continue;
 		} else {
@@ -55,7 +60,7 @@ Cpu6502::Cpu6502(unsigned char * rom, int rom_bytes) :
 
 	// initialize registers
 	SP = 0x0100;
-	PC = rom;
+	PC = 0;
 	AC = XR = YR = 0;
 	status = 0x20; // bit 5 is 1, everything else 0
 
@@ -72,13 +77,13 @@ Cpu6502::~Cpu6502(){
 
 void Cpu6502::step(int num_steps){
 	int i;
-	for(i=0;i<num_steps;++i){
-		unsigned char op_code = memory[PC++];
-		unsigned char * src = memory[PC];
+	/*for(i=0;i<num_steps;++i){
+		unsigned char op_code = read_memory(PC++);
+		unsigned char * src = read_memory(PC);
 		switch(op_code){
 			
 		}
-	}
+	}*/
 }
 
 string Cpu6502::disassemble(){
@@ -96,6 +101,7 @@ string Cpu6502::disassemble(){
 		// translate to assembly
 		// figure out what to replace %i with
 		string i = "";
+		unsigned int immediate;
 		switch( inst.num_bytes ){
 			case 1:
 				// there is no i
@@ -107,7 +113,7 @@ string Cpu6502::disassemble(){
 				break;
 			case 3:
 				// two-byte immediate
-				unsigned int immediate = *ptr;
+				immediate = *ptr;
 				++ptr;
 				immediate |= *ptr << 8;
 				++ptr;

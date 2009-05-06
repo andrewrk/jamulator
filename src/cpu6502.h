@@ -1,7 +1,9 @@
 #ifndef _CPU6502_H_
 #define _CPU6502_H_
 
+using namespace std;
 #include <string>
+#include <map>
 
 
 typedef struct {
@@ -29,7 +31,7 @@ class Cpu6502 {
 		static map<unsigned char, Instruction> spec;
 
 		// have we initialized static data yet?
-		static bool init_static = false;
+		static bool init_static;
 		
 		// registers
 		signed char AC; // accumulator
@@ -44,7 +46,7 @@ class Cpu6502 {
 		unsigned short int PC;
 
 		// the stack pointer, from $0100 to $01FF
-		unsigned char SP;
+		unsigned short int SP;
 		
 
 		// the chip's memory
@@ -52,7 +54,7 @@ class Cpu6502 {
 		int memory_size;
 
 		// initialize static data
-		void initializeStaticData();
+		static void initializeStaticData();
 };
 
 #endif

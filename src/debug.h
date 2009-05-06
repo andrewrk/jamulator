@@ -13,6 +13,7 @@
 			<< " in file " << __FILE__ << "\n" \
 	}
 
+#endif
 
 
 #endif

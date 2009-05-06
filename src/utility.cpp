@@ -1,3 +1,6 @@
+#include <string>
+#include <sstream>
+
 #include "utility.h"
 
 // remove leading and trailing spaces from a string

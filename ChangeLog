@@ -1,0 +1,19 @@
+2008-05-06	Andrew Kelley	<superjoe30@gmail.com>
+
+	* src/utility.cpp:
+	* src/cpu6502.cpp:
+	* src/utility.h:
+	* src/cpu6502.h:
+	* src/debug.h:
+	fixed compilation errors
+
+	* AUTHORS:
+	* ChangeLog:
+	* README:
+	added these GNU files
+
+	* Makefile.am:
+	* src/Makefile.am:
+	* configure.ac:
+	using autoconf build system now
+

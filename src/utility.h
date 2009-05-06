@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+using namespace std;
 
 // remove leading and trailing spaces from a string
 void trim(string& str, const string& what_to_trim = " \t\n\r");
