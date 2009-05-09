@@ -1,5 +1,11 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "cpu6502.h"
+#include "debug.h"
 
 
 #define PRGROM_SIZE 16384 // 16 KB
@@ -86,12 +92,21 @@ int prg_index = 0;
 int inst_ptr = 0;
 NES_header head;
 
+#ifdef DEBUG
+void test6502(char * file);
+#endif
 
 int main(int argc, char* argv[]) {
 	FILE* in;
 	int i;
 	size_t num_read;
 	
+#ifdef DEBUG
+	if(argc == 3 && strcmp(argv[1], "--test") == 0 ){
+		test6502(argv[2]);
+		exit(0);
+	}
+#endif
 	
 	
 	if( argc != 2 ){
@@ -99,7 +114,7 @@ int main(int argc, char* argv[]) {
 		exit(-1);
 	}
 	
-	in = fopen(argv[1], "r");
+	in = fopen(argv[1], "rb");
 	
 	// read NES header
 	num_read = fread(&head, sizeof(NES_header), 1, in);
@@ -225,6 +240,10 @@ int main(int argc, char* argv[]) {
 	int sum = sizeof(head) + head.num_vrom_banks * 8 * 1024 
 		+ (head.trainer	? 512 : 0) + head.num_rom_banks * 16 * 1024;
 	printf("read %i bytes.\n", sum);
+
+	// disassemble
+	Cpu6502 emulator(rom_banks[0], 16 * 1024);
+	cout << emulator.disassemble() << endl;
 	
 	// emulate
 	
@@ -244,3 +263,20 @@ int main(int argc, char* argv[]) {
 	
 	return 0;
 }
+
+#ifdef DEBUG
+void test6502(char * file){
+	FILE* in;
+	in = fopen(file, "rb");
+	fseek(in, 0, SEEK_END);
+	size_t size = ftell(in);
+	fseek(in, 0, SEEK_SET);
+	
+	unsigned char * program = (unsigned char *) malloc(size);
+	fread(program, 1, size, in);
+
+	Cpu6502 emulator(program, size);
+	cout << emulator.disassemble() << endl;
+
+}
+#endif

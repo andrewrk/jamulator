@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+#include <sstream>
 
 #include "cpu6502.h"
 #include "debug.h"
@@ -87,49 +88,55 @@ void Cpu6502::step(int num_steps){
 }
 
 string Cpu6502::disassemble(){
-	string ret = "";
+	stringstream ss;
 
 	// for each instruction in memory
 	unsigned char * ptr = memory;
 	while( ptr-memory < memory_size ){
 		// get the instruction associated with the opcode
-		Instruction inst = spec[*ptr];
+		if( spec.count(*ptr) == 0){
+			ss << "Invalid opcode: " << *ptr << "\n"
+				<< "Unable to continue diassembly.\n";
+			return ss.str();
+		} else {
+			Instruction inst = spec[*ptr];
 
-		// go to next byte
-		++ptr;
+			// go to next byte
+			++ptr;
 
-		// translate to assembly
-		// figure out what to replace %i with
-		string i = "";
-		unsigned int immediate;
-		switch( inst.num_bytes ){
-			case 1:
-				// there is no i
-				break;
-			case 2:
-				// one-byte immediate
-				i = "$" + intToHex((unsigned int) *ptr);
-				++ptr;
-				break;
-			case 3:
-				// two-byte immediate
-				immediate = *ptr;
-				++ptr;
-				immediate |= *ptr << 8;
-				++ptr;
+			// translate to assembly
+			// figure out what to replace %i with
+			string i = "";
+			unsigned int immediate;
+			switch( inst.num_bytes ){
+				case 1:
+					// there is no i
+					break;
+				case 2:
+					// one-byte immediate
+					i = "$" + intToHex((unsigned int) *ptr);
+					++ptr;
+					break;
+				case 3:
+					// two-byte immediate
+					immediate = *ptr;
+					++ptr;
+					immediate |= *ptr << 8;
+					++ptr;
 
-				i = "$" + intToHex(immediate);
-				break;
-			default:
-				ASSERT(false);
+					i = "$" + intToHex(immediate);
+					break;
+				default:
+					ASSERT(false);
+			}
+
+			// replace %i with the generated value
+			replace( inst.assembly, "%i", i);
+
+			// add to disassembly
+			ss << inst.assembly << "\n";
 		}
-
-		// replace %i with the generated value
-		replace( inst.assembly, "%i", i);
-
-		// add to disassembly
-		ret += inst.assembly + "\n";
 	}
 
-	return ret;
+	return ss.str();
 }
