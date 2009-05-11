@@ -71,6 +71,11 @@ Cpu6502::Cpu6502(unsigned char * rom, int rom_bytes) :
 
 }
 
+Cpu6502::Cpu6502(unsigned char * rom, int rom_bytes, int init_pc)
+{
+	Cpu6502(rom, rom_bytes);
+	PC = init_pc;
+}
 
 Cpu6502::~Cpu6502(){
 	delete[] memory;

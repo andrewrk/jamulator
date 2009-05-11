@@ -100,39 +100,39 @@ int main(int argc, char* argv[]) {
 	FILE* in;
 	int i;
 	size_t num_read;
-	
+
 #ifdef DEBUG
 	if(argc == 3 && strcmp(argv[1], "--test") == 0 ){
 		test6502(argv[2]);
 		exit(0);
 	}
 #endif
-	
-	
+
+
 	if( argc != 2 ){
 		printf("Usage: process_rom <rom_file>\n");
 		exit(-1);
 	}
-	
+
 	in = fopen(argv[1], "rb");
-	
+
 	// read NES header
 	num_read = fread(&head, sizeof(NES_header), 1, in);
-	
+
 	// check NES header
 	if( 		num_read != 1 ||
-		 		!	(head.id[0] == 'N' && head.id[1] == 'E' && 
-					head.id[2] == 'S' && head.h1A == 0x1A)				){
+			!	(head.id[0] == 'N' && head.id[1] == 'E' && 
+				head.id[2] == 'S' && head.h1A == 0x1A)				){
 		printf("I don't think this is an iNES file.\n");
 		exit(-1);
 	}
-		 
-	 // print info
+
+	// print info
 	printf("looks like an NES rom\n");
-	
+
 	printf("number of 16 KB ROM banks: %i\n", (int) head.num_rom_banks);
 	printf("number of 8 KB VROM banks: %i\n", (int) head.num_vrom_banks);
-	
+
 
 	if( head.four_screen ){
 		printf("Mirroring: four-screen\n");
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
 	} else {
 		printf("Mirroring: horizontal\n");
 	}
-	
+
 	if( head.battery_ram ){
 		printf("Battery packed ram: yes\n");
 	} else {
@@ -150,9 +150,9 @@ int main(int argc, char* argv[]) {
 
 	unsigned char mem_mapper = 
 		(head.rom_mapper_high << 4) | head.rom_mapper_low;
-	
+
 	printf("Mapper number: %i\n", (int) mem_mapper);
-	
+
 	if( head.trainer ){
 		printf("Trainer present: yes\n");
 	} else {
@@ -174,21 +174,21 @@ int main(int argc, char* argv[]) {
 	}
 
 	/*for(i=0; i<9; ++i){
-		printf("Reserved byte %i: %i\n", i, (int) head.reserved[i]);
-	} */
-	
+	  printf("Reserved byte %i: %i\n", i, (int) head.reserved[i]);
+	  } */
+
 	//read trainer
 	if( head.trainer ){
 		printf("Reading trainer...\n");
 		num_read = fread(trainer, sizeof(unsigned char), TRAINER_SIZE, in);
-		
+
 		if( num_read != TRAINER_SIZE ){
 			printf("Error reading trainer from file: I/O error.\n");
 			exit(-1);
 		}
 	}
-	
-	
+
+
 	//read ROM banks
 	printf("Reading ROM banks...\n");
 	rom_banks = (unsigned char **) malloc( sizeof(unsigned char *) * head.num_rom_banks );
@@ -198,20 +198,20 @@ int main(int argc, char* argv[]) {
 	}
 	for(i=0; i<head.num_rom_banks; ++i){
 		rom_banks[i] = (unsigned char *) malloc( sizeof(unsigned char) * CHRROM_SIZE );
-		
+
 		if( rom_banks[i] == NULL ){
 			printf("Out of memory allocating CHR-ROM bank %i.\n", i);
 			exit(-1);
 		}
-		
+
 		num_read = fread( rom_banks[i], CHRROM_SIZE, 1, in);
-		
+
 		if( num_read != 1 ){
 			printf("Error reading CHR-ROM bank %i from file: I/O error.\n", i);
 			exit(-1);
 		}
 	} 
-	
+
 	//read VROM banks
 	printf("Reading VROM banks...\n");
 	vrom_banks = (unsigned char **) malloc( sizeof(unsigned char *) * head.num_vrom_banks );
@@ -221,20 +221,20 @@ int main(int argc, char* argv[]) {
 	}
 	for(i=0; i<head.num_vrom_banks; ++i){
 		vrom_banks[i] = (unsigned char *) malloc( sizeof(unsigned char) * PRGROM_SIZE );
-		
+
 		if( vrom_banks[i] == NULL ){
 			printf("Out of memory allocating PRG-ROM bank %i.\n", i);
 			exit(-1);
 		}
-		
+
 		num_read = fread( vrom_banks[i], PRGROM_SIZE, 1, in);
-		
+
 		if( num_read != 1 ){
 			printf("Error reading PRG-ROM bank %i from file: I/O error.\n", i);
 			exit(-1);
 		}
 	}
-	
+
 	fclose(in);
 
 	int sum = sizeof(head) + head.num_vrom_banks * 8 * 1024 
@@ -242,7 +242,8 @@ int main(int argc, char* argv[]) {
 	printf("read %i bytes.\n", sum);
 
 	// disassemble
-	Cpu6502 emulator(rom_banks[0], 16 * 1024);
+	int pc = rom_banks[1][0xFFFD-0xC000] | (rom_banks[1][0xFFFC-0xC000] << 8);
+	Cpu6502 emulator(rom_banks[0], 16 * 1024, pc);
 	cout << emulator.disassemble() << endl;
 	
 	// emulate

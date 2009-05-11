@@ -1,0 +1,1522 @@
++---------------------------------------------+
+| Nintendo Entertainment System Documentation |
+|                                             |
+|   Author: JDC (yoshi@parodius.com)          |
+| Revision: 1.00                              |
++---------------------------------------------+
+
++-------------------+
+| Table of Contents |
++-------------------+
+
+        1. Introduction
+          A. Disclaimer
+          B. Why?
+          C. Mission
+          D. Dedications
+          E. "Thank You"s
+          F. About the Author
+          G. Contacting the Author
+        2. Terminology and Hardware
+          A. Terminology
+          B. Hardware
+          C. Notes
+        3. CPU
+          A. General Information
+          B. Memory Map
+          C. Interrupts
+          D. Notes
+        4. PPU
+          A. General Information
+          B. PPU Map
+          C. Name Tables
+          D. Pattern Tables
+          E. Attribute Tables
+          F. Palettes
+          G. Mirroring
+          H. Palette Mirroring
+          I. Background Scrolling
+          J. Sprites and SPR-RAM
+          K. Horizontal and Vertical Blanking
+          L. Mid-HBlank VRAM Writes
+          M. Notes
+        5. pAPU
+          A. General Information
+          B. Pulse Channels
+          C. Triangle Channel
+          D. Noise Channel
+          E. DMC (PCM) Channel
+          F. Notes
+        6. Joypads and other devices
+          A. General Information
+          B. The Zapper
+          C. Four-player devices
+          D. Paddles
+          E. Power Pad
+          F. R.O.B. (Robot Operated Buddy)
+          G. Signatures
+          H. Notes
+        7. Memory Mapping Hardware
+        8. Registers
+        9. File Formats
+          A. iNES Format (.NES)
+          B. Famicom Disk System (.DKA/.DKB/.500)
+          C. dNESe Format
+          D. fwNES Format
+          E. Notes
+       10. Programming the NES
+          A. General Information
+          B. CPU Notes
+          C. PPU Notes
+          D. Notes
+       11. Emulation
+          A. General Information
+          B. CPU Notes
+          C. PPU Notes
+          D. APU Notes
+          E. FAQ (Frequently Asked Questions)
+       12. Reference Material
+          A. CPU Information
+          B. PPU Information
+          C. APU Information
+          D. Memory Mapper Information
+          E. Mailing Lists
+
+
++-----------------+
+| 1. Introduction |
++-----------------+
+  
+  A. Disclaimer
+  -------------
+    I am in no way held responsible for the results of this information.
+    This is public-domain information, and should not be used for commercial
+    purposes.  If you wish to use this document for commercial purposes,
+    please contact me prior to development, so that I may discuss the outline
+    of your project with you. I am not trying to hinder anyone financially:
+    if you wish to do real Nintendo Entertainment System development, con-
+    tacting either Nintendo of America or Nintendo Company, Ltd. would be
+    wise. Their addresses are listed here:
+
+      Nintendo of America               Nintendo Company, Ltd.
+      P.O. Box 957                      60 Fukuine
+      Redmond, WA 98073                 Kamitakamatsu-cho,
+      USA                               Higashiyama-ku,
+                                        Koyoto 602, Japan
+
+    All titles of cartridges and console systems are registered trademarks
+    of their respective owners. (I just don't deem it necessary to list
+    every single one by hand :-) ).
+
+
+  B. Why?
+  -------
+    At the time this document was created, there was only one piece of lit-
+    erature covering the internals to the NES: Marat Fayzullin's documen-
+    tation, otherwise known as "NES.DOC".
+
+    While Fayzullin's documentation was lacking in many areas, it provided a
+    strong base for the basics, and in itself truly stated how complex the
+    little grey box was.
+
+    I took the opportunity to expand on "NES.DOC," basing other people's
+    findings, as well as my own, on experience; experience which has helped
+    make this document what it has become today. The beginning stages of this
+    document looked almost like a replica of Fayzullin's documentation, with
+    both minor and severe changes. Marat Fayzullin himself later picked up a
+    copy of my documentation, and later began referring people to it.
+
+    Keep in mind, without Marat's "NES.DOC" document, I would have never had
+    any incentive to write this one.
+
+
+  C. Mission
+  ----------
+    The goal of this document is simplistic: to provide accurate and (as
+    oxymoronic as it sounds) up-to-date information regarding the Nintendo
+    Entertainment System (and Famicom).
+
+
+  D. Dedications
+  --------------
+    I'd like to dedicate this document to Alex Krasivsky. Alex has been a
+    great friend, and in my eyes, truly started the ball of emulation
+    rolling. During the good times, and the bad times, Alex was there.
+    Spasibo, Alex; umnyj Russki...
+
+
+  E. "Thank You"s
+  ---------------
+    I'd like to take the time and thank all the people who helped make this
+    document what it is today. I couldn't have done it without all of you.
+
+      Acey                 - d0p@sofi.ah.dk
+      Alex Krasivsky       - bcat@lapkin.rosprint.ru
+      Avatar Z             - wwahlen@nfinity.com
+      Bluefoot             - danmcc@injersey.com
+      CiXeL                - <unknown>
+      Chris Hickman        - typhoonz@parodius.com
+      D                    - slf05@cc.usu.edu
+      Dan Boris            - dan.boris@coat.com
+      Donald Moore         - moore@futureone.com
+      FanWen Yang          - yangfanw@ms4.hinet.net
+      Fredrik Olsson       - flubba@hem2.passagen.se
+      Icer Addis           - bldlust@maelstrom.net
+      Jon Merkel           - jpm5974@omega.uta.edu
+      Kevin Horton         - khorton@iquest.net
+      Loopy                - loopy@inquo.net
+      Marat Fayzullin      - fms@cs.umd.edu
+      Mark Knibbs          - mark_k@iname.com
+      Matt Conte           - itsbroke@classicgaming.com
+      Matthew Richey       - mr6v@andrew.cmu.edu
+      MiKael Iushin        - acc@tulatelecom.ru
+      Mike Perry           - mj-perry@uiuc.edu
+      Morgan Johansson     - MOJ@nerikes.se
+      Neill Corlett        - corlett@elwha.nrrc.ncsu.edu
+      Pat Mccomack         - splat@primenet.com
+      Patrik Alexandersson - sp5alpa2@skolan.lysekil.se
+      Paul Robson          - AutismUK@aol.com
+      Ryan Auge            - rauge@hay.net
+      Stumble              - stumble@alpha.pulsar.net
+      Tony Young           - KBAAA@aol.com
+      Vince Indriolo       - indriolo@nm.picker.com
+      \FireBug\            - lavos999@aol.com
+
+
+  F. About the Author
+  -------------------
+    My name is Jeremy Chadwick, more commonly known as Y0SHi or JDC.
+
+    My profession is in UNIX system/network/security administration. I have
+    worked for a plethora of companies within the Bay Area of California
+    USA, and am currently located in Corvallis Oregon USA, and am quite
+    content with relocating to some other area within the west-coast of
+    the United States ( :-) ).
+
+    On top of the aforementioned, I'm also the founder of Parodius Net-
+    working, more commonly referred to as "parodius.com". Our network has
+    made a name for itself when it comes to providing console and emul-
+    ation-oriented materials. We never intended for it to become so popular,
+    but we are happy to be part of such a glorious and wonderful evolution.
+
+    I personally have been "online" since mid-1990. Originally I began BBS-
+    ing during my younger years, and got directed to the 'NET via a local
+    friend of mine. I've stuck with it ever since.
+
+    I've been programming computers since 1987, and consoles since July of
+    1994. I released my famous SNES Documentation (SNDOC230.ZIP) a few days
+    after Christmas of 1994. You can see more of my workings on my home
+    page.
+
+
+  G. Contacting the Author
+  ------------------------
+    Email: yoshi@parodius.com          Parodius Networking
+           yoshi@skipnet.com           33811 Twin Maple Lane
+      ICQ: #6279222                    Corvallis, OR 97333
+      IRC: Y0SHi or Y0SH (EFNet)       USA
+    Phone: +1 541-754-1094
+
+
+
++-----------------------------+
+| 2. Terminology and Hardware |
++-----------------------------+
+
+  A. Terminology
+  --------------
+    CPU     - Central Processing Unit: Self-explanitory. The NES uses a
+              standard 6502 (NMOS).
+    PPU     - Picture Processing Unit: Used to control graphics, sprites,
+              and other video-oriented features.
+    pAPU    - Pseuedo-Audio Processing Unit: Used for sound. The NES
+              contains five (5) audio channels: four (4) analogue, and one
+              (1) digital. There is no physical APU IC in the NES, as the
+              system is analogue, not digital. All analogue circuitry is
+              kept within the CPU.
+    MMC     - Multi-Memory Controller: Micro-controllers used in NES games
+              to access memory beyond the 6502 64Kbyte boundary. They can
+              also be used to access extra CHR-ROM, and may be used for
+              "special effects" such as forcing and IRQ, and other things.
+    VRAM    - Video RAM: The RAM which is internal to the PPU. There is
+              16kbits of VRAM installed in the NES.
+    SPR-RAM - Sprite RAM: 256 bytes of RAM which is used for sprites. It is
+              not part of VRAM nor ROM, though it's local to the PPU.
+    PRG-ROM - Program ROM: The actual program-code area of memory. Also can
+              be used to describe areas of code which are external to the
+              actual code area and are swapped in via an MMC.
+    PRG-RAM - Program RAM: Synonymous with PRG-ROM, except that it's RAM.
+    CHR-ROM - Character ROM: The VRAM data which is kept external to the PPU,
+              swapped in and out via an MMC, or "loaded" into VRAM during the
+              power-on sequence.
+    VROM    - Synonymous with CHR-ROM.
+    SRAM    - Save RAM: RAM which is commonly used in RPGs such as "Cry-
+              stalis," the Final Fantasy series, and "The Legend of Zelda."
+    WRAM    - Synonymous with SRAM.
+    DMC     - Delta Modulation Channel: The channel of the APU which handles
+              digital data. Commonly referred to as the PCM (Pulse Code
+              Modulation) channel.
+    EX-RAM  - Expansion RAM: This is the memory used within Nintendo's MMC5,
+              allowing games to extend the capabilities of VRAM.
+
+
+  B. Hardware
+  -----------
+    NES     - Nintendo Entertainment System: Self-explanitory.
+    Dendy   - Synonymous with the Famicom.
+    Famicom - Synonymous with the NES, except it does not contain the fifth
+              audio channel (DMC) nor any of it's registers.
+    FDS     - Famicom Disk System: Unit which sits atop the Famicom, support-
+              ing the use of 3" double-sided floppy disks for games.
+
+
+  C. Notes
+  --------
+    None.
+
+
+
++--------+
+| 3. CPU |
++--------+
+
+  A. General Information
+  ----------------------
+    The NES uses a standard NMOS 6502 CPU, with modifications applied for
+    audio. The NTSC NES runs at 1.7897725MHz, while the PAL version is at
+    1.773447MHz.
+
+
+  B. Memory Map
+  -------------
+    +---------+-------+-------+-----------------------+
+    | Address | Size  | Flags | Description           |
+    +---------+-------+-------+-----------------------+
+    | $0000   | $800  |       | RAM                   |
+    | $0800   | $800  | M     | RAM                   |
+    | $1000   | $800  | M     | RAM                   |
+    | $1800   | $800  | M     | RAM                   |
+    | $2000   | 8     |       | Registers             |
+    | $2008   | $1FF8 |  R    | Registers             |
+    | $4000   | $17   |       | Registers             |
+    | $4017   | $FE9  |   U   |                       |
+    | $5000   | $1000 |       | Expansion Modules     |
+    | $6000   | $2000 |       | SRAM                  |
+    | $8000   | $4000 |       | PRG-ROM               |
+    | $C000   | $4000 |       | PRG-ROM               |
+    +---------+-------+-------+-----------------------+
+           Flag Legend: M = Mirror of $0000
+                        R = Mirror of $2000-$2008 every 8 bytes
+                            (e.g. $2008=$2000, $2018=$2000, etc.)
+                        U = Unknown
+
+
+  C. Interrupts
+  -------------
+    The 6502 has three (3) interrupts: IRQ/BRK, NMI, and RESET.
+
+    Each interrupt has a vector. A vector is a 16-bit address which spec-
+    ifies a location to "jump to" when the interrupt is triggered.
+
+    IRQ/BRK is triggered when the 6502 executes the BRK instruction, or
+    when an IRQ is forced via other means. The BRK opcode is rarely used
+    for triggering this IRQ; most carts use it for their own use.
+
+    RESET is triggered on power-up. The ROM is loaded into memory, and
+    the 6502 jumps to the address specified in the RESET vector. No registers
+    are modified, and no memory is cleared; these only occur during power-up.
+
+    NMI stands for Non-Maskable Interrupt, and is generated by each refresh
+    (VBlank), which occurs at different intervals depending upon the system
+    used (PAL/NTSC).
+
+    NMI is updated 60 times/sec. on NTSC consoles, and 50 times/sec on PAL.
+    Interrupt latency on the 6502 is seven (7) cycles; this means it takes
+    seven (7) cycles to move in and out of an interrupt.
+
+    Most interrupts should return using the RTI instruction. Some NES carts
+    do not use this method, such as Squaresoft's "Final Fantasy 1." These
+    carts return from interrupts in a very odd fashion: by manipulating the
+    stack by hand, and then doing an RTS. This is technically valid, but
+    morally shunned.
+
+    The following interrupts have the following vector-points in ROM:
+
+      $FFFA = NMI
+      $FFFC = RESET
+      $FFFE = IRQ/BRK
+
+    Interrupt priorities are as follows:
+
+      Highest = RESET
+                NMI
+       Lowest = IRQ/BRK
+
+
+  D. Notes
+  --------
+    Please note the two separate 16K PRG-ROM segments; they may be linear,
+    but they play separate roles depending upon the size of the cartridge.
+    Some games only hold one (1) 16K bank of PRG-ROM, which should be
+    loaded into both $C000 and $8000.
+
+    Most games load themselves into $8000, using 32K of PRG-ROM space. The
+    first game to use this method is Super Mario Brothers. However, all
+    games wit more than one (1) 16K bank of PRG-ROM load themselves into
+    $8000 as well. These games use Memory Mappers to swap in and out PRG-ROM
+    data, as well as CHR-ROM.
+
+
+
++--------+
+| 4. PPU |
++--------+
+
+  A. General Information
+  ----------------------
+    None.
+
+
+  B. Memory Map
+  -------------
+    +---------+-------+-------+--------------------+
+    | Address | Size  | Flags | Description        |
+    +---------+-------+-------+--------------------+
+    | $0000   | $1000 | C     | Pattern Table #0   |
+    | $1000   | $1000 | C     | Pattern Table #1   |
+    | $2000   | $3C0  |       | Name Table #0      |
+    | $23C0   | $40   |       | Attribute Table #0 |
+    | $2400   | $3C0  |  M    | Name Table #1      |
+    | $27C0   | $40   |       | Attribute Table #1 |
+    | $2800   | $3C0  |  M    | Name Table #2      |
+    | $2BC0   | $40   |       | Attribute Table #2 |
+    | $2C00   | $3C0  |  M    | Name Table #3      |
+    | $2FC0   | $40   |       | Attribute Table #3 |
+    | $3000   | $F00  |   U   |                    |
+    | $3F00   | $10   |       | Image Palette #1   |
+    | $3F10   | $10   |       | Sprite Palette #1  |
+    | $3F20   | $E0   |    P  | Palette Mirror     |
+    +---------+-------+-------+--------------------+
+           Flag Legend: C = Possibly CHR-ROM
+                        M = Mirrored (see Subsection G)
+                        P = Mirrored (see Subsection H)
+                        U = Unused
+
+
+  C. Name Tables
+  --------------
+    The NES displays graphics using a matrix of "tiles"; this grid is called
+    a Name Table. Tiles themselves are 8x8 pixels. The entire Name Table
+    itself is 32x30 tiles (256x240 pixels). Keep in mind that the displayed
+    resolution differs between NTSC and PAL units. NTSC units have an on-
+    screen resolution of 256x224, while PAL units use 256x240.
+
+    The Name Tables holds the tile number of the data kept in the Pattern
+    Table (continue on).
+
+
+  D. Pattern Tables
+  -----------------
+    The Pattern Table contains the actual 8x8 tiles which the Name Table
+    refers to. It also holds the lower two (2) bits of the 4-bit colour
+    matrix needed to access all 16 colours of the NES palette. Example:
+
+       VRAM    Contents of                     Colour 
+       Addr   Pattern Table                    Result
+      ------ ---------------                  --------
+      $0000: %00010000 = $10 --+              ...1.... Periods are used to
+        ..   %00000000 = $00   |              ..2.2... represent colour 0.
+        ..   %01000100 = $44   |              .3...3.. Numbers represent
+        ..   %00000000 = $00   +-- Bit 0      2.....2. the actual palette
+        ..   %11111110 = $FE   |              1111111. colour #.
+        ..   %00000000 = $00   |              2.....2.
+        ..   %10000010 = $82   |              3.....3.
+      $0007: %00000000 = $00 --+              ........
+
+      $0008: %00000000 = $00 --+
+        ..   %00101000 = $28   |
+        ..   %01000100 = $44   |
+        ..   %10000010 = $82   +-- Bit 1
+        ..   %00000000 = $00   |
+        ..   %10000010 = $82   |
+        ..   %10000010 = $82   |
+      $000F: %00000000 = $00 --+
+
+    The result of the above Pattern Table is the character 'A', as shown
+    in the "Colour Result" section in the upper right.
+
+
+  E. Attribute Tables
+  -------------------
+    The Pattern Table contains the actual 8x8 tiles which the Name Table
+    refers to. It also holds the lower two (2) of the 4-bit colour matrix
+
+    Each byte in an Attribute Table represents a 4x4 group of tiles on the
+    screen. There's multiple ways to describe what the function of one (1)
+    byte in the Attribute Table does:
+
+      * Holds the upper two (2) bits of a 32x32 pixel grid, per 16x16 pixels.
+      * Holds the upper two (2) bits of sixteen (16) 8x8 tiles.
+      * Holds the upper two (2) bits of four (4) 4x4 tile grids.
+
+    It's quite confusing; two graphical diagrams may help:
+
+      +------------+------------+
+      |  Square 0  |  Square 1  |  #0-F represents an 8x8 tile
+      |   #0  #1   |   #4  #5   |
+      |   #2  #3   |   #6  #7   |  Square [x] represents four (4) 8x8 tiles
+      +------------+------------+   (i.e. a 16x16 pixel grid)
+      |  Square 2  |  Square 3  |
+      |   #8  #9   |   #C  #D   |
+      |   #A  #B   |   #E  #F   |
+      +------------+------------+
+
+    The actual format of the attribute byte is the following (and corris-
+    ponds to the above example):
+
+       Attribute Byte
+         (Square #)
+      ----------------
+          33221100
+          ||||||+--- Upper two (2) colour bits for Square 0 (Tiles #0,1,2,3)
+          ||||+----- Upper two (2) colour bits for Square 1 (Tiles #4,5,6,7)
+          ||+------- Upper two (2) colour bits for Square 2 (Tiles #8,9,A,B)
+          +--------- Upper two (2) colour bits for Square 3 (Tiles #C,D,E,F)
+
+
+  F. Palettes
+  -----------
+    The NES has two 16-colour "palettes": the Image Palette and the Sprite
+    Palette. These palettes are more of a "lookup table" than an actual
+    palette, since they do not hold physical RGB values.
+
+    Only the lower six (6) bits of each palette entry are used. The lower
+    four (4) bits define the hue (chrominance), and the upper two (2) bits
+    define the luminance (brightness). Saturation is based off of both the
+    hue and luminance values.
+
+    There are only twelve (12) possible hue values (1-12); any hue value
+    greater then twelve (12) will result in the entry being black. A hue
+    value of zero (0) results in no hue, meaning only the luminance value
+    is used (resulting in a shade of grey).
+
+    There are 52 possible colours, which includes two (2) possible shades of
+    grey, black, and white.
+
+    Specific mirroring (continue on) occurs between the two palettes. Due to
+    the mirroring, each palette can only support 13 unique colour entries,
+    making 26 the maximum number of colours on-screen.
+
+
+  G. Mirroring
+  ------------
+    Mirroring (otherwise known as shadowing) is the process of keeping two
+    "copies" of a Name Table in memory. Imagine yourself in front of a
+    mirror: anything you do, the mirror does. One cannot change the mirror
+    without changing the original. The NES only contains enough VRAM to
+    handle two (2) physical Name Tables, though this can be exterminated
+    using the Four-Screen VRAM method (continue reading).
+
+    Mirroring affects two (2) Name Tables simultaneously; you cannot switch
+    Name Tables independently. Mirroring can also be disabled.
+
+    The three (3) methods of mirroring: single-screen, "horizontal," and
+    "vertical." Each term is used to describe which Name Tables get mirrored
+    to what.
+
+    Single-screen provides no mirroring, and only uses one (1) Name Table.
+
+    Horizontal mirroring points Name Table #1 to #0, and #3 to #2. Vertical
+    mirroring points Name Table #2 to #0, and #3 to #1. See below:
+
+                     Original   Mirrored
+                     N. Table   N. Table
+      +------------+----------+----------+
+      | Horizontal |    #0    |    #1    |
+      |            |    #2    |    #3    |
+      +------------+----------+----------+
+      | Vertical   |    #0    |    #2    |
+      |            |    #1    |    #3    |
+      +------------+----------+----------+
+
+    Four-Screen VRAM is where the NES's VRAM is somehow extended, resulting
+    in four (4) physical Name Tables.
+
+
+  H. Palette Mirroring
+  --------------------
+    Mirroring also occurs within the Image Palette and the Sprite Palette,
+    as well as between the two.
+
+    Any data which is written to $3F00 is mirrored to $3F04, $3F08, $3F0C,
+    $3F10, $3F14, $3F18, and $3F1C. Any data written to $3F04 is mirrored
+    to $3F00, $3F08, $3F0C, etc..
+
+    Colour #0 in both the Image and Sprite Palettes defines transparency.
+
+    The entire Image and Sprite Palettes are both mirrored to other areas
+    of VRAM as well; $3F20-3FFF are mirrors of both palettes, respectively.
+
+
+
+  I. Background Scrolling
+  -----------------------
+    The NES can scroll the background (pre-rendered Name Table + Pattern
+    Table + Attribute Table) independently of the sprites which are over-
+    layed on top of it. The background can be scrolled horizontally and
+    vertically.
+
+    Scrolling works as follows:
+
+      Horizontal Scrolling             Vertical Scrolling
+        0          512
+        +-----+-----+                      +-----+ 0
+        |     |     |                      |     |
+        |  A  |  B  |                      |  A  |
+        |     |     |                      |     |
+        +-----+-----+                      +-----+
+                                           |     |
+                                           |  B  |
+                                           |     |
+                                           +-----+ 480
+
+    Name Table "A" is specified via Bits #0-1 in register $2000, and "B" is
+    the Name Table after (due to mirroring, this is dynamic). This doesn't
+    work for game which use Horizontal & Vertical scrolling simultaneously.
+
+    The background will span across multiple Name Tables, as shown here:
+
+      +---------------+---------------+
+      | Name Table #2 | Name Table #3 |
+      |    ($2800)    |    ($2C00)    |
+      +---------------+---------------+
+      | Name Table #0 | Name Table #1 |
+      |    ($2000)    |    ($2400)    |
+      +---------------+---------------+
+
+    Due to the resolution of the screen (256x240), the only valid vertical
+    scroll values which can be written to the Background Scroll Register
+    ($2005) are ones between 0 and 239. If a value is >239, it's ignored.
+
+    However, immediately after a VBlank occurs, the next write to $2005
+    will control the horizontal scrolling values. See details on register
+    $2005 for more information.
+
+    To quote Pat Mccomack:
+
+      "This stuff is used in smb1 (horizontal scrolling) but it's probably
+      the same way with other games. Scrolling seems to be scanline based,
+      ie during refresh the game can write different values to the scroll
+      register (usually they do this when they detect the sprite 0 hit via
+      reg $2002).  The scrolling screen layout also can change.  With horiz-
+      ontal scrolling, the name table at the first screen (0-255) is the one
+      specified in reg $2000, and the name table for the second screen
+      (256-512) is the opposite of the first one, based on mirroring I
+      guess."
+
+
+  J. Sprites and SPR-RAM
+  ----------------------
+    The NES supports 64 sprites, which can be either 8x8 or 8x16 pixels in
+    size. The sprite data is kept within the Pattern Table region of VRAM.
+
+    Sprite attributes such as flipping and priority, are stored in SPR-RAM,
+    which is a separate 256 byte area of memory, independent of ROM and
+    VRAM. The format of SPR-RAM is as follows:
+
+      +-----------+-----------+-----+------------+
+      | Sprite #0 | Sprite #1 | ... | Sprite #63 |
+      +-+-------+-+-----------+-----+------------+
+        |       |  
+        +------++---------+--------------------------------------+
+        + Byte | Bits     | Description                          |
+        +------+----------+--------------------------------------+
+        |  0   | YYYYYYYY | Y Coordinate - 1. Consider the coor- |
+        |      |          | dinate the upper-left corner of the  |
+        |      |          | sprite itself.                       |
+        |  1   | IIIIIIII | Tile Index #                         |
+        |  2   | vhp000cc | Attributes                           |
+        |      |          |   v = Vertical Flip   (1=Flip)       |
+        |      |          |   h = Horizontal Flip (1=Flip)       |
+        |      |          |   p = Background Priority            |
+        |      |          |         0 = In front                 |
+        |      |          |         1 = Behind                   |
+        |      |          |   c = Upper two (2) bits of colour   |
+        |  3   | XXXXXXXX | X Coordinate (upper-left corner)     |
+        +------+----------+--------------------------------------+
+
+    The Tile Index # is obtained the same way as Name Table data.
+
+    Sprites which are 8x16 in size function a little bit differently. A
+    8x16 sprite which is even-numbered uses the Pattern Table at $0000 in
+    VRAM. If the Sprite Tile # is odd, the sprite uses $1000 in VRAM.
+    *PLEASE NOTE*: Register $2000 has no effect on 8x16 sprites.
+
+    If a sprite has the the Sprite Priority bit set and has a higher priority
+    than a sprite at the same location, then the background will be in front
+    of both sprites. Konami's "Castlevania" cart uses this feature.
+
+    Only eight (8) sprites can be displayed per scan-line. Each entry in
+    SPR-RAM is checked to see if it's in a horizontal range with the other
+    sprites. Remember, this is done on a per scan-line basis, not on a per
+    sprite basis (e.g. done 256 times, not 256/8 or 256/16 times).
+
+
+  K. Horizontal and Vertical Blanking
+  -----------------------------------
+    The NES, like every console, has a refresh: where the display device
+    relocates the electron gun to display visible data. The most common
+    display device is a television set. The refresh occurs 60 times a
+    second on an NTSC device, and 50 on a PAL device.
+
+    The gun itself draws pixels left to right: this process results in
+    one (1) horizontal scanline being drawn. After the gun is done drawing
+    the entire scanline, the gun must return to the left side of the
+    display device, becoming ready to draw the next scanline. The process
+    of the gun returning to the left side of the display is the Horizontal
+    Blank period (HBlank).
+
+    When the gun has completed drawing all of the scanlines, it must return
+    to the top of the display device; the time it takes for the gun to
+    re-position itself atop the device is called the Vertical Blank period
+    (VBlank).
+
+    As you can see from the below diagram, the gun more or less works in
+    a zig-zag pattern until VBlank is reached, then the process repeats:
+
+           +-----------+
+      +--->|***********| <-- Scanline 0
+      |    | ___---~~~ | <-- HBlank
+      V    |***********| <-- Scanline 1
+      B    | ___---~~~ | <-- HBlank
+      l    |    ...    |      ...
+      a    |    ...    |      ...
+      n    |***********| <-- Scanline 239
+      k    +-----+-----+
+      |          |
+      +--VBlank--+
+
+    An NTSC NES has the following refresh and screen layout:
+
+      +--------+ 0 ----+
+      |        |       |
+      |        |       |
+      | Screen |       +-- (0-239) 256x240 on-screen results
+      |        |       |
+      |        |       |
+      +--------+ 240 --+
+      |   ??   |       +-- (240-242) Unknown usage
+      +--------+ 243 --+
+      |        |       |
+      | VBlank |       +-- (243-262) VBlank
+      |        |       |
+      +--------+ 262 --+
+
+    The Vertical Blank (VBlank) flag is contained in Bit #7 of $2002. It
+    indicates whether PPU is in VBlank or not. A program can reset Bit #7
+    by reading $2002.
+
+    The Hit Flag is contained in Bit #6 of $2002. This bit is set to 1 when
+    the PPU starts refreshing the first scanline where sprite #0 is located.
+    For example, if sprite #0's Y coordinate is 34, the Hit flag will be set
+    in scanline 34. The Hit Flag is set to 0 when a VBlank occurs.
+
+
+  L. Mid-HBlank VRAM Writes
+  -------------------------
+     VRAM writes can be executed during mid-HBlank. The PPU will continue
+     to update the screen at the current scanline; the data written will
+     be applied to a different scanline, and also affects the horizontal
+     scroll value. The format of the data written during mid-HBlank is:
+
+       BYTE 1: 00AA??vv
+       BYTE 2: vvvHHHHH
+
+     Horizontal Position = H*8
+     Vertical Position   = 0
+     Scanline            = (v*8)+AA
+
+
+  M. Notes
+  --------
+    VRAM is addressed via a 14-bit address, and will wrap on it's 16K
+    boundary (e.g. accesses to $4001 will read from $0001).
+
+    The PPU will auto-increment the VRAM address by 1 or 32 (based on
+    Bit #2 of $2000) after accessing $2007.
+
+    Information provided in the latter section of Subsection K may be
+    incorrect.
+
+
+
++---------+
+| 5. pAPU |
++---------+
+  
+  A. General Information
+  ----------------------
+    The NES uses a four (4) channel analogue synthesis chip to do it's
+    audio, and also has a fifth (5) channel for digital sound. Unlike the
+    SNES and it's SPC700, there is no IC APU on the NES: hence the name
+    'pAPU' (pseudo-APU). Analogue synthesis is achieved via oscillators,
+    resistors, transistors, and capacitors. Voltage is sent through these,
+    and certain aspects of each sound channel are controlled using registers.
+
+    The first two (2) channels are pulse (square), and the third (3) being
+    a triangle. The fourth (4) channel is a noise channel.
+
+    The fifth (5) channel is the DMC (PCM) channel.
+
+
+  B. Pulse Channels
+  -----------------
+    No information is currently available.
+
+
+  C. Triangle Channel
+  -------------------
+    The triangle channel's duty cycle is always 50/50.
+
+
+  D. Noise Channel
+  ----------------
+    No information is currently available.
+
+
+  E. DMC (PCM) Channel
+  --------------------
+    The DMC channel, commonly referred to as the 'PCM' channel, uses two
+    methods of digital audio playback: DMA and RAW.
+
+    The DMA method is most commonly used. The steps for playback are as
+    follows:
+
+      1) Set $4012 (DMC Address Register) to the 64-byte aligned offset
+         within PRG-ROM $C000-FFFF. For instance, if $8E is written here,
+         the sample data will be loaded from ($8E*64)+C000, or $E380.
+      2) Set $4013 (DMC Length Register) to the length of the sample data.
+         The sample length is defined as (16*x)+1, where x is the value
+         written.
+      3) Set $4010 (DMC Frequency Register) to whatever 4-bit frequency
+         you desire.
+      4) Set Bit #4 of $4015 (Channel Control) to 1, enabling the DMC
+         channel.
+
+    The sample data used for the DMA method is 1-bit unsigned data. The
+    actual format of the data is currently unknown, as is the latency of
+    playback.
+
+    The RAW method is used in carts such as Tengen's "Gauntlet 2," for
+    8-bit "high-quality" speech. The steps for playback are as follows:
+
+      1) Write the 8-bit value to $4011 (DMC Volume Register).
+
+
+  F. Notes
+  --------
+    The sound constant on the NES is 3579545/32, or 111860.78.
+
+
+
++------------------------------+
+| 6. Joypads and other devices |
++------------------------------+
+
+  A. General Information
+  ----------------------
+    The NES directly supports up to two (2) joypads, or one (1) joypad and
+    one (1) Zapper (light gun). It can also support four-player devices
+    which allow for the use of up to four (4) joypads simultaneously.
+
+    Both joypads are accessed via registers $4016 and $4017. Each joypad is
+    reset via a strobing-method: writing 1, then 0 to either register. From
+    there on, the joypad's button status will be returned in a single-bit
+    stream. Multiple reads need to be made to read all the information
+    about the controller.
+
+      1 = A          9 = Ignored   17 = +--+
+      2 = B         10 = Ignored   18 =    +-- Signature
+      3 = SELECT    11 = Ignored   19 =    |
+      4 = START     12 = Ignored   20 = +--+
+      5 = UP        13 = Ignored   21 = 0
+      6 = DOWN      14 = Ignored   22 = 0
+      7 = LEFT      15 = Ignored   23 = 0
+      8 = RIGHT     16 = Ignored   24 = 0
+
+    See Subsection G for information about Signatures.
+
+
+  B. The Zapper
+  -------------
+    No information is currently available.
+
+
+  C. Four-player devices
+  ----------------------
+    Some NES games allow the use of a four-player adapter, extending the
+    number of usable joypads from two (2) to four (4). Carts which use
+    the quad-player device are Tengen's "Gauntlet II," and Nintendo's
+    "RC Pro Am 2."
+
+    All four (4) controllers read their status-bits from Bit #0 (as
+    Subsection A states) of $4016 or $4017.
+
+    For register $4016, reads #1-8 control joypad #1, and reads #9-16
+    control joypad #3. For $4017, it is respective for joypad #2 and #4.
+
+    The following is a list of read #s and their results.
+
+      1 = A          9 = A         17 = +--+
+      2 = B         10 = B         18 =    +-- Signature
+      3 = SELECT    11 = SELECT    19 =    |
+      4 = START     12 = START     20 = +--+
+      5 = UP        13 = UP        21 = 0
+      6 = DOWN      14 = DOWN      22 = 0
+      7 = LEFT      15 = LEFT      23 = 0
+      8 = RIGHT     16 = RIGHT     24 = 0
+
+    See Subsection G for information about Signatures.
+
+
+  D. Paddles
+  ----------
+    Taito's "Arkanoid"  uses a paddle as it's primary controller.
+
+    The paddle position is read via Bit #1 of $4017; the read data is inver-
+    ted (0=1, 1=0). The first value read is the MSB, and the 8th value read
+    is (obviously) the LSB. Valid value ranges are 98 to 242, where 98 rep-
+    resents the paddle being turned completely counter-clockwise.
+
+    For example, if %01101011 is read, the value would be NOT'd, making
+    %10010100 which is 146.
+
+    The paddle also contains one button, which is read via Bit #1 of $4016.
+    A value of 1 defines the button being pressed.
+
+
+  E. Power Pad
+  ------------
+    No information is currently available.
+
+
+  F. R.O.B. (Robot Operated Buddy)
+  --------------------------------
+    No information is currently available.
+
+
+  G. Signatures
+  -------------
+    A signature allows the programmer to detect if a device is connected
+    to one of the four (4) ports or not, and if so, what type of device it
+    is. Valid/known signatures are:
+
+      %0000 = Disconnected
+      %0001 = Joypad ($4016 only)
+      %0010 = Joypad ($4017 only)
+
+
+  H. Notes
+  --------
+    None.
+
+
+
++----------------------------+
+| 7. Memory Mapping Hardware |
++----------------------------+
+
+  Due to the large number of mappers used (over 64), the "MMC" section
+  which was once fluid in v0.53 of this document, has now been removed.
+
+  All is not lost, as another document by \FireBug\ of Vertigo 2099 con-
+  tains accurate information about nearly every mapper in existence. You
+  can retrieve a copy via one of the following URLs:
+
+    http://free.prohosting.com/~nintendo/mappers.nfo
+
+  Please note I take no responsibility for the information contained in the
+  aforementioned document. Contact lavos999@aol.com for more information.
+
+
+
++--------------+
+| 8. Registers |
++--------------+
+  Programmers communicate with the PPU and pAPU via registers, which are
+  nothing more than pre-set memory locations which allow the coder to make
+  changes to the NES. Without registers, programs wouldn't work: period.
+
+  Each register is a 16-bit address. Each register has a statistics field
+  in parentheses located immediately after its description. The legend:
+
+    R = Readable                 W = Writable
+    2 = Double-write register    ? = Unknown or possibly incorrect
+
+  Underneath the description is a binary representation of each bit which
+  is part of the register itself. The legend:
+
+    0 = Always zero              1 = Always 1
+    - = Not used                 ? = Unknown
+
+    +---------+----------------------------------------------------------+
+    | Address | Description                                              |
+    +---------+----------------------------------------------------------+
+    |  $2000  | PPU Control Register #1 (W)                              |
+    |         |   %vMsbpiNN                                              |
+    |         |               v = Execute NMI on VBlank                  |
+    |         |                      1 = Enabled                         |
+    |         |               M = PPU Selection (unused)                 |
+    |         |                      0 = Master                          |
+    |         |                      1 = Slave                           |
+    |         |               s = Sprite Size                            |
+    |         |                      0 = 8x8                             |
+    |         |                      1 = 8x16                            |
+    |         |               b = Background Pattern Table Address       |
+    |         |                      0 = $0000 (VRAM)                    |
+    |         |                      1 = $1000 (VRAM)                    |
+    |         |               p = Sprite Pattern Table Address           |
+    |         |                      0 = $0000 (VRAM)                    |
+    |         |                      1 = $1000 (VRAM)                    |
+    |         |               i = PPU Address Increment                  |
+    |         |                      0 = Increment by 1                  |
+    |         |                      1 = Increment by 32                 |
+    |         |              NN = Name Table Address                     |
+    |         |                     00 = $2000 (VRAM)                    |
+    |         |                     01 = $2400 (VRAM)                    |
+    |         |                     10 = $2800 (VRAM)                    |
+    |         |                     11 = $2C00 (VRAM)                    |
+    |         |                                                          |
+    |         | NOTE: Bit #6 (M) has no use, as there is only one (1)    |
+    |         |       PPU installed in all forms of the NES and Famicom. |
+    +---------+----------------------------------------------------------+
+    |  $2001  | PPU Control Register #2 (W)                              |
+    |         |   %fffpcsit                                              |
+    |         |             fff = Full Background Colour                 |
+    |         |                    000 = Black                           |
+    |         |                    001 = Red                             |
+    |         |                    010 = Blue                            |
+    |         |                    100 = Green                           |
+    |         |               p = Sprite Visibility                      |
+    |         |                      1 = Display                         |
+    |         |               c = Background Visibility                  |
+    |         |                      1 = Display                         |
+    |         |               s = Sprite Clipping                        |
+    |         |                      0 = Sprites not displayed in left   |
+    |         |                          8-pixel column                  |
+    |         |                      1 = No clipping                     |
+    |         |               i = Background Clipping                    |
+    |         |                      0 = Background not displayed in     |
+    |         |                          left 8-pixel column             |
+    |         |                      1 = No clipping                     |
+    |         |               t = Display Type                           |
+    |         |                      0 = Colour display                  |
+    |         |                      1 = Mono-type (B&W) display         |
+    +---------+----------------------------------------------------------+
+    |  $2002  | PPU Status Register (R)                                  |
+    |         |   %vhsw----                                              |
+    |         |               v = VBlank Occurance                       |
+    |         |                      1 = In VBlank                       |
+    |         |               h = Sprite #0 Occurance                    |
+    |         |                      1 = VBlank has hit Sprite #0        |
+    |         |               s = Scanline Sprite Count                  |
+    |         |                      0 = Less than 8 sprites on the      |
+    |         |                          current scanline                |
+    |         |                      1 = More than 8 sprites on the      |
+    |         |                          current scanline                |
+    |         |               w = VRAM Write Flag                        |
+    |         |                      1 = Writes to VRAM are ignored      |
+    |         |                                                          |
+    |         | NOTE: If read during HBlank and Bit #7 of $2000 is set   |
+    |         |       to 0, then switch to Name Table #0.                |
+    |         | NOTE: After a read occurs, $2005 is reset, hence the     |
+    |         |       next write to $2005 will be Horizontal.            |
+    |         | NOTE: Bit #6 (h) is set to 0 after each VBlank.          |
+    |         | NOTE: Bit #6 (h) is not set until the first actual non-  |
+    |         |       transparent pixel is drawn. Hence, if you have a   |
+    |         |       8x8 sprite which has all pixels transparent except |
+    |         |       for pixel #4 (horizontally), Bit #6 will be set    |
+    |         |       after the 4th pixel is found & drawn.              |
+    |         | NOTE: Bit #7 (v) is set to 0 after read occurs.          |
+    |         +----------------------------------------------------------+
+    |         | PPU Status Register (W)                                  |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+    |  $2003  | SPR-RAM Address Register (W)                             |
+    |         |                                                          |
+    |         |  Specifies the 8-bit address in SPR-RAM to access via    |
+    |         |  $2004.                                                  |
+    +---------+----------------------------------------------------------+
+    |  $2004  | SPR-RAM I/O Register (RW)                                |
+    |         |                                                          |
+    |         |  Used to R/W 8-bit data to/from SPR-RAM.                 |
+    +---------+----------------------------------------------------------+
+    |  $2005  | Background Scroll Register (W2)                          |
+    |         |                                                          |
+    |         |  Used to pan/scroll the pre-rendered screen (excluding   |
+    |         |  sprites) horizontally and vertically. The data is       |
+    |         |  written in the following mannar:                        |
+    |         |                                                          |
+    |         |    BYTE 1: Horizontal                                    |
+    |         |    BYTE 2: Vertical                                      |
+    +---------+----------------------------------------------------------+
+    |  $2006  | VRAM Address Register (W2)                               |
+    |         |                                                          |
+    |         |  Specifies the 16-bit address in VRAM to access via      |
+    |         |  $2007. The data is written in the following mannar:     |
+    |         |                                                          |
+    |         |    BYTE 1: Upper 8-bit portion of effective address      |
+    |         |    BYTE 2: Lower 8-bit portion of effective address      |
+    +---------+----------------------------------------------------------+
+    |  $2007  | VRAM I/O Register (RW)                                   |
+    |         |                                                          |
+    |         |  Used to R/W 8-bit data to/from VRAM.                    |
+    +---------+----------------------------------------------------------+
+    |  $4000  | pAPU Pulse #1 Control Register #1 (W)                    |
+    |         |   %CCwessss                                              |
+    |         |              CC = Duty Cycle (Positive vs. Negative)     |
+    |         |                     00 = 87.5%                           |
+    |         |                     01 = 75.0%                           |
+    |         |                     10 = 50.0%                           |
+    |         |                     11 = 25.0%                           |
+    |         |               w = Waveform Hold (e.g. Looping)           |
+    |         |                      1 = On                              |
+    |         |               e = Envelope Select                        |
+    |         |                      0 = Varied                          |
+    |         |                      1 = Fixed                           |
+    |         |               s = Playback Rate                          |
+    +---------+----------------------------------------------------------+
+    |  $4001  | pAPU Pulse #1 Control Register #2 (W)                    |
+    |         |   %fsssMrrr                                              |
+    |         |               f = Frequency Sweep                        |
+    |         |                      0 = Off (Bits #0-6 ignored)         |
+    |         |                      1 = On  (Bits #0-6 respected)       |
+    |         |             sss = Frequency Change Speed                 |
+    |         |               M = Frequency Method                       |
+    |         |                      0 = High --> Low                    |
+    |         |                      1 = Low  --> High                   |
+    |         |             rrr = Frequency Range (0=Min, 7=Max)         |
+    +---------+----------------------------------------------------------+
+    |  $4002  | pAPU Pulse #1 Frequency Register #1 (W)                  |
+    |         |   %ffffffff                                              |
+    |         |               f = Frequency (lower 8-bits)               |
+    |         |                                                          |
+    |         | NOTE: The entire frequency is 11-bits in size; be aware  |
+    |         |       that the upper 3-bits are in $4003.                |
+    +---------+----------------------------------------------------------+
+    |  $4003  | pAPU Pulse #1 Frequency Register #2 (W)                  |
+    |         |   %tttttfff                                              |
+    |         |               t = Active Time Length                     |
+    |         |             fff = Frequency (upper 3-bits)               |
+    +---------+----------------------------------------------------------+
+    |  $4004  | pAPU Pulse #2 Control Register #1 (W)                    |
+    |         |   %CCwessss                                              |
+    |         |              CC = Duty Cycle (Positive vs. Negative)     |
+    |         |                     00 = 87.5%                           |
+    |         |                     01 = 75.0%                           |
+    |         |                     10 = 50.0%                           |
+    |         |                     11 = 25.0%                           |
+    |         |               w = Waveform Hold (e.g. Looping)           |
+    |         |                      1 = On                              |
+    |         |               e = Envelope Select                        |
+    |         |                      0 = Varied                          |
+    |         |                      1 = Fixed                           |
+    |         |               s = Playback Rate                          |
+    +---------+----------------------------------------------------------+
+    |  $4005  | pAPU Pulse #2 Control Register #2 (W)                    |
+    |         |   %fsssMrrr                                              |
+    |         |               f = Frequency Sweep                        |
+    |         |                      0 = Off (Bits #0-6 ignored)         |
+    |         |                      1 = On  (Bits #0-6 respected)       |
+    |         |             sss = Frequency Change Speed                 |
+    |         |               M = Frequency Method                       |
+    |         |                      0 = High --> Low                    |
+    |         |                      1 = Low  --> High                   |
+    |         |             rrr = Frequency Range (0=Min, 7=Max)         |
+    +---------+----------------------------------------------------------+
+    |  $4006  | pAPU Pulse #2 Frequency Register #1 (W)                  |
+    |         |   %ffffffff                                              |
+    |         |               f = Frequency (lower 8-bits)               |
+    |         |                                                          |
+    |         | NOTE: The entire frequency is 11-bits in size; be aware  |
+    |         |       that the upper 3-bits are in $4007.                |
+    +---------+----------------------------------------------------------+
+    |  $4007  | pAPU Pulse #2 Frequency Register #2 (W)                  |
+    |         |   %tttttfff                                              |
+    |         |               t = Active Time Length                     |
+    |         |             fff = Frequency (upper 3-bits)               |
+    +---------+----------------------------------------------------------+
+    |  $4008  | pAPU Triangle Control Register #1 (?)                    |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+    |  $4009  | pAPU Triangle Control Register #2 (?)                    |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+    |  $400A  | pAPU Triangle Frequency Register #1 (W)                  |
+    |         |   %ffffffff                                              |
+    |         |               f = Frequency (lower 8-bits)               |
+    |         |                                                          |
+    |         | NOTE: The entire frequency is 11-bits in size; be aware  |
+    |         |       that the upper 3-bits are in $400B.                |
+    +---------+----------------------------------------------------------+
+    |  $400B  | pAPU Triangle Frequency Register #2 (W)                  |
+    |         |   %tttttfff                                              |
+    |         |               t = Active Time Length                     |
+    |         |             fff = Frequency (upper 3-bits)               |
+    +---------+----------------------------------------------------------+
+    |  $400C  | pAPU Noise Control Register #1 (W)                       |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+    |  $400D  | pAPU Noise Control Register #2 (W)                       |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+    |  $400E  | pAPU Noise Frequency Register #1 (W)                     |
+    |         |   %ffffffff                                              |
+    |         |               f = Frequency (lower 8-bits)               |
+    |         |                                                          |
+    |         | NOTE: The entire frequency is 11-bits in size; be aware  |
+    |         |       that the upper 3-bits are in $400F.                |
+    +---------+----------------------------------------------------------+
+    |  $400F  | pAPU Noise Frequency Register #2 (W)                     |
+    |         |   %tttttfff                                              |
+    |         |               t = Active Time Length                     |
+    |         |             fff = Frequency (upper 3-bits)               |
+    +---------+----------------------------------------------------------+
+    |  $4010  | pAPU DMC Control Register (W)                            |
+    |         |   %i???ssss                                              |
+    |         |               i = Generate IRQ when finished             |
+    |         |                     1 = Enabled                          |
+    |         |               s = Frequency                              |
+    +---------+----------------------------------------------------------+
+    |  $4011  | pAPU DMC Volume Register (W)                             |
+    |         |                                                          |
+    |         |  Defines the 8-bit volume of the DMC channel. Can also   |
+    |         |  be used for RAW data playback.                          |
+    +---------+----------------------------------------------------------+
+    |  $4012  | pAPU DMC Address Register (W)                            |
+    |         |                                                          |
+    |         |  Defines the 64-byte aligned offset within PRG-ROM       |
+    |         |  $C000-FFFF for the sample data. ($4012*64)+$C000 is the |
+    |         |  effective address.                                      |
+    +---------+----------------------------------------------------------+
+    |  $4013  | pAPU DMC Data Length Register (W)                        |
+    |         |                                                          |
+    |         |  Defines the length of the sample data. ($4013*16)+1 is  |
+    |         |  the actual calculated length.                           |
+    +---------+----------------------------------------------------------+
+    |  $4014  | SPR-RAM DMA Register (W)                                 |
+    |         |                                                          |
+    |         |  Transfers 256 bytes of memory into SPR-RAM. The address |
+    |         |  read from is $100*N, where N is the value written.      |
+    +---------+----------------------------------------------------------+
+    |  $4015  | pAPU Status Register (R)                                 |
+    |         |   %0000000p                                              |
+    |         |               p = Status                                 |
+    |         |                      1 = pAPU in use                     |
+    |         +----------------------------------------------------------+
+    |         | pAPU Channel Control (W)                                 |
+    |         |   %---edcba                                              |
+    |         |               a = Pulse #1  (1=Enabled)                  |
+    |         |               b = Pulse #2  (1=Enabled)                  |
+    |         |               c = Triangle  (1=Enabled)                  |
+    |         |               d = Noise     (1=Enabled)                  |
+    |         |               e = DMC       (1=Enabled)                  |
+    +---------+----------------------------------------------------------+
+    |  $4016  | Joypad #1 (R)                                            |
+    |         |   %???STeed                                              |
+    |         |               S = Zapper Sprite Detection                |
+    |         |                      1 = Sprite in front of cross-hair   |
+    |         |               T = Zapper Trigger                         |
+    |         |                      0 = Pressed                         |
+    |         |              ee = Expansion Port Data                    |
+    |         |               d = Joypad Data                            |
+    |         +----------------------------------------------------------+
+    |         | Joypad #1 (W)                                            |
+    |         |   %?????ees                                              |
+    |         |              ee = Expansion Port Data                    |
+    |         |               s = Joypad Strobe                          |
+    |         |                      0 = Clear joypad strobe             |
+    |         |                      1 = Reset joypad strobe             |
+    +---------+----------------------------------------------------------+
+    |  $4017  | Joypad #2 (R)                                            |
+    |         |   %???STeed                                              |
+    |         |               S = Zapper Sprite Detection                |
+    |         |                      1 = Sprite in front of cross-hair   |
+    |         |               T = Zapper Trigger                         |
+    |         |                      0 = Pressed                         |
+    |         |              ee = Expansion Port Data                    |
+    |         |               d = Joypad Data                            |
+    |         +----------------------------------------------------------+
+    |         | Joypad #2 (W)                                            |
+    |         |   %????????                                              |
+    +---------+----------------------------------------------------------+
+
+
+
++-----------------+
+| 9. File Formats |
++-----------------+
+
+  A. iNES Format (.NES)
+  ---------------------
+    +--------+------+------------------------------------------+
+    | Offset | Size | Content(s)                               |
+    +--------+------+------------------------------------------+
+    |   0    |  3   | 'NES'                                    |
+    |   3    |  1   | $1A                                      |
+    |   4    |  1   | 16K PRG-ROM page count                   |
+    |   5    |  1   | 8K CHR-ROM page count                    |
+    |   6    |  1   | ROM Control Byte #1                      |
+    |        |      |   %####vTsM                              |
+    |        |      |    |  ||||+- 0=Horizontal Mirroring      |
+    |        |      |    |  ||||   1=Vertical Mirroring        |
+    |        |      |    |  |||+-- 1=SRAM enabled              |
+    |        |      |    |  ||+--- 1=512-byte trainer present  |
+    |        |      |    |  |+---- 1=Four-screen VRAM layout   |
+    |        |      |    |  |                                  |
+    |        |      |    +--+----- Mapper # (lower 4-bits)     |
+    |   7    |  1   | ROM Control Byte #2                      |
+    |        |      |   %####0000                              |
+    |        |      |    |  |                                  |
+    |        |      |    +--+----- Mapper # (upper 4-bits)     |
+    |  8-15  |  8   | $00                                      |
+    | 16-..  |      | Actual 16K PRG-ROM pages (in linear      |
+    |  ...   |      | order). If a trainer exists, it precedes |
+    |  ...   |      | the first PRG-ROM bank.                  |
+    | ..-EOF |      | CHR-ROM pages (in ascending order).      |
+    +--------+------+------------------------------------------+
+
+
+  B. Famicom Disk System (.DKA/.DKB/.500)
+  ---------------------------------------
+    +--------+------+---------------------------------------+
+    | Offset | Size | Content(s)                            |
+    +--------+------+---------------------------------------+
+    | [IMAGE HEADER]                                        |
+    |   0    |  1   | <Unknown>                             |
+    |   1    |  3   | Disk ID                               |
+    |   6    |  1   | Disk #                                |
+    |   38   |  1   | Disk # (???)                          |
+    |   63   |  1   | Amount of data blocks                 |
+    |                                                       |
+    | [DATA BLOCK HEADER]                                   |
+    |   64   |  1   | $03                                   |
+    |   65   |  1   | Block #                               |
+    |   66   |  1   | <Unknown>                             |
+    |   67   |  8   | Name                                  |
+    |   75   |  2   | Destination                           |
+    |   77   |  2   | Size of data                          |
+    |   79   |  1   | Data Type                             |
+    |        |      |   $00 = PRG-RAM                       |
+    |        |      |   $01 = CHR-ROM                       |
+    |        |      |   $02 = 6-bit audio data              |
+    | 79-..  |      | Data                                  |
+    |  ...   |      |                                       |
+    |  ...   |      | Repeat loading DATA BLOCKS HEADERS as |
+    |  ...   |      | shown above; continue loading until   |
+    | ..-EOF |      | EOF is reached.                       |
+    +--------+------+---------------------------------------+
+
+
+  C. dNESe Format
+  ---------------
+    Information unavailable. Contact Ryan Auge for details.
+
+
+  D. fwNES Format
+  ---------------
+    Information unavailable.
+
+
+  E. Notes
+  --------
+    The Famicom Disk System format bases disk sides on the file extension;
+    .DKA being Side-A, and .DKB being Side-B. Each side of a disk is 64K
+    in size, hence both files should be exactly 65536 bytes in size.
+
+
+
++-------------------------+
+| 10. Programming the NES |
++-------------------------+
+
+  A. General Information
+  ----------------------
+    None.
+
+
+  B. CPU Notes
+  ------------
+    None. See Section 11, Subsection B for more possible information.
+
+
+  C. PPU Notes
+  ------------
+    Reading and writing to VRAM consist of a tri or quad-step process
+    (Step #1 being optional, based on if you wish to do mid-HBlank updates
+    or not):
+
+      Writing to VRAM                    Reading from VRAM
+      ---------------                    -----------------
+      1) Wait for VBlank                 1) Wait for VBlank
+      2) Write upper VRAM address        2) Write upper VRAM address
+         byte into $2006                    byte into $2006
+      3) Write lower VRAM address        3) Write lower VRAM address
+         byte into $2006                    byte into $2006
+      4) Write data to $2007             4) Read data from $2007
+
+    *** NOTE: Accessing VRAM should only be performed during VBlank.
+    Attempts to access VRAM outside of VBlank will usually result in
+    a mid-HBlank access (See Section 4, Subsection L). This is probably
+    not what you want.
+
+    Waiting for VBlank is quite simple. In most cases, you will simply
+    want to wait for it to start. In other cases (such as for a delay),
+    waiting for VBlank to start _AND_ end is useful.
+
+      VBlank Start                      VBlank Start & End
+      ------------                      ------------------
+      L1  LDA $2002                     L1  LDA $2002
+          BPL L1                            BPL L1
+                                        L2  LDA $2002
+                                            BMI L2
+
+    Reading $2002 will result in all bits being returned; however, Bit
+    #7 (VBlank) will be reset to 0 after the read is performed. Many
+    Squaresoft games use this method to reset the status of VBlank, so
+    that they may do mid-HBlank updates.
+
+    The actual on-screen palette used by the NES, as stated prior, is not
+    RGB. However, a near-exact replica can be found in common NES emulators
+    today. Contact the appropriate authors of these emulators to obtain
+    a valid RGB palette.
+
+
+  D. Notes
+  --------
+    None.
+
+
+
++---------------+
+| 11. Emulation |
++---------------+
+
+  A. General Information
+  ----------------------
+    If you're going to be programming an emulator in C or C++, please be
+    familiar with pointers. Being familiar with pointers will help you
+    out severely when it comes to handling mirroring and VRAM addressing.
+    For you assembly buffs out there, obviously pointers are nothing more
+    than indirect addressing -- it's easier to change a 32-bit value than
+    to swap in and out an entire 64K of data.
+
+    See Section 12, Subsection E for Mailing List information.
+
+
+  B. CPU Notes
+  ------------
+    The NES does not use a 65C02 (CMOS) CPU as rumored.
+
+    The 6502 has a bug in opcode $6C (jump absolute indirect). The CPU does
+    not correctly calculate the effective address if the low-byte is $FF.
+    Example:
+
+      $C000: 4F
+      $C1FF: 00
+      $C200: 23
+        ..
+      $D000: 6C FF C1 - JMP ($C1FF)
+
+    Logically, this will jump to address $2300. However, due to the fact
+    that the high-byte of the calculate address is *NOT* increased on a
+    page-wrap, this will actually jump to $4F00.
+
+    Ignore opcodes which are bad (or support the option of trapping bad
+    opcodes or not). Some ROM images out there, such as "Adventures of
+    Lolo" have bad opcodes in them, due to dirty connectors on the cart-
+    ridge during the extraction process, or other reasons.
+
+
+  C. PPU Notes
+  ------------
+    The formulae to calculate the base address of a Name Table tile number
+    is:
+
+      (TILENUM * 16) + PATTERNTABLE
+
+    Where TILENUM is the tile number in the Name Table, and PATTERNTABLE
+    is the Pattern Table Address defined via register $2000.
+
+    It's recommended that DOS programmers use what is known as "MODE-Q,"
+    a 256x256x256 "tweaked" video mode, for writing their emulator. Try to
+    avoid Mode-X modes, as they are non-chained, and result in painfully
+    slow graphics. Chained modes (like MODE-13h) are linear, and work
+    best for speedy graphics. Since the NES's resolution is 256x240, the
+    aforementioned "MODE-Q" should meet all necessary requirements.
+
+    Most emulators do not limit the number of sprites which can be displayed
+    per scanline, while the actual NES will show flicker as a result of more
+    than eight (8). {Put some more garbage here; it's early...}
+
+    Emulators should _NOT_ mask out unused bits within registers; doing so
+    may result in a cart not working.
+
+    Some emulators choose to store 0 as the vertical scroll value of the
+    background if a value >239 is written to $2005. I don't know if this
+    method of implementation is "correct."
+
+
+  D. APU Notes
+  ------------
+    The following formulae can be used to obtain accurate playback of the
+    pulse, triangle, and noise channel(s):
+
+      Pulse1 = 111860.78 / ($4002 + ($4003 & 7))
+      Pulse2 = 111860.78 / ($4006 + ($4007 & 7))
+      Tri    = 111860.78 / ($400A + ($400B & 7) / 2)
+      Noise  = 111860.78 / ($400E + ($400F & 7))
+
+    Where the $400x values are actually taken from their respective
+    registers.
+
+
+  E. FAQ (Frequently Asked Questions)
+  -----------------------------------
+    Not available.
+
+
+
++------------------------+
+| 12. Reference Material |
++------------------------+
+
+  A. CPU Information
+  ------------------
+    None.
+
+
+  B. PPU Information
+  ------------------
+    None.
+
+
+  C. APU Information
+  ------------------
+    None.
+
+
+  D. MMC Information
+  ------------------
+    None.
+
+
+  E. Mailing Lists
+  ----------------
+    There is a NES Development Mailing List in existence. Contact Mark Knibbs
+    for more information. This list is for anyone who wishes to discuss tech-
+    nical issues about the NES; it is not a list for picking up the latest
+    and greatest information about NES emulators or what not.
+
+
+

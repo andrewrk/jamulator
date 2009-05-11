@@ -17,7 +17,9 @@ typedef struct {
 class Cpu6502 {
 	public:
 		// instantiate a processor which will copy the memory
-		Cpu6502(unsigned char * rom, int rom_bytes);
+		Cpu6502(unsigned char * rom, int rom_size);
+		// specify a starting program counter
+		Cpu6502(unsigned char * rom, int rom_size, int init_pc);
 		~Cpu6502();
 		
 		// run the cpu for num_cycles. 0 
