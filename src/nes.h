@@ -32,7 +32,7 @@
 #include <string>
 #include <gmodule>
 #include "SDL.h"
-#include "M6502/M6502.h"
+#include "cpu_6502.h"
 
 #include "joy_config.h"
 #include "nes_exceptions.h"
@@ -79,8 +79,8 @@ class Nes {
 		typedef struct {
 			byte id[4]; // "NES\01A"
 
-			byte num_rom_banks; //number of 16 KB ROM banks
-			byte num_vrom_banks; //number of 8 KB VROM banks
+			byte num_prg_banks; //number of 16 KB ROM banks
+			byte num_chr_banks; //number of 8 KB VROM banks
 			
 			unsigned int mirroring:1; // 1 for vertical, 0 for horizontal
 			unsigned int battery_ram:1; // 1 for battery-backed RAM $6000-$7FFF
@@ -111,16 +111,15 @@ class Nes {
 		const int trainer_size = 512;
 		const int ram_size = 8192; // 8 KB
 
-		const int cycles_per_vblank = 29829.541666667; // nestreme uses 27120
-
 		const int pal_cycles_per_sec = 1773447;
 		const int pal_screen_width = 256;
 		const int pal_screen_height = 240;
-		const int pal_nmi = 
+		const int pal_nmi = 35469 // pal_cycles_per_sec / 50
 
 		const int ntsc_cycles_per_sec =	1789773; // it's actually 1789772.5
 		const int ntsc_screen_width = 256;
 		const int ntsc_screen_height = 224;
+		const int ntsc_nmi = 29830; // ntsc_cycles_per_sec / 60
 
 		// cartridge data
 		NES_header cart_data;
@@ -137,7 +136,13 @@ class Nes {
 		byte * bank2;
 
 		//CPU memory data
-		byte memory[cpu_mem_size];
+		byte cpu_memory[cpu_mem_size];
+		Cpu6502 * cpu; // the CPU emulator
+
+		// dependent on PAL/NTSC
+		int clock_speed;
+		int screen_width, screen_height;
+		int nmi_period;
 		
 		// memory mapper class
 		MemoryMapper * mmc;
@@ -145,6 +150,14 @@ class Nes {
 		// connection module for the MemoryMapper plugin
 		GModule * mm_module;
 		void (*mm_destroy)(MemoryMapper * mm);
+
+		// callback function from the CPU to check for interupts 
+		Cpu6502::InteruptType cpuLoop();
+
+		// PPU data
+		byte * patternTables[2]; // pattern table pointers
+		byte * nameTables[4]; // name table pointers
+		byte * ppu_memory[0x4000]; // memory for the PPU
 	
 	// MemoryMapper needs to be extremely fast and have access
 	// to all emulated memory

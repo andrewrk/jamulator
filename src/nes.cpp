@@ -12,7 +12,8 @@ Nes::Nes(string &file) :
 	trainer(NULL),
 	mmc(NULL),
 	mm_module(NULL),
-	mm_destroy(NULL)
+	mm_destroy(NULL),
+	cpu(NULL)
 {
 	// load the file into memory
 	ifstream in(file, ios::in|ios::binary|ios::ate);
@@ -44,6 +45,73 @@ Nes::Nes(string &file) :
 		return;
 	}
 	
+	// load the trainer
+	if( cart_data.trainer ){
+		trainer = new byte[trainer_size];
+		in.read(trainer, trainer_size);
+	}
+
+	// load the ROM banks
+	prg_banks = new byte[cart_data.num_prg_banks*prgrom_size];
+	in.read(prg_banks, cart_data.num_prg_banks*prgrom_size);
+
+	// load the VROM banks
+	chr_banks = new byte[cart_data.num_chr_banks*chrrom_size];
+	in.read(chr_banks, cart_data.num_chr_banks*chrrom_size);
+
+	// configure for PAL or NTSC
+	if( cart_data.screen_type ){
+		// PAL
+		clock_speed = pal_cycles_per_sec;
+		screen_width = pal_screen_width;
+		screen_height = pal_screen_height;
+		nmi_period = pal_nmi;
+	} else {
+		// NTSC
+		clock_speed = ntsc_cycles_per_sec;
+		screen_width = ntsc_screen_width;
+		screen_height = ntsc_screen_height;
+		nmi_period = ntsc_nmi;
+	}
+
+
+	// configure the ROM bank pointers
+	if( cart_data.num_prg_banks == 1 ){
+		// if there is only one bank, $C000 and $8000 should mirror each other
+		bank1 = bank2 = prg_banks;
+	} else {
+		// else initialize the banks to the first 2 pages
+		bank1 = prg_banks;
+		bank2 = prg_banks+prgrom_size;
+	}
+
+	// initialize the PPU
+	patternTables[0] = chr_banks;
+	patternTables[1] = chr_banks + chrrom_size;
+	
+	// name table pointers depend on mirroring of the ROM
+	if( cart_data.four_screen ){
+		// TODO
+		cerr << "four screen not supported yet" << endl;
+		throw MissingMapperException;
+	} else if( cart_data.mirroring ){
+		// vertical mirroring
+		// name tables 0 and 2 point to the first name table and
+		// name tables 1 and 3 point to the second name table
+		nameTables[0] = 0x2000;
+		nameTables[1] = 0x2400;
+		nameTables[2] = 0x2000;
+		nameTables[3] = 0x2400;
+	} else {
+		// horizontal mirroring
+		// name tables 0 and 1 point to the first table and
+		// name tables 2 and 3 point to the second table
+		nameTables[0] = 0x2000;
+		nameTables[1] = 0x2000;
+		nameTables[2] = 0x2400;
+		nameTables[3] = 0x2400;
+	}
+
 	// set up the memory mapper
 	byte mem_mapper = 
 		(cart_data.rom_mapper_high << 4) | cart_data.rom_mapper_low;
@@ -69,38 +137,33 @@ Nes::Nes(string &file) :
 		throw MissingMapperException;
 		return;
 	}
+	mmc->initialize(this);
 
-	// load the trainer
-	if( cart_data.trainer ){
-		trainer = new byte[trainer_size];
-		in.read(trainer, trainer_size);
-	}
-
-	// configure for PAL or NTSC
-	if( cart_data.screen_type ){
-		// PAL
-		
-	} else {
-		// NTSC
-
-	}
-
-	// create a 6502 emulator
-
+	// create the 6502 CPU emulator
+	cpu = new Cpu6502(clock_speed, nmi_period, 
+		&cpuLoop, &mmc->readByte, &mmc->writeByte);
 }
+
 // attach the screen to surface
 Nes::Nes(string &file, SDL_Surface* surface){
 	Nes(file);
 	attachScreen(surface);
 }
+
 // destructor
 Nes::~Nes(){
+	if( cpu != NULL ) delete cpu;
 	if( prg_banks != NULL ) delete[] prg_banks;
 	if( chr_banks != NULL ) delete[] chr_banks;
 	if( trainer != NULL ) delete[] trainer;
 
 	if( mm_destroy != NULL ) mm_destroy(); // this replaces delete mmc
 	if( mm_module != NULL )	g_module_close(mm_module);
+}
+
+// callback function for the CPU
+Nes::InteruptType Nes::cpuLoop() {
+	
 }
 
 // run the cpu for cycles cycles, returns how many it actually ran,

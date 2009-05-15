@@ -54,13 +54,13 @@ class Cpu6502 {
 			int interupt_check, 
 			// after interupt_check cycles, call this function
 			// to check for an interupt.
-			InteruptType (*loopCallback)(Cpu6502* cpu),
+			InteruptType (*loopCallback)(),
 			// read from memory callback. this function should
 			// return the byte at the address
-			byte (*readFunc)(Cpu6502* cpu, word address),
+			byte (*readFunc)(word address),
 			// write to memory callback. this function should
 			// write byte to memory at address
-			void (*writeFunc)(Cpu6502* cpu, word address, byte value)
+			void (*writeFunc)(word address, byte value)
 		);
 		~Cpu6502();
 
@@ -144,9 +144,9 @@ class Cpu6502 {
 		int clock_speed;
 
 		// callback functions
-		InteruptType (*loopCallback)(Cpu6502* cpu);
-		byte (*readFunc)(Cpu6502* cpu, word address);
-		void (*writeFunc)(Cpu6502* cpu, word address, byte value);
+		InteruptType (*loopCallback)();
+		byte (*readFunc)(word address);
+		void (*writeFunc)(word address, byte value);
 		
 		// how often to check for interupts
 		int interupt_period;

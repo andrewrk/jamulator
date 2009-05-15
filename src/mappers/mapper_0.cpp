@@ -12,9 +12,17 @@ export "C" {
 
 class Mapper0 : public MemoryMapper {
 	public:
-
-		void initialize(){
+		
+		MemoryMapper(){
 			// nothing to do
+		}
+
+		~MemoryMapper(){
+			//nothing to do
+		}
+
+		void initialize(Nes * _system){
+			system = _system;
 		}
 
 		byte readByte(word address){
@@ -31,12 +39,12 @@ class Mapper0 : public MemoryMapper {
 				system->bank2[address-0xC000] = value;
 		}
 	private:
-
+		Nes * system; // pointer to Nes object so we can access memory
 };
 
 // factory methods
 MemoryMapper * create() {
-	return new Mapper0;
+	return new Mapper0();
 }
 
 void destroy(MemoryMapper * obj){

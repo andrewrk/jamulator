@@ -7,59 +7,59 @@ using namespace std;
 /** These macros calculate and return effective addresses.  **/
 /*************************************************************/
 #define MC_Ab(Rg)	M_LDWORD(Rg)
-#define MC_Zp(Rg)       Rg.w=readFunc(this,pc.w++)
-#define MC_Zx(Rg)       Rg.w=(byte)(readFunc(this,pc.w++)+xr)
-#define MC_Zy(Rg)       Rg.w=(byte)(readFunc(this,pc.w++)+yr)
+#define MC_Zp(Rg)       Rg.w=readFunc(pc.w++)
+#define MC_Zx(Rg)       Rg.w=(byte)(readFunc(pc.w++)+xr)
+#define MC_Zy(Rg)       Rg.w=(byte)(readFunc(pc.w++)+yr)
 #define MC_Ax(Rg)	M_LDWORD(Rg);Rg.w+=xr
 #define MC_Ay(Rg)	M_LDWORD(Rg);Rg.w+=yr
-#define MC_Ix(Rg)       K.w=(byte)(readFunc(this,pc.w++)+xr); \
-			Rg.b.l=readFunc(this,K.w++);Rg.b.h=readFunc(this,K.w)
-#define MC_Iy(Rg)       K.w=readFunc(this,pc.w++); \
-			Rg.b.l=readFunc(this,K.w++);Rg.b.h=readFunc(this,K.w); \
+#define MC_Ix(Rg)       K.w=(byte)(readFunc(pc.w++)+xr); \
+			Rg.b.l=readFunc(K.w++);Rg.b.h=readFunc(K.w)
+#define MC_Iy(Rg)       K.w=readFunc(pc.w++); \
+			Rg.b.l=readFunc(K.w++);Rg.b.h=readFunc(K.w); \
 			Rg.w+=yr
 
 /** Reading From Memory **************************************/
 /** These macros calculate address and read from it.        **/
 /*************************************************************/
-#define MR_Ab(Rg)	MC_Ab(J);Rg=readFunc(this,J.w)
-#define MR_Im(Rg)	Rg=readFunc(this,pc.w++)
-#define	MR_Zp(Rg)	MC_Zp(J);Rg=readFunc(this,J.w)
-#define MR_Zx(Rg)	MC_Zx(J);Rg=readFunc(this,J.w)
-#define MR_Zy(Rg)	MC_Zy(J);Rg=readFunc(this,J.w)
-#define	MR_Ax(Rg)	MC_Ax(J);Rg=readFunc(this,J.w)
-#define MR_Ay(Rg)	MC_Ay(J);Rg=readFunc(this,J.w)
-#define MR_Ix(Rg)	MC_Ix(J);Rg=readFunc(this,J.w)
-#define MR_Iy(Rg)	MC_Iy(J);Rg=readFunc(this,J.w)
+#define MR_Ab(Rg)	MC_Ab(J);Rg=readFunc(J.w)
+#define MR_Im(Rg)	Rg=readFunc(pc.w++)
+#define	MR_Zp(Rg)	MC_Zp(J);Rg=readFunc(J.w)
+#define MR_Zx(Rg)	MC_Zx(J);Rg=readFunc(J.w)
+#define MR_Zy(Rg)	MC_Zy(J);Rg=readFunc(J.w)
+#define	MR_Ax(Rg)	MC_Ax(J);Rg=readFunc(J.w)
+#define MR_Ay(Rg)	MC_Ay(J);Rg=readFunc(J.w)
+#define MR_Ix(Rg)	MC_Ix(J);Rg=readFunc(J.w)
+#define MR_Iy(Rg)	MC_Iy(J);Rg=readFunc(J.w)
 
 /** Writing To Memory ****************************************/
 /** These macros calculate address and write to it.         **/
 /*************************************************************/
-#define MW_Ab(Rg)	MC_Ab(J);writeFunc(this,J.w,Rg)
-#define MW_Zp(Rg)	MC_Zp(J);writeFunc(this,J.w,Rg)
-#define MW_Zx(Rg)	MC_Zx(J);writeFunc(this,J.w,Rg)
-#define MW_Zy(Rg)	MC_Zy(J);writeFunc(this,J.w,Rg)
-#define MW_Ax(Rg)	MC_Ax(J);writeFunc(this,J.w,Rg)
-#define MW_Ay(Rg)	MC_Ay(J);writeFunc(this,J.w,Rg)
-#define MW_Ix(Rg)	MC_Ix(J);writeFunc(this,J.w,Rg)
-#define MW_Iy(Rg)	MC_Iy(J);writeFunc(this,J.w,Rg)
+#define MW_Ab(Rg)	MC_Ab(J);writeFunc(J.w,Rg)
+#define MW_Zp(Rg)	MC_Zp(J);writeFunc(J.w,Rg)
+#define MW_Zx(Rg)	MC_Zx(J);writeFunc(J.w,Rg)
+#define MW_Zy(Rg)	MC_Zy(J);writeFunc(J.w,Rg)
+#define MW_Ax(Rg)	MC_Ax(J);writeFunc(J.w,Rg)
+#define MW_Ay(Rg)	MC_Ay(J);writeFunc(J.w,Rg)
+#define MW_Ix(Rg)	MC_Ix(J);writeFunc(J.w,Rg)
+#define MW_Iy(Rg)	MC_Iy(J);writeFunc(J.w,Rg)
 
 /** Modifying Memory *****************************************/
 /** These macros calculate address and modify it.           **/
 /*************************************************************/
-#define MM_Ab(Cmd)	MC_Ab(J);I=readFunc(this,J.w);Cmd(I);writeFunc(this,J.w,I)
-#define MM_Zp(Cmd)	MC_Zp(J);I=readFunc(this,J.w);Cmd(I);writeFunc(this,J.w,I)
-#define MM_Zx(Cmd)	MC_Zx(J);I=readFunc(this,J.w);Cmd(I);writeFunc(this,J.w,I)
-#define MM_Ax(Cmd)	MC_Ax(J);I=readFunc(this,J.w);Cmd(I);writeFunc(this,J.w,I)
+#define MM_Ab(Cmd)	MC_Ab(J);I=readFunc(J.w);Cmd(I);writeFunc(J.w,I)
+#define MM_Zp(Cmd)	MC_Zp(J);I=readFunc(J.w);Cmd(I);writeFunc(J.w,I)
+#define MM_Zx(Cmd)	MC_Zx(J);I=readFunc(J.w);Cmd(I);writeFunc(J.w,I)
+#define MM_Ax(Cmd)	MC_Ax(J);I=readFunc(J.w);Cmd(I);writeFunc(J.w,I)
 
 /** Other Macros *********************************************/
 /** Calculating flags, stack, jumps, arithmetics, etc.      **/
 /*************************************************************/
 #define M_FL(Rg)	st=(st&~(FlagZ|FlagN))|zn_table[Rg]
-#define M_LDWORD(Rg)	Rg.b.l=readFunc(this,pc.w++);Rg.b.h=readFunc(this,pc.w++)
+#define M_LDWORD(Rg)	Rg.b.l=readFunc(pc.w++);Rg.b.h=readFunc(pc.w++)
 
-#define M_PUSH(Rg)	writeFunc(this, 0x0100|sp,Rg);sp--
-#define M_POP(Rg)	sp++;Rg=readFunc(this, 0x0100|sp)
-#define M_JR		pc.w+=(offset)readFunc(this, pc.w)+1;cycles_left--
+#define M_PUSH(Rg)	writeFunc( 0x0100|sp,Rg);sp--
+#define M_POP(Rg)	sp++;Rg=readFunc( 0x0100|sp)
+#define M_JR		pc.w+=(offset)readFunc( pc.w)+1;cycles_left--
 
 #ifdef NO_DECIMAL
 
@@ -167,8 +167,8 @@ void Cpu6502::reset() {
 	ac = xr = yr = 0x00;
 	st = FlagZ|FlagR;
 	sp = 0xFF;
-	pc.b.l = readFunc(this, 0xFFFC);
-	pc.b.h = readFunc(this, 0xFFFD);
+	pc.b.l = readFunc( 0xFFFC);
+	pc.b.h = readFunc( 0xFFFD);
 	
 	cycles_left = interupt_period;
 }
@@ -189,8 +189,8 @@ void Cpu6502::interupt(byte type){
 			st |= FlagI;
 			J.w = 0xFFFE;
 		}
-		pc.b.l=readFunc(this, J.w++);
-		pc.b.h=readFunc(this, J.w);
+		pc.b.l=readFunc( J.w++);
+		pc.b.h=readFunc( J.w);
 	}
 }
 
@@ -199,7 +199,7 @@ int Cpu6502::run() {
 	register byte I;
 
 	for(;;)	{
-		I = readFunc(this, pc.w++);
+		I = readFunc( pc.w++);
 		cycles_left -= op_cycles[I];
 		switch(I) {
 			case 0x10: /* BPL * REL */
@@ -230,8 +230,8 @@ int Cpu6502::run() {
 
 						   
 			case 0x20:/* JSR $ssss ABS */
-						   K.b.l=readFunc(this,pc.w++);
-						   K.b.h=readFunc(this,pc.w);
+						   K.b.l=readFunc(pc.w++);
+						   K.b.h=readFunc(pc.w);
 						   M_PUSH(pc.b.h);
 						   M_PUSH(pc.b.l);
 						   pc=K;break;
@@ -243,9 +243,9 @@ int Cpu6502::run() {
 					  
 			case 0x6C: /* JMP ($ssss) ABDINDIR */
 					   M_LDWORD(K);
-					   pc.b.l=readFunc(this,K.w);
+					   pc.b.l=readFunc(K.w);
 					   K.b.l++;
-					   pc.b.h=readFunc(this,K.w);
+					   pc.b.h=readFunc(K.w);
 					   break;
 
 					  
@@ -254,8 +254,8 @@ int Cpu6502::run() {
 					   M_PUSH(pc.b.h);M_PUSH(pc.b.l);
 					   M_PUSH(st|FlagB);
 					   st=(st|FlagI)&~FlagD;
-					   pc.b.l=readFunc(this,0xFFFE);
-					   pc.b.h=readFunc(this,0xFFFF);
+					   pc.b.l=readFunc(0xFFFE);
+					   pc.b.h=readFunc(0xFFFF);
 					   break;
 
 					  

@@ -21,7 +21,7 @@ class MemoryMapper {
 		typedef unsigned short int word;
 
 		// constructor - simply calls initialize
-		MemoryMapper(Nes * system);
+		virtual MemoryMapper();
 		virtual ~MemoryMapper();
 		
 		// override these functions to provide memory mapping
@@ -34,8 +34,6 @@ class MemoryMapper {
 		// PRG-RAM memory ($8000-$FFFF)
 		virtual void writeByte(word address, byte value);
 	private:
-		// pointer to the Nes object so we can manipulate memory
-		Nes * sys;
 };
 
 #endif
