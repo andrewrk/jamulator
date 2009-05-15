@@ -30,18 +30,18 @@
 */
 
 #include <string>
+#include <gmodule>
 #include "SDL.h"
 #include "M6502/M6502.h"
 
 #include "joy_config.h"
-
-#define CYCLES_PER_VBLANK 29829.541666667 // nestreme uses 27120
-
+#include "nes_exceptions.h"
+#include "memory_mapper.h"
 
 class Nes {
 	public:
-		typedef ulong unsigned long long int;
-		typedef JoyInputMap Vector<ulong, JoyConfig>;
+		typedef unsigned long long int ulong;
+		typedef Vector<ulong, JoyConfig> JoyInputMap;
 
 		// create an Nes emulator from .nes file file with no audio/video
 		Nes(string &file);
@@ -70,7 +70,84 @@ class Nes {
 		void detachScreen();
 		// (re?)attach a screen (video and sound) to emulation
 		void attachScreen(SDL_Surface* surface);
+
+
 	private:
+		typedef unsigned char byte; // must be 1 byte
+		typedef unsigned short int word; // must be 2 bytes
+
+		typedef struct {
+			byte id[4]; // "NES\01A"
+
+			byte num_rom_banks; //number of 16 KB ROM banks
+			byte num_vrom_banks; //number of 8 KB VROM banks
+			
+			unsigned int mirroring:1; // 1 for vertical, 0 for horizontal
+			unsigned int battery_ram:1; // 1 for battery-backed RAM $6000-$7FFF
+			unsigned int trainer:1; // 1 for a 512-byte trainer at $7000-$71FF
+
+			// 1 for a 4-screen VRAM layout. overrides mirroring. only available
+			// with certain types of mappers.
+			unsigned int four_screen:1; 
+			unsigned int rom_mapper_low:4;
+			unsigned int vs_system:1; /* 1 for VS-System cartridges */
+			unsigned int reserved_1:3;
+			unsigned int rom_mapper_high:4; /* higher 4 bits */
+
+			// number of 8KB RAM banks. assume 1x8kB RAM page when this byte is zero.
+			byte num_ram_banks;
+
+			unsigned int screen_type:1; // 0: NTSC, 1: PAL
+			unsigned int reserved_2:7;
+
+			byte reserved_3[6];
+			
+		} NES_header;
+
+		// constants
+		const int cpu_mem_size = 65536; // 64 KB
+		const int prgrom_size = 16384; // 16 KB
+		const int chrrom_size = 8192; // 8 KB
+		const int trainer_size = 512;
+		const int ram_size = 8192; // 8 KB
+
+		const int cycles_per_vblank = 29829.541666667; // nestreme uses 27120
+
+		const int pal_cycles_per_sec = 1773447;
+		const int pal_screen_width = 256;
+		const int pal_screen_height = 240;
+		const int pal_nmi = 
+
+		const int ntsc_cycles_per_sec =	1789773; // it's actually 1789772.5
+		const int ntsc_screen_width = 256;
+		const int ntsc_screen_height = 224;
+
+		// cartridge data
+		NES_header cart_data;
+
+
+		// cartridge memory data
+		byte * prg_banks;
+		byte * chr_banks;
+		byte * trainer; // 512 byte trainer, if present
+
+		// pointers to the prgrom that the CPU sees in its address space
+		// this replaces $C000 - $FFFF
+		byte * bank1;
+		byte * bank2;
+
+		//CPU memory data
+		byte memory[cpu_mem_size];
 		
-		// NONE because this is vaporware lolollol
+		// memory mapper class
+		MemoryMapper * mmc;
+
+		// connection module for the MemoryMapper plugin
+		GModule * mm_module;
+		void (*mm_destroy)(MemoryMapper * mm);
+	
+	// MemoryMapper needs to be extremely fast and have access
+	// to all emulated memory
+	friend class MemoryMapper;
 };
+
