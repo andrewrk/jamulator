@@ -8,16 +8,16 @@
 
 #include "../memory_mapper.h"
 
-export "C" {
+extern "C" {
 
 class Mapper0 : public MemoryMapper {
 	public:
 		
-		MemoryMapper(){
+		Mapper0(){
 			// nothing to do
 		}
 
-		~MemoryMapper(){
+		~Mapper0(){
 			//nothing to do
 		}
 
@@ -40,6 +40,7 @@ class Mapper0 : public MemoryMapper {
 		}
 	private:
 		Nes * system; // pointer to Nes object so we can access memory
+	
 };
 
 // factory methods

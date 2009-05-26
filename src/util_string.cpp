@@ -1,7 +1,7 @@
 #include <string>
 #include <sstream>
 
-#include "utility.h"
+#include "util_string.h"
 
 // remove leading and trailing spaces from a string
 void trim(string& str, const string& what_to_trim){
@@ -73,4 +73,11 @@ int stringToInt(const string& str){
 	std::istringstream iss(str);
 	iss >> ret;
 	return ret;
+}
+
+// convert an int to a string
+string intToString(int x){
+	std::stringstream out;
+	out << x;
+	return out.str();
 }

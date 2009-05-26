@@ -13,6 +13,8 @@
 
 #include "nes.h"
 
+class Nes;
+
 class MemoryMapper {
 	public:
 		// must be 1 byte
@@ -20,13 +22,12 @@ class MemoryMapper {
 		// must be 2 bytes
 		typedef unsigned short int word;
 
-		// constructor - simply calls initialize
-		virtual MemoryMapper();
-		virtual ~MemoryMapper();
+		//MemoryMapper();
+		//virtual ~MemoryMapper();
 		
 		// override these functions to provide memory mapping
 		// called when the ROM file is loaded
-		virtual void initialize();
+		virtual void initialize(Nes * system);
 		// read a byte from memory - called when there is a read from
 		// PRG-ROM memory ($8000-$FFFF)
 		virtual byte readByte(word address);

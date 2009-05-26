@@ -1,12 +1,15 @@
 #include <iostream>
-#include <gmodule>
+#include <fstream>
+#include <gmodule.h>
 
 using namespace std;
 
 #include "nes.h"
+#include "memory_mapper.h"
+#include "util_string.h"
 
 // create an Nes emulator from .nes file file with no audio/video
-Nes::Nes(string &file) :
+Nes::Nes(string &file, SDL_Surface* surface) :
 	prg_banks(NULL),
 	chr_banks(NULL),
 	trainer(NULL),
@@ -16,7 +19,7 @@ Nes::Nes(string &file) :
 	cpu(NULL)
 {
 	// load the file into memory
-	ifstream in(file, ios::in|ios::binary|ios::ate);
+	ifstream in(file.c_str(), ios::in|ios::binary|ios::ate);
 	if( ! in.is_open() ){
 		cerr << "Error opening " << file << " for binary input." << endl;
 		throw InvalidRomException;
@@ -24,7 +27,7 @@ Nes::Nes(string &file) :
 	}
 	ifstream::pos_type file_size = in.tellg();
 	in.seekg(0, ios::beg);
-	in.read(&cart_data, sizeof(cart_data));
+	in.read((char*)&cart_data, sizeof(cart_data));
 
 	// check NES header
 	if( !(	cart_data.id[0] == 'N' && cart_data.id[1] == 'E' &&
@@ -37,8 +40,8 @@ Nes::Nes(string &file) :
 
 	// do a simple checksum
 	ifstream::pos_type check_size = 
-		sizeof(cart_data) + cart_data.num_rvom_banks * 8 * 1024 +
-		(cart_data.trainer ? 512 : 0) + cart_data.rum_rom_banks * 16 * 1024;
+		sizeof(cart_data) + cart_data.num_chr_banks * 8 * 1024 +
+		(cart_data.trainer ? 512 : 0) + cart_data.num_prg_banks * 16 * 1024;
 	if( file_size != check_size ) {
 		cerr << "File checksum failed for " << file << "." << endl;
 		throw InvalidRomException;
@@ -48,16 +51,16 @@ Nes::Nes(string &file) :
 	// load the trainer
 	if( cart_data.trainer ){
 		trainer = new byte[trainer_size];
-		in.read(trainer, trainer_size);
+		in.read((char *)trainer, trainer_size);
 	}
 
 	// load the ROM banks
 	prg_banks = new byte[cart_data.num_prg_banks*prgrom_size];
-	in.read(prg_banks, cart_data.num_prg_banks*prgrom_size);
+	in.read((char*) prg_banks, cart_data.num_prg_banks*prgrom_size);
 
 	// load the VROM banks
 	chr_banks = new byte[cart_data.num_chr_banks*chrrom_size];
-	in.read(chr_banks, cart_data.num_chr_banks*chrrom_size);
+	in.read((char*) chr_banks, cart_data.num_chr_banks*chrrom_size);
 
 	// configure for PAL or NTSC
 	if( cart_data.screen_type ){
@@ -93,40 +96,42 @@ Nes::Nes(string &file) :
 	if( cart_data.four_screen ){
 		// TODO
 		cerr << "four screen not supported yet" << endl;
-		throw MissingMapperException;
+		throw RomEmulationException;
 	} else if( cart_data.mirroring ){
 		// vertical mirroring
 		// name tables 0 and 2 point to the first name table and
 		// name tables 1 and 3 point to the second name table
-		nameTables[0] = 0x2000;
-		nameTables[1] = 0x2400;
-		nameTables[2] = 0x2000;
-		nameTables[3] = 0x2400;
+		nameTables[0] = ppu_memory + 0x2000;
+		nameTables[1] = ppu_memory + 0x2400;
+		nameTables[2] = ppu_memory + 0x2000;
+		nameTables[3] = ppu_memory + 0x2400;
 	} else {
 		// horizontal mirroring
 		// name tables 0 and 1 point to the first table and
 		// name tables 2 and 3 point to the second table
-		nameTables[0] = 0x2000;
-		nameTables[1] = 0x2000;
-		nameTables[2] = 0x2400;
-		nameTables[3] = 0x2400;
+		nameTables[0] = ppu_memory + 0x2000;
+		nameTables[1] = ppu_memory + 0x2000;
+		nameTables[2] = ppu_memory + 0x2400;
+		nameTables[3] = ppu_memory + 0x2400;
 	}
 
 	// set up the memory mapper
 	byte mem_mapper = 
 		(cart_data.rom_mapper_high << 4) | cart_data.rom_mapper_low;
 	// determine the file name of the library
-	string mm_plugin = "./mappers/mapper_" + mem_mapper + G_MODULE_SUFFIX;
+	string mm_plugin = "./mappers/mapper_" + 
+						intToString((int)mem_mapper) + 
+						G_MODULE_SUFFIX;
 	// load the plugin
-	mm_module = g_module_open(mm_plugin, G_MODULE_BIND_LAZY);
+	mm_module = g_module_open(mm_plugin.c_str(), G_MODULE_BIND_LAZY);
 	// validate and bind the factory methods
-	MemoryMapper (*mm_create)();
+	MemoryMapper * (*mm_create)();
 	if( ! mm_module || 
 		// factory method create
 		! g_module_symbol( mm_module, "create", (gpointer *) &mm_create) ||
 		mm_create == NULL ||
 		// factory method destroy
-		! g_module_symbol( mm_module, "destroy", (gpointer *) &mm_destory) ||
+		! g_module_symbol( mm_module, "destroy", (gpointer *) &mm_destroy) ||
 		mm_destroy == NULL ||
 		// create the MemoryMapper
 		(mmc = mm_create()) == NULL)
@@ -140,15 +145,15 @@ Nes::Nes(string &file) :
 	mmc->initialize(this);
 
 	// create the 6502 CPU emulator
-	cpu = new Cpu6502(clock_speed, nmi_period, 
-		&cpuLoop, &mmc->readByte, &mmc->writeByte);
+	cpu = new Cpu6502((int)clock_speed, (int)nmi_period, 
+		this, &Nes::cpuLoopFunc, &Nes::readFunc, &Nes::writeFunc);
+
+
+	// if there is a screen, attach it
+	if( surface != NULL )
+		attachScreen(surface);
 }
 
-// attach the screen to surface
-Nes::Nes(string &file, SDL_Surface* surface){
-	Nes(file);
-	attachScreen(surface);
-}
 
 // destructor
 Nes::~Nes(){
@@ -157,13 +162,29 @@ Nes::~Nes(){
 	if( chr_banks != NULL ) delete[] chr_banks;
 	if( trainer != NULL ) delete[] trainer;
 
-	if( mm_destroy != NULL ) mm_destroy(); // this replaces delete mmc
+	// this replaces delete mmc
+	if( mm_destroy != NULL && mmc != NULL ) mm_destroy(mmc); 
 	if( mm_module != NULL )	g_module_close(mm_module);
 }
 
+// static callback function for the CPU
+Cpu6502::InteruptType Nes::cpuLoopFunc(void * context) {
+	return ((Nes *) context)->cpuLoop();
+}
+
 // callback function for the CPU
-Nes::InteruptType Nes::cpuLoop() {
-	
+Cpu6502::InteruptType Nes::cpuLoop() {
+
+}
+
+Cpu6502::byte readFunc(void * context, Cpu6502::word address){
+	// context is a pointer to a Nes object, forward to its mmc
+	return ((Nes *) context)->mmc->readByte(address);
+}
+
+void writeFunc(void * context, Cpu6502::word address, Cpu6502::byte value){
+	// context is a pointer to a Nes object, forward to its mmc
+	((Nes *) context)->mmc->writeByte(address, value);
 }
 
 // run the cpu for cycles cycles, returns how many it actually ran,
@@ -181,24 +202,24 @@ Nes::ulong cycleCount(){
 
 }
 
-// input joystick data. player_index - 0: player 1, 1: player 2.
-Nes::void input(int player_index, JoyConfig &cfg){
+// input controller data. player_index - 0: player 1, 1: player 2.
+void input(int player_index, Controller::Status btns){
 
 }
-// input joystick data at a specific CPU cycle
-Nes::void input(int input_cycle, int player_index, JoyConfig &cfg){
+// input controller data at a specific CPU cycle
+void input(int input_cycle, int player_index, Controller::Status btns){
 
 }
-// input a set of data which maps cycles to joystick configurations
-Nes::void inputMap(JoyInputMap &data){
+// input a set of data which maps cycles to controller configurations
+void inputMap(Nes::InputMap &data){
 
 }
 
 // detach the screen and stop emulating video and audio
-Nes::void detachScreen(){
+void detachScreen(){
 
 }
 // (re?)attach a screen (video and sound) to emulation
-Nes::void attachScreen(SDL_Surface* surface){
+void attachScreen(SDL_Surface* surface){
 
 }

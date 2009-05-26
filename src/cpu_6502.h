@@ -10,6 +10,9 @@
 #ifndef CPU_6502_H_
 #define CPU_6502_H_
 
+class Nes;
+class MemoryMapper;
+
 class Cpu6502 {
 	public:
 		// Loop6502 returns:
@@ -51,16 +54,18 @@ class Cpu6502 {
 			// CPU clock speed in Hz
 			int clock_speed,
 			// how many cycles to wait before calling the callback function
-			int interupt_check, 
+			int interupt_period, 
+			// arbitrary data which will be passed along with callbacks
+			void * context,
 			// after interupt_check cycles, call this function
 			// to check for an interupt.
-			InteruptType (*loopCallback)(),
+			InteruptType (*loopCallback)(void * context),
 			// read from memory callback. this function should
 			// return the byte at the address
-			byte (*readFunc)(word address),
+			byte (*readFunc)(void * context, word address),
 			// write to memory callback. this function should
 			// write byte to memory at address
-			void (*writeFunc)(word address, byte value)
+			void (*writeFunc)(void * context, word address, byte value)
 		);
 		~Cpu6502();
 
@@ -76,61 +81,17 @@ class Cpu6502 {
 		// run 6502 code until loopCallback() call returns IntQuit. When
 		// it's done, it will return the number of cycles executed,
 		// possibly negative.
-		word run();
+		int run();
 
 	private:
 		// constants
 		// how many cycles each opcode takes. There are special cases
 		// which get handled in the big switch statement
-		static const byte op_cycles[256] = 
-		{
-		  7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7,
-		  6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7,
-		  6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7,
-		  6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7,
-		  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-		  2,6,2,6,4,4,4,4,2,5,2,5,5,5,5,5,
-		  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-		  2,5,2,5,4,4,4,4,2,4,2,5,4,4,4,4,
-		  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7,
-		  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-		  2,5,2,8,4,4,6,6,2,4,2,7,5,5,7,7
-		};
+		static const byte op_cycles[256];
 		
 		// what to set Z and N in the status register to
 		// based on the instruction
-		static const byte zn_table[256] =
-		{
-		  FlagZ,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		  FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,FlagN,
-		};
+		static const byte zn_table[256];
 
 		// variables necessary to emulate the CPU
 		byte ac; // accumulator
@@ -144,9 +105,10 @@ class Cpu6502 {
 		int clock_speed;
 
 		// callback functions
-		InteruptType (*loopCallback)();
-		byte (*readFunc)(word address);
-		void (*writeFunc)(word address, byte value);
+		void * callback_context;
+		InteruptType (*loopCallback)(void * context);
+		byte (*readFunc)(void * context, word address);
+		void (*writeFunc)(void * context, word address, byte value);
 		
 		// how often to check for interupts
 		int interupt_period;

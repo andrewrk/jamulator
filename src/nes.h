@@ -9,44 +9,49 @@
 	emu.runCycles(46);
 
 	// press Start on player 1's controller right now
-	JoyConfig cfg = JCfgFromByte(JCFG_START);
-	emu.input(0, cfg);
+	emu.input(0, Controller::BtnStart);
 	emu.runCycles(10);
 
 	// press A on player 1's controller at 100 cycles
-	cfg = JCfgFromByte(JCFG_A);
-	emu.input(100, 0, cfg);
+	emu.input(100, 0, Controller::BtnA);
 	emu.runCycles(45);
 	
 	//provide an input map and emulate it
-	JoyInputMap data(); //JoyInputMap is a Vector<ulong, JoyConfig>;
-	data.push_back(400, JoyCfgFromByte(JCFG_B)); // press B at 400
-	data.push_back(450, JoyCfgFromByte(JCFG_A_AND_B)); // press A at 450
-	data.push_back(620, JoyCfgFromByte(JCFG_B)); // let go of A at 620
-	data.push_back(700, JoyCfgFromByte(JCFG_NONE)); // let go of B at 700
+	InputMap data(); //InputMap is a Vector<ulong, Controller::Status>;
+	data.push_back(400, Controller::BtnB); // press B at 400
+	data.push_back(450, Controller::BtnA|Controller::BtnB); // press A at 450
+	data.push_back(620, Controller::BtnB); // let go of A at 620
+	data.push_back(700, Controller::BtnNone); // let go of B at 700
 	emu.inputMap(data);
 	emu.runUntil(800); // run until absolute cycle count is 800
 
 */
 
-#include <string>
-#include <gmodule>
-#include "SDL.h"
-#include "cpu_6502.h"
+#ifndef _NES_H_
+#define _NES_H_
 
-#include "joy_config.h"
+#include <string>
+#include <vector>
+#include <gmodule.h>
+#include "SDL.h"
+
+#include "cpu_6502.h"
+#include "controller.h"
 #include "nes_exceptions.h"
 #include "memory_mapper.h"
+
+class MemoryMapper;
 
 class Nes {
 	public:
 		typedef unsigned long long int ulong;
-		typedef Vector<ulong, JoyConfig> JoyInputMap;
+		typedef vector<ulong, Controller::Status> InputMap;
+		typedef unsigned char byte; // must be 1 byte
+		typedef unsigned short int word; // must be 2 bytes
 
-		// create an Nes emulator from .nes file file with no audio/video
-		Nes(string &file);
-		// attach the screen to surface
-		Nes(string &file, SDL_Surface* surface);
+		// create an Nes emulator from .nes file 
+		// optionally with audio/video
+		Nes(string &file, SDL_Surface* surface = NULL);
 		// destructor
 		~Nes();
 		
@@ -59,22 +64,33 @@ class Nes {
 		// return the current cycle count since the emulation started
 		ulong cycleCount();
 
-		// input joystick data. player_index - 0: player 1, 1: player 2.
-		void input(int player_index, JoyConfig &cfg);
-		// input joystick data at a specific CPU cycle
-		void input(int input_cycle, int player_index, JoyConfig &cfg);
-		// input a set of data which maps cycles to joystick configurations
-		void inputMap(JoyInputMap &data);
+		// input controller data. player_index - 0: player 1, 1: player 2.
+		void input(int player_index, Controller::Status btns);
+		// input controller data at a specific CPU cycle
+		void input(int input_cycle, int player_index, Controller::Status btns);
+		// input a set of data which maps cycles to controller configurations
+		void inputMap(InputMap &data);
 		
 		// detach the screen and stop emulating video and audio
 		void detachScreen();
 		// (re?)attach a screen (video and sound) to emulation
 		void attachScreen(SDL_Surface* surface);
 
+	public:	// used by MemoryMapper plugins
+		// pointers to the prgrom that the CPU sees in its address space
+		// this replaces $C000 - $FFFF
+		byte * bank1;
+		byte * bank2;
+
+	public: // static callback functions - forward to the real ones 
+		static Cpu6502::InteruptType cpuLoopFunc(void * context);
+		static byte readFunc(void * context, word address);
+		static void writeFunc(void * context, word address, byte value);
+
+		// memory mapper class
+		MemoryMapper * mmc;
 
 	private:
-		typedef unsigned char byte; // must be 1 byte
-		typedef unsigned short int word; // must be 2 bytes
 
 		typedef struct {
 			byte id[4]; // "NES\01A"
@@ -105,21 +121,21 @@ class Nes {
 		} NES_header;
 
 		// constants
-		const int cpu_mem_size = 65536; // 64 KB
-		const int prgrom_size = 16384; // 16 KB
-		const int chrrom_size = 8192; // 8 KB
-		const int trainer_size = 512;
-		const int ram_size = 8192; // 8 KB
+		static const int cpu_mem_size = 65536; // 64 KB
+		static const int prgrom_size = 16384; // 16 KB
+		static const int chrrom_size = 8192; // 8 KB
+		static const int trainer_size = 512;
+		static const int ram_size = 8192; // 8 KB
 
-		const int pal_cycles_per_sec = 1773447;
-		const int pal_screen_width = 256;
-		const int pal_screen_height = 240;
-		const int pal_nmi = 35469 // pal_cycles_per_sec / 50
+		static const int pal_cycles_per_sec = 1773447;
+		static const int pal_screen_width = 256;
+		static const int pal_screen_height = 240;
+		static const int pal_nmi = 35469; // pal_cycles_per_sec / 50
 
-		const int ntsc_cycles_per_sec =	1789773; // it's actually 1789772.5
-		const int ntsc_screen_width = 256;
-		const int ntsc_screen_height = 224;
-		const int ntsc_nmi = 29830; // ntsc_cycles_per_sec / 60
+		static const int ntsc_cycles_per_sec =	1789773; // actually 1789772.5
+		static const int ntsc_screen_width = 256;
+		static const int ntsc_screen_height = 224;
+		static const int ntsc_nmi = 29830; // ntsc_cycles_per_sec / 60
 
 		// cartridge data
 		NES_header cart_data;
@@ -130,10 +146,6 @@ class Nes {
 		byte * chr_banks;
 		byte * trainer; // 512 byte trainer, if present
 
-		// pointers to the prgrom that the CPU sees in its address space
-		// this replaces $C000 - $FFFF
-		byte * bank1;
-		byte * bank2;
 
 		//CPU memory data
 		byte cpu_memory[cpu_mem_size];
@@ -144,23 +156,23 @@ class Nes {
 		int screen_width, screen_height;
 		int nmi_period;
 		
-		// memory mapper class
-		MemoryMapper * mmc;
 
 		// connection module for the MemoryMapper plugin
 		GModule * mm_module;
 		void (*mm_destroy)(MemoryMapper * mm);
-
-		// callback function from the CPU to check for interupts 
+		
+		// this function gets called to determine if the CPU should
+		// get an interupt
 		Cpu6502::InteruptType cpuLoop();
 
 		// PPU data
 		byte * patternTables[2]; // pattern table pointers
 		byte * nameTables[4]; // name table pointers
-		byte * ppu_memory[0x4000]; // memory for the PPU
+		byte ppu_memory[0x4000]; // memory for the PPU
 	
 	// MemoryMapper needs to be extremely fast and have access
 	// to all emulated memory
 	friend class MemoryMapper;
 };
 
+#endif

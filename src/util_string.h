@@ -27,4 +27,7 @@ string intToHex(unsigned int i);
 // convert a string to an int
 int stringToInt(const string& str);
 
+// convert an int to a string
+string intToString(int x);
+
 #endif

@@ -3,6 +3,8 @@
 
 #include <exception>
 
+using namespace std;
+
 class InvalidRomException: public exception {
 	virtual const char* what() const throw() {
 		return "The ROM file is invalid and cannot be emulated.";
