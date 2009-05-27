@@ -30,17 +30,17 @@
 #ifndef _NES_H_
 #define _NES_H_
 
+class MemoryMapper;
+class SDL_Surface;
+
 #include <string>
 #include <vector>
 #include <gmodule.h>
-#include "SDL.h"
 
 #include "cpu_6502.h"
 #include "controller.h"
 #include "nes_exceptions.h"
 #include "memory_mapper.h"
-
-class MemoryMapper;
 
 class Nes {
 	public:

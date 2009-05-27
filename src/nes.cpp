@@ -1,6 +1,9 @@
+#include <string>
+#include <vector>
 #include <iostream>
 #include <fstream>
 #include <gmodule.h>
+#include "SDL.h"
 
 using namespace std;
 
