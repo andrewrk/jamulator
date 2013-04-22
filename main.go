@@ -4,6 +4,7 @@ import (
 	"./asm6502"
 	"fmt"
 	"reflect"
+	"os"
 )
 
 type astPrinter struct {
@@ -23,7 +24,16 @@ func (ap *astPrinter) VisitEnd(n asm6502.Node) {
 }
 
 func main() {
-	program, err := asm6502.ParseFile("test.6502.asm")
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+	filename := os.Args[1]
+	program, err := asm6502.ParseFile(filename)
 	if err != nil { panic(err) }
 	program.Ast(&astPrinter{})
+}
+
+func printUsage() {
+	fmt.Println("Usage: jamulator code.asm")
 }
