@@ -65,6 +65,26 @@ func (ii ImpliedInstruction) Ast(v Visitor) {
 	v.VisitEnd(ii)
 }
 
+type LabelStatement struct {
+	LabelName string
+}
+
+func (ls LabelStatement) Ast(v Visitor) {
+	v.Visit(ls)
+	v.VisitEnd(ls)
+}
+
+type AbsoluteWithLabelIndexedInstruction struct {
+	OpName string
+	LabelName string
+	RegisterName string
+}
+
+func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var program *Program
 %}
 
@@ -74,6 +94,7 @@ var program *Program
 	statementList StatementList
 	statement Node
 	instructionStatement Node
+	labelStatement LabelStatement
 	assignStatement AssignStatement
 	program Program
 }
@@ -82,12 +103,15 @@ var program *Program
 %type <assignStatement> assignStatement
 %type <statement> statement
 %type <instructionStatement> instructionStatement
+%type <labelStatement> labelStatement
 %type <program> program
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
 %token tokEqual
 %token tokPound
+%token tokColon
+%token tokComma
 
 %%
 
@@ -105,6 +129,12 @@ statement : assignStatement {
 	$$ = $1
 } | instructionStatement {
 	$$ = $1
+} | labelStatement {
+	$$ = $1
+}
+
+labelStatement : tokIdentifier tokColon {
+	$$ = LabelStatement{$1}
 }
 
 assignStatement : tokIdentifier tokEqual tokInteger {
@@ -117,6 +147,8 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier {
 	// no address
 	$$ = ImpliedInstruction{$1}
+} | tokIdentifier tokIdentifier tokComma tokIdentifier {
+	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4}
 }
 
 %%

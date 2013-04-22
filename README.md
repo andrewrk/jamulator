@@ -22,5 +22,6 @@ make && ./jamulator
  * Get a 6502 disassembler working.
  * Use LLVM to recompile 6502 assembly with a custom ABI into
    native executables.
+ * Get a NES ROM disassembler working.
  * Use LLVM to recompile NES games into native executables.
 

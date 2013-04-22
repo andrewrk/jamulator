@@ -25,6 +25,12 @@
 /#/ {
 	return tokPound
 }
+/:/ {
+	return tokColon
+}
+/,/ {
+	return tokComma
+}
 /;[^\n]*\n/ {
 	// ignore comments
 }
