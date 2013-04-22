@@ -6,4 +6,7 @@ build:
 dev:
 	go get github.com/superjoe30/nex
 
+clean:
+	rm -f asm6502/asm6502.nn.go asm6502/y.go jamulator
+
 .PHONY: build clean dev
