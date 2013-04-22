@@ -1,0 +1,78 @@
+/[a-zA-Z][a-zA-Z0-9_]*/ {
+	lval.identifier = yylex.Text()
+	return tokIdentifier
+}
+/=/ {
+	return tokEqual
+}
+/\$[0-9a-fA-F]+/ {
+	hexPart := yylex.Text()[1:]
+	n, err := strconv.ParseInt(hexPart, 16, 16)
+	if err != nil {
+		yylex.Error("Invalid hexademical integer: " + hexPart)
+	}
+	lval.integer = int(n)
+	return tokInteger
+}
+/[0-9]+/ {
+	n, err := strconv.ParseInt(yylex.Text(), 10, 16)
+	if err != nil {
+		yylex.Error("Invalid decimal integer: " + yylex.Text())
+	}
+	lval.integer = int(n)
+	return tokInteger
+}
+/;[^\n]*\n/ {
+	// ignore comments
+}
+/[ \t\r]/ {
+	// ignore whitespace
+}
+/\n/ {
+	parseLineNumber += 1
+}
+/./ {
+	yylex.Error(fmt.Sprintf("Unexpected character: %q", yylex.Text()))
+}
+
+//
+
+package asm6502
+
+import (
+	"strconv"
+	"os"
+	"fmt"
+)
+
+var parseLineNumber int
+var parseFilename string
+var parseErrors ParseErrors
+
+type ParseErrors []string
+
+func (errs ParseErrors) Error() string {
+	return strings.Join(errs, "\n")
+}
+
+func ParseFile(filename string) (*Program, error) {
+	parseLineNumber = 1
+	parseFilename = filename
+
+	fd, err := os.Open(filename)
+	if err != nil { return nil, err }
+	lexer := NewLexer(fd)
+	yyParse(lexer)
+	if err = fd.Close(); err != nil {
+		return nil, err
+	}
+	if len(parseErrors) > 0 {
+		return nil, parseErrors
+	}
+	return program, nil
+}
+
+func (yylex Lexer) Error(e string) {
+	s := fmt.Sprintf("%s line %d %s", parseFilename, parseLineNumber, e)
+	parseErrors = append(parseErrors, s)
+}
