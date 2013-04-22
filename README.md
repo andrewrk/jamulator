@@ -1,10 +1,26 @@
-# Goal
+# jamulator
 
-  Recompile NES games into native executables.
+Currently an in progress 6502 assembler.
 
-# The current plan:
+## Getting Started
 
-  1. Use LLVM
-  2. ???
-  3. Profit!
+1. Get some required go stuff:
+
+```
+make dev
+```
+
+2. Compile & run:
+
+```
+make && ./jamulator
+```
+
+## Roadmap
+
+ * Get a 6502 assembler working.
+ * Get a 6502 disassembler working.
+ * Use LLVM to recompile 6502 assembly with a custom ABI into
+   native executables.
+ * Use LLVM to recompile NES games into native executables.
 
