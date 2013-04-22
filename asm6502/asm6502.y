@@ -127,13 +127,17 @@ program : statementList {
 }
 
 statementList : statement statementList {
-	if $1 != nil {
-		$$ = append($2, $1)
-	} else {
+	if $1 == nil {
 		$$ = $2
+	} else {
+		$$ = append($2, $1)
 	}
 } | statement {
-	$$ = []Node{$1}
+	if $1 == nil {
+		$$ = []Node{}
+	} else {
+		$$ = []Node{$1}
+	}
 }
 
 statement : assignStatement tokNewline {

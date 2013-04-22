@@ -130,7 +130,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line asm6502/asm6502.y:170
+//line asm6502/asm6502.y:174
 
 
 
@@ -427,67 +427,71 @@ yydefault:
 	case 2:
 		//line asm6502/asm6502.y:129
 		{
-		if yyS[yypt-1].statement != nil {
-			yyVAL.statementList = append(yyS[yypt-0].statementList, yyS[yypt-1].statement)
-		} else {
+		if yyS[yypt-1].statement == nil {
 			yyVAL.statementList = yyS[yypt-0].statementList
+		} else {
+			yyVAL.statementList = append(yyS[yypt-0].statementList, yyS[yypt-1].statement)
 		}
 	}
 	case 3:
 		//line asm6502/asm6502.y:135
 		{
-		yyVAL.statementList = []Node{yyS[yypt-0].statement}
+		if yyS[yypt-0].statement == nil {
+			yyVAL.statementList = []Node{}
+		} else {
+			yyVAL.statementList = []Node{yyS[yypt-0].statement}
+		}
 	}
 	case 4:
-		//line asm6502/asm6502.y:139
+		//line asm6502/asm6502.y:143
 		{
 		yyVAL.statement = yyS[yypt-1].assignStatement
 	}
 	case 5:
-		//line asm6502/asm6502.y:141
+		//line asm6502/asm6502.y:145
 		{
 		yyVAL.statement = yyS[yypt-1].instructionStatement
 	}
 	case 6:
-		//line asm6502/asm6502.y:143
+		//line asm6502/asm6502.y:147
 		{
 		yyVAL.statement = yyS[yypt-0].labelStatement
 	}
 	case 7:
-		//line asm6502/asm6502.y:145
+		//line asm6502/asm6502.y:149
 		{
 		// empty statement
 	yyVAL.statement = nil
 	}
 	case 8:
-		//line asm6502/asm6502.y:150
+		//line asm6502/asm6502.y:154
 		{
 		yyVAL.labelStatement = LabelStatement{yyS[yypt-1].identifier}
 	}
 	case 9:
-		//line asm6502/asm6502.y:154
+		//line asm6502/asm6502.y:158
 		{
 		yyVAL.assignStatement = AssignStatement{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
 	case 10:
-		//line asm6502/asm6502.y:158
+		//line asm6502/asm6502.y:162
 		{
 		// immediate address
 	yyVAL.instructionStatement = ImmediateInstruction{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
 	case 11:
-		//line asm6502/asm6502.y:161
+		//line asm6502/asm6502.y:165
 		{
 		// no address
 	yyVAL.instructionStatement = ImpliedInstruction{yyS[yypt-0].identifier}
 	}
 	case 12:
-		//line asm6502/asm6502.y:164
+		//line asm6502/asm6502.y:168
 		{
 		yyVAL.instructionStatement = AbsoluteWithLabelIndexedInstruction{yyS[yypt-3].identifier, yyS[yypt-2].identifier, yyS[yypt-0].identifier}
 	}
 	case 13:
-		//line asm6502/asm6502.y:166
+		//line asm6502/asm6502.y:170
 		{
 		yyVAL.instructionStatement = AbsoluteWithLabelInstruction{yyS[yypt-1].identifier, yyS[yypt-0].identifier}
 	}
