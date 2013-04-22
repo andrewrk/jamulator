@@ -13,7 +13,7 @@ type Visitor interface {
 }
 
 type Program struct {
-	statements * StatementList
+	statements StatementList
 }
 
 func (p Program) Ast(v Visitor) {
@@ -26,8 +26,8 @@ type StatementList []Node
 
 func (sl StatementList) Ast(v Visitor) {
 	v.Visit(sl)
-	for i := len(sl) - 1; i >= 0; i-- {
-		sl[i].Ast(v)
+	for _, s := range(sl) {
+		s.Ast(v)
 	}
 	v.VisitEnd(sl)
 }
@@ -91,17 +91,55 @@ func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type DataStatement struct {
+	dataList DataList
+}
+
+func (n DataStatement) Ast(v Visitor) {
+	v.Visit(n)
+	n.dataList.Ast(v)
+	v.VisitEnd(n)
+}
+
+type DataList []Node
+
+func (n DataList) Ast(v Visitor) {
+	v.Visit(n)
+	for _, di := range(n) {
+		di.Ast(v)
+	}
+	v.VisitEnd(n)
+}
+
+type StringDataItem string
+
+func (n StringDataItem) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
+type IntegerDataItem int
+
+func (n IntegerDataItem) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var program *Program
 %}
 
 %union {
 	integer int
 	identifier string
+	quotedString string
 	statementList StatementList
 	statement Node
 	instructionStatement Node
 	labelStatement LabelStatement
 	assignStatement AssignStatement
+	dataStatement DataStatement
+	dataList DataList
+	dataItem Node
 	program Program
 }
 
@@ -110,27 +148,32 @@ var program *Program
 %type <statement> statement
 %type <instructionStatement> instructionStatement
 %type <labelStatement> labelStatement
+%type <dataStatement> dataStatement
+%type <dataList> dataList
+%type <dataItem> dataItem
 %type <program> program
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
+%token <quotedString> tokQuotedString
 %token tokEqual
 %token tokPound
 %token tokColon
 %token tokComma
 %token tokNewline
+%token tokData
 
 %%
 
 program : statementList {
-	program = &Program{&$1}
+	program = &Program{$1}
 }
 
-statementList : statement statementList {
-	if $1 == nil {
-		$$ = $2
+statementList : statementList statement {
+	if $2 == nil {
+		$$ = $1
 	} else {
-		$$ = append($2, $1)
+		$$ = append($1, $2)
 	}
 } | statement {
 	if $1 == nil {
@@ -146,9 +189,27 @@ statement : assignStatement tokNewline {
 	$$ = $1
 } | labelStatement {
 	$$ = $1
+} | dataStatement tokNewline {
+	$$ = $1
 } | tokNewline {
 	// empty statement
 	$$ = nil
+}
+
+dataStatement : tokData dataList {
+	$$ = DataStatement{$2}
+}
+
+dataList : dataList tokComma dataItem {
+	$$ = append($1, $3)
+} | dataItem {
+	$$ = []Node{$1}
+}
+
+dataItem : tokQuotedString {
+	$$ = StringDataItem($1)
+} | tokInteger {
+	$$ = IntegerDataItem($1)
 }
 
 labelStatement : tokIdentifier tokColon {

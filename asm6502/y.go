@@ -14,7 +14,7 @@ type Visitor interface {
 }
 
 type Program struct {
-	statements * StatementList
+	statements StatementList
 }
 
 func (p Program) Ast(v Visitor) {
@@ -27,8 +27,8 @@ type StatementList []Node
 
 func (sl StatementList) Ast(v Visitor) {
 	v.Visit(sl)
-	for i := len(sl) - 1; i >= 0; i-- {
-		sl[i].Ast(v)
+	for _, s := range(sl) {
+		s.Ast(v)
 	}
 	v.VisitEnd(sl)
 }
@@ -92,37 +92,79 @@ func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type DataStatement struct {
+	dataList DataList
+}
+
+func (n DataStatement) Ast(v Visitor) {
+	v.Visit(n)
+	n.dataList.Ast(v)
+	v.VisitEnd(n)
+}
+
+type DataList []Node
+
+func (n DataList) Ast(v Visitor) {
+	v.Visit(n)
+	for _, di := range(n) {
+		di.Ast(v)
+	}
+	v.VisitEnd(n)
+}
+
+type StringDataItem string
+
+func (n StringDataItem) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
+type IntegerDataItem int
+
+func (n IntegerDataItem) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var program *Program
 
-//line asm6502/asm6502.y:97
+//line asm6502/asm6502.y:131
 type yySymType struct {
 	yys int
 	integer int
 	identifier string
+	quotedString string
 	statementList StatementList
 	statement Node
 	instructionStatement Node
 	labelStatement LabelStatement
 	assignStatement AssignStatement
+	dataStatement DataStatement
+	dataList DataList
+	dataItem Node
 	program Program
 }
 
 const tokIdentifier = 57346
 const tokInteger = 57347
-const tokEqual = 57348
-const tokPound = 57349
-const tokColon = 57350
-const tokComma = 57351
-const tokNewline = 57352
+const tokQuotedString = 57348
+const tokEqual = 57349
+const tokPound = 57350
+const tokColon = 57351
+const tokComma = 57352
+const tokNewline = 57353
+const tokData = 57354
 
 var yyToknames = []string{
 	"tokIdentifier",
 	"tokInteger",
+	"tokQuotedString",
 	"tokEqual",
 	"tokPound",
 	"tokColon",
 	"tokComma",
 	"tokNewline",
+	"tokData",
 }
 var yyStatenames = []string{}
 
@@ -130,7 +172,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line asm6502/asm6502.y:174
+//line asm6502/asm6502.y:235
 
 
 
@@ -141,47 +183,51 @@ var yyExca = []int{
 	-2, 0,
 }
 
-const yyNprod = 14
+const yyNprod = 20
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 19
+const yyLast = 28
 
 var yyAct = []int{
 
-	15, 8, 13, 14, 12, 11, 17, 7, 10, 18,
-	16, 19, 2, 1, 6, 5, 9, 3, 4,
+	20, 9, 18, 14, 13, 16, 17, 15, 8, 10,
+	12, 26, 25, 22, 21, 24, 23, 27, 3, 1,
+	19, 11, 7, 6, 5, 4, 2, 28,
 }
 var yyPact = []int{
 
-	-3, -1000, -1000, -3, -2, -5, -1000, -1000, -4, -1000,
-	-1000, -1000, -1000, 5, 1, 0, -1000, -1000, 7, -1000,
+	-3, -1000, -3, -1000, -1, -7, -1000, -8, -1000, -2,
+	8, -1000, -1000, -1000, -1000, -1000, 11, 10, 2, 1,
+	-1000, -1000, -1000, -1000, -1000, 13, 8, -1000, -1000,
 }
 var yyPgo = []int{
 
-	0, 12, 18, 17, 15, 14, 13,
+	0, 26, 25, 18, 24, 23, 22, 20, 0, 19,
 }
 var yyR1 = []int{
 
-	0, 6, 1, 1, 3, 3, 3, 3, 5, 2,
-	4, 4, 4, 4,
+	0, 9, 1, 1, 3, 3, 3, 3, 3, 6,
+	7, 7, 8, 8, 5, 2, 4, 4, 4, 4,
 }
 var yyR2 = []int{
 
-	0, 1, 2, 1, 2, 2, 1, 1, 2, 3,
-	3, 1, 4, 2,
+	0, 1, 2, 1, 2, 2, 1, 2, 1, 2,
+	3, 1, 1, 1, 2, 3, 3, 1, 4, 2,
 }
 var yyChk = []int{
 
-	-1000, -6, -1, -3, -2, -4, -5, 10, 4, -1,
-	10, 10, 8, 6, 7, 4, 5, 5, 9, 4,
+	-1000, -9, -1, -3, -2, -4, -5, -6, 11, 4,
+	12, -3, 11, 11, 11, 9, 7, 8, 4, -7,
+	-8, 6, 5, 5, 5, 10, 10, 4, -8,
 }
 var yyDef = []int{
 
-	0, -2, 1, 3, 0, 0, 6, 7, 11, 2,
-	4, 5, 8, 0, 0, 13, 9, 10, 0, 12,
+	0, -2, 1, 3, 0, 0, 6, 0, 8, 17,
+	0, 2, 4, 5, 7, 14, 0, 0, 19, 9,
+	11, 12, 13, 15, 16, 0, 0, 18, 10,
 }
 var yyTok1 = []int{
 
@@ -189,7 +235,8 @@ var yyTok1 = []int{
 }
 var yyTok2 = []int{
 
-	2, 3, 4, 5, 6, 7, 8, 9, 10,
+	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+	12,
 }
 var yyTok3 = []int{
 	0,
@@ -420,21 +467,21 @@ yydefault:
 	switch yynt {
 
 	case 1:
-		//line asm6502/asm6502.y:125
+		//line asm6502/asm6502.y:168
 		{
-		program = &Program{&yyS[yypt-0].statementList}
+		program = &Program{yyS[yypt-0].statementList}
 	}
 	case 2:
-		//line asm6502/asm6502.y:129
+		//line asm6502/asm6502.y:172
 		{
-		if yyS[yypt-1].statement == nil {
-			yyVAL.statementList = yyS[yypt-0].statementList
+		if yyS[yypt-0].statement == nil {
+			yyVAL.statementList = yyS[yypt-1].statementList
 		} else {
-			yyVAL.statementList = append(yyS[yypt-0].statementList, yyS[yypt-1].statement)
+			yyVAL.statementList = append(yyS[yypt-1].statementList, yyS[yypt-0].statement)
 		}
 	}
 	case 3:
-		//line asm6502/asm6502.y:135
+		//line asm6502/asm6502.y:178
 		{
 		if yyS[yypt-0].statement == nil {
 			yyVAL.statementList = []Node{}
@@ -443,55 +490,85 @@ yydefault:
 		}
 	}
 	case 4:
-		//line asm6502/asm6502.y:143
+		//line asm6502/asm6502.y:186
 		{
 		yyVAL.statement = yyS[yypt-1].assignStatement
 	}
 	case 5:
-		//line asm6502/asm6502.y:145
+		//line asm6502/asm6502.y:188
 		{
 		yyVAL.statement = yyS[yypt-1].instructionStatement
 	}
 	case 6:
-		//line asm6502/asm6502.y:147
+		//line asm6502/asm6502.y:190
 		{
 		yyVAL.statement = yyS[yypt-0].labelStatement
 	}
 	case 7:
-		//line asm6502/asm6502.y:149
+		//line asm6502/asm6502.y:192
+		{
+		yyVAL.statement = yyS[yypt-1].dataStatement
+	}
+	case 8:
+		//line asm6502/asm6502.y:194
 		{
 		// empty statement
 	yyVAL.statement = nil
 	}
-	case 8:
-		//line asm6502/asm6502.y:154
+	case 9:
+		//line asm6502/asm6502.y:199
+		{
+		yyVAL.dataStatement = DataStatement{yyS[yypt-0].dataList}
+	}
+	case 10:
+		//line asm6502/asm6502.y:203
+		{
+		yyVAL.dataList = append(yyS[yypt-2].dataList, yyS[yypt-0].dataItem)
+	}
+	case 11:
+		//line asm6502/asm6502.y:205
+		{
+		yyVAL.dataList = []Node{yyS[yypt-0].dataItem}
+	}
+	case 12:
+		//line asm6502/asm6502.y:209
+		{
+		yyVAL.dataItem = StringDataItem(yyS[yypt-0].quotedString)
+	}
+	case 13:
+		//line asm6502/asm6502.y:211
+		{
+		yyVAL.dataItem = IntegerDataItem(yyS[yypt-0].integer)
+	}
+	case 14:
+		//line asm6502/asm6502.y:215
 		{
 		yyVAL.labelStatement = LabelStatement{yyS[yypt-1].identifier}
 	}
-	case 9:
-		//line asm6502/asm6502.y:158
+	case 15:
+		//line asm6502/asm6502.y:219
 		{
 		yyVAL.assignStatement = AssignStatement{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
-	case 10:
-		//line asm6502/asm6502.y:162
+	case 16:
+		//line asm6502/asm6502.y:223
 		{
 		// immediate address
 	yyVAL.instructionStatement = ImmediateInstruction{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
-	case 11:
-		//line asm6502/asm6502.y:165
+	case 17:
+		//line asm6502/asm6502.y:226
 		{
 		// no address
 	yyVAL.instructionStatement = ImpliedInstruction{yyS[yypt-0].identifier}
 	}
-	case 12:
-		//line asm6502/asm6502.y:168
+	case 18:
+		//line asm6502/asm6502.y:229
 		{
 		yyVAL.instructionStatement = AbsoluteWithLabelIndexedInstruction{yyS[yypt-3].identifier, yyS[yypt-2].identifier, yyS[yypt-0].identifier}
 	}
-	case 13:
-		//line asm6502/asm6502.y:170
+	case 19:
+		//line asm6502/asm6502.y:231
 		{
 		yyVAL.instructionStatement = AbsoluteWithLabelInstruction{yyS[yypt-1].identifier, yyS[yypt-0].identifier}
 	}

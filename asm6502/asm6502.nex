@@ -1,3 +1,11 @@
+/\.[dD][aA][tT][aA]/ {
+	return tokData
+}
+/"[^"\n]*"/ {
+	t := yylex.Text()
+	lval.quotedString = t[1:len(t)-1]
+	return tokQuotedString
+}
 /[a-zA-Z][a-zA-Z0-9_]*/ {
 	lval.identifier = yylex.Text()
 	return tokIdentifier
