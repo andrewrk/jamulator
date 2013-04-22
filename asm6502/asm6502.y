@@ -22,16 +22,12 @@ func (p Program) Ast(v Visitor) {
 	v.VisitEnd(p)
 }
 
-type StatementList struct {
-	This Node
-	Next * StatementList
-}
+type StatementList []Node
 
 func (sl StatementList) Ast(v Visitor) {
 	v.Visit(sl)
-	sl.This.Ast(v)
-	if sl.Next != nil {
-		sl.Next.Ast(v)
+	for i := len(sl) - 1; i >= 0; i-- {
+		sl[i].Ast(v)
 	}
 	v.VisitEnd(sl)
 }
@@ -85,6 +81,16 @@ func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type AbsoluteWithLabelInstruction struct {
+	OpName string
+	LabelName string
+}
+
+func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var program *Program
 %}
 
@@ -112,6 +118,7 @@ var program *Program
 %token tokPound
 %token tokColon
 %token tokComma
+%token tokNewline
 
 %%
 
@@ -120,17 +127,24 @@ program : statementList {
 }
 
 statementList : statement statementList {
-	$$ = StatementList{$1, &$2}
+	if $1 != nil {
+		$$ = append($2, $1)
+	} else {
+		$$ = $2
+	}
 } | statement {
-	$$ = StatementList{$1, nil}
+	$$ = []Node{$1}
 }
 
-statement : assignStatement {
+statement : assignStatement tokNewline {
 	$$ = $1
-} | instructionStatement {
+} | instructionStatement tokNewline {
 	$$ = $1
 } | labelStatement {
 	$$ = $1
+} | tokNewline {
+	// empty statement
+	$$ = nil
 }
 
 labelStatement : tokIdentifier tokColon {
@@ -149,6 +163,8 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	$$ = ImpliedInstruction{$1}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
 	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4}
+} | tokIdentifier tokIdentifier {
+	$$ = AbsoluteWithLabelInstruction{$1, $2}
 }
 
 %%

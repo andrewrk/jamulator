@@ -31,14 +31,17 @@
 /,/ {
 	return tokComma
 }
-/;[^\n]*\n/ {
-	// ignore comments
-}
 /[ \t\r]/ {
 	// ignore whitespace
 }
-/\n/ {
+/;[^\n]*\n/ {
+	// ignore comments
 	parseLineNumber += 1
+	return tokNewline
+}
+/\n+/ {
+	parseLineNumber += len(yylex.Text())
+	return tokNewline
 }
 /./ {
 	yylex.Error(fmt.Sprintf("Unexpected character: %q", yylex.Text()))

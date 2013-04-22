@@ -23,16 +23,12 @@ func (p Program) Ast(v Visitor) {
 	v.VisitEnd(p)
 }
 
-type StatementList struct {
-	This Node
-	Next * StatementList
-}
+type StatementList []Node
 
 func (sl StatementList) Ast(v Visitor) {
 	v.Visit(sl)
-	sl.This.Ast(v)
-	if sl.Next != nil {
-		sl.Next.Ast(v)
+	for i := len(sl) - 1; i >= 0; i-- {
+		sl[i].Ast(v)
 	}
 	v.VisitEnd(sl)
 }
@@ -86,9 +82,19 @@ func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type AbsoluteWithLabelInstruction struct {
+	OpName string
+	LabelName string
+}
+
+func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var program *Program
 
-//line asm6502/asm6502.y:91
+//line asm6502/asm6502.y:97
 type yySymType struct {
 	yys int
 	integer int
@@ -107,6 +113,7 @@ const tokEqual = 57348
 const tokPound = 57349
 const tokColon = 57350
 const tokComma = 57351
+const tokNewline = 57352
 
 var yyToknames = []string{
 	"tokIdentifier",
@@ -115,6 +122,7 @@ var yyToknames = []string{
 	"tokPound",
 	"tokColon",
 	"tokComma",
+	"tokNewline",
 }
 var yyStatenames = []string{}
 
@@ -122,7 +130,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line asm6502/asm6502.y:154
+//line asm6502/asm6502.y:170
 
 
 
@@ -133,47 +141,47 @@ var yyExca = []int{
 	-2, 0,
 }
 
-const yyNprod = 12
+const yyNprod = 14
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 16
+const yyLast = 19
 
 var yyAct = []int{
 
-	12, 15, 10, 11, 9, 14, 13, 16, 7, 2,
-	1, 6, 5, 8, 3, 4,
+	15, 8, 13, 14, 12, 11, 17, 7, 10, 18,
+	16, 19, 2, 1, 6, 5, 9, 3, 4,
 }
 var yyPact = []int{
 
-	4, -1000, -1000, 4, -1000, -1000, -1000, -4, -1000, -1000,
-	1, 0, -8, -1000, -1000, 3, -1000,
+	-3, -1000, -1000, -3, -2, -5, -1000, -1000, -4, -1000,
+	-1000, -1000, -1000, 5, 1, 0, -1000, -1000, 7, -1000,
 }
 var yyPgo = []int{
 
-	0, 9, 15, 14, 12, 11, 10,
+	0, 12, 18, 17, 15, 14, 13,
 }
 var yyR1 = []int{
 
-	0, 6, 1, 1, 3, 3, 3, 5, 2, 4,
-	4, 4,
+	0, 6, 1, 1, 3, 3, 3, 3, 5, 2,
+	4, 4, 4, 4,
 }
 var yyR2 = []int{
 
-	0, 1, 2, 1, 1, 1, 1, 2, 3, 3,
-	1, 4,
+	0, 1, 2, 1, 2, 2, 1, 1, 2, 3,
+	3, 1, 4, 2,
 }
 var yyChk = []int{
 
-	-1000, -6, -1, -3, -2, -4, -5, 4, -1, 8,
-	6, 7, 4, 5, 5, 9, 4,
+	-1000, -6, -1, -3, -2, -4, -5, 10, 4, -1,
+	10, 10, 8, 6, 7, 4, 5, 5, 9, 4,
 }
 var yyDef = []int{
 
-	0, -2, 1, 3, 4, 5, 6, 10, 2, 7,
-	0, 0, 0, 8, 9, 0, 11,
+	0, -2, 1, 3, 0, 0, 6, 7, 11, 2,
+	4, 5, 8, 0, 0, 13, 9, 10, 0, 12,
 }
 var yyTok1 = []int{
 
@@ -181,7 +189,7 @@ var yyTok1 = []int{
 }
 var yyTok2 = []int{
 
-	2, 3, 4, 5, 6, 7, 8, 9,
+	2, 3, 4, 5, 6, 7, 8, 9, 10,
 }
 var yyTok3 = []int{
 	0,
@@ -412,61 +420,76 @@ yydefault:
 	switch yynt {
 
 	case 1:
-		//line asm6502/asm6502.y:118
+		//line asm6502/asm6502.y:125
 		{
 		program = &Program{&yyS[yypt-0].statementList}
 	}
 	case 2:
-		//line asm6502/asm6502.y:122
+		//line asm6502/asm6502.y:129
 		{
-		yyVAL.statementList = StatementList{yyS[yypt-1].statement, &yyS[yypt-0].statementList}
+		if yyS[yypt-1].statement != nil {
+			yyVAL.statementList = append(yyS[yypt-0].statementList, yyS[yypt-1].statement)
+		} else {
+			yyVAL.statementList = yyS[yypt-0].statementList
+		}
 	}
 	case 3:
-		//line asm6502/asm6502.y:124
+		//line asm6502/asm6502.y:135
 		{
-		yyVAL.statementList = StatementList{yyS[yypt-0].statement, nil}
+		yyVAL.statementList = []Node{yyS[yypt-0].statement}
 	}
 	case 4:
-		//line asm6502/asm6502.y:128
+		//line asm6502/asm6502.y:139
 		{
-		yyVAL.statement = yyS[yypt-0].assignStatement
+		yyVAL.statement = yyS[yypt-1].assignStatement
 	}
 	case 5:
-		//line asm6502/asm6502.y:130
+		//line asm6502/asm6502.y:141
 		{
-		yyVAL.statement = yyS[yypt-0].instructionStatement
+		yyVAL.statement = yyS[yypt-1].instructionStatement
 	}
 	case 6:
-		//line asm6502/asm6502.y:132
+		//line asm6502/asm6502.y:143
 		{
 		yyVAL.statement = yyS[yypt-0].labelStatement
 	}
 	case 7:
-		//line asm6502/asm6502.y:136
+		//line asm6502/asm6502.y:145
+		{
+		// empty statement
+	yyVAL.statement = nil
+	}
+	case 8:
+		//line asm6502/asm6502.y:150
 		{
 		yyVAL.labelStatement = LabelStatement{yyS[yypt-1].identifier}
 	}
-	case 8:
-		//line asm6502/asm6502.y:140
+	case 9:
+		//line asm6502/asm6502.y:154
 		{
 		yyVAL.assignStatement = AssignStatement{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
-	case 9:
-		//line asm6502/asm6502.y:144
+	case 10:
+		//line asm6502/asm6502.y:158
 		{
 		// immediate address
 	yyVAL.instructionStatement = ImmediateInstruction{yyS[yypt-2].identifier, yyS[yypt-0].integer}
 	}
-	case 10:
-		//line asm6502/asm6502.y:147
+	case 11:
+		//line asm6502/asm6502.y:161
 		{
 		// no address
 	yyVAL.instructionStatement = ImpliedInstruction{yyS[yypt-0].identifier}
 	}
-	case 11:
-		//line asm6502/asm6502.y:150
+	case 12:
+		//line asm6502/asm6502.y:164
 		{
 		yyVAL.instructionStatement = AbsoluteWithLabelIndexedInstruction{yyS[yypt-3].identifier, yyS[yypt-2].identifier, yyS[yypt-0].identifier}
+	}
+	case 13:
+		//line asm6502/asm6502.y:166
+		{
+		yyVAL.instructionStatement = AbsoluteWithLabelInstruction{yyS[yypt-1].identifier, yyS[yypt-0].identifier}
 	}
 	}
 	goto yystack /* stack new state and value */
