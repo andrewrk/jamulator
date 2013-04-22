@@ -4,16 +4,33 @@ Currently an in progress 6502 assembler.
 
 ## Getting Started
 
-1. Get some required go stuff:
+1. Set up your `$GOPATH`. Make sure the `bin` folder from your go path
+   is in `$PATH`.
+2. Install the lexer:
 
 ```
-make dev
+go get github.com/superjoe30/nex
 ```
 
-2. Compile & run:
+3. Install llvm-3.1 from your package manager.
+4. Install gollvm:
 
 ```
-make && ./jamulator
+export CGO_CFLAGS=$(llvm-config-3.1 --cflags)
+export CGO_LDFLAGS="$(llvm-config-3.1 --ldflags) -Wl,-L$(llvm-config-3.1 --libdir) -lLLVM-$(llvm-config-3.1 --version)"
+go get github.com/axw/gollvm/llvm
+```
+
+5. Install the rest of the go dependencies:
+
+```
+go install
+```
+
+6. Compile & run:
+
+```
+make && ./jamulator hello.6502.asm
 ```
 
 ## Roadmap

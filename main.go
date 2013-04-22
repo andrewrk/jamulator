@@ -32,6 +32,8 @@ func main() {
 	program, err := asm6502.ParseFile(filename)
 	if err != nil { panic(err) }
 	program.Ast(&astPrinter{})
+	err = program.Compile("a.out")
+	if err != nil { panic(err) }
 }
 
 func printUsage() {
