@@ -4,40 +4,92 @@ package asm6502
 
 import "fmt"
 
+type Node interface {
+	Ast(v Visitor)
+}
+
+type Visitor interface {
+	Visit(n Node)
+	VisitEnd(n Node)
+}
+
 type Program struct {
 	statements * StatementList
 }
 
+func (p Program) Ast(v Visitor) {
+	v.Visit(p)
+	p.statements.Ast(v)
+	v.VisitEnd(p)
+}
+
 type StatementList struct {
-	This * Statement
+	This Node
 	Next * StatementList
 }
 
-type Statement struct {
+func (sl StatementList) Ast(v Visitor) {
+	v.Visit(sl)
+	sl.This.Ast(v)
+	if sl.Next != nil {
+		sl.Next.Ast(v)
+	}
+	v.VisitEnd(sl)
+}
+
+type AssignStatement struct {
 	VarName string
 	Value int
 }
 
+func (as AssignStatement) Ast(v Visitor) {
+	v.Visit(as)
+	v.VisitEnd(as)
+}
+
+type ImmediateInstruction struct {
+	OpName string
+	Value int
+}
+
+func (ii ImmediateInstruction) Ast(v Visitor) {
+	v.Visit(ii)
+	v.VisitEnd(ii)
+}
+
+type ImpliedInstruction struct {
+	OpName string
+}
+
+func (ii ImpliedInstruction) Ast(v Visitor) {
+	v.Visit(ii)
+	v.VisitEnd(ii)
+}
+
 var program *Program
 
-//line asm6502/asm6502.y:23
+//line asm6502/asm6502.y:71
 type yySymType struct {
 	yys int
 	integer int
 	identifier string
 	statementList StatementList
-	statement Statement
+	statement Node
+	instructionStatement Node
+	assignStatement AssignStatement
 	program Program
 }
 
 const tokIdentifier = 57346
 const tokInteger = 57347
 const tokEqual = 57348
+const tokPound = 57349
 
 var yyToknames = []string{
 	"tokIdentifier",
 	"tokInteger",
 	"tokEqual",
+	"tokPound",
 }
 var yyStatenames = []string{}
 
@@ -45,7 +97,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line asm6502/asm6502.y:55
+//line asm6502/asm6502.y:122
 
 
 
@@ -56,41 +108,45 @@ var yyExca = []int{
 	-2, 0,
 }
 
-const yyNprod = 5
+const yyNprod = 9
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 8
+const yyLast = 11
 
 var yyAct = []int{
 
-	6, 7, 4, 2, 1, 3, 0, 5,
+	8, 9, 11, 10, 6, 2, 1, 5, 3, 7,
+	4,
 }
 var yyPact = []int{
 
-	-2, -1000, -1000, -2, -6, -1000, -4, -1000,
+	0, -1000, -1000, 0, -1000, -1000, -6, -1000, -2, -3,
+	-1000, -1000,
 }
 var yyPgo = []int{
 
-	0, 3, 5, 4,
+	0, 5, 10, 8, 7, 6,
 }
 var yyR1 = []int{
 
-	0, 3, 1, 1, 2,
+	0, 5, 1, 1, 3, 3, 2, 4, 4,
 }
 var yyR2 = []int{
 
-	0, 1, 2, 1, 3,
+	0, 1, 2, 1, 1, 1, 3, 3, 1,
 }
 var yyChk = []int{
 
-	-1000, -3, -1, -2, 4, -1, 6, 5,
+	-1000, -5, -1, -3, -2, -4, 4, -1, 6, 7,
+	5, 5,
 }
 var yyDef = []int{
 
-	0, -2, 1, 3, 0, 2, 0, 4,
+	0, -2, 1, 3, 4, 5, 8, 2, 0, 0,
+	6, 7,
 }
 var yyTok1 = []int{
 
@@ -98,7 +154,7 @@ var yyTok1 = []int{
 }
 var yyTok2 = []int{
 
-	2, 3, 4, 5, 6,
+	2, 3, 4, 5, 6, 7,
 }
 var yyTok3 = []int{
 	0,
@@ -329,24 +385,46 @@ yydefault:
 	switch yynt {
 
 	case 1:
-		//line asm6502/asm6502.y:41
+		//line asm6502/asm6502.y:94
 		{
 		program = &Program{&yyS[yypt-0].statementList}
 	}
 	case 2:
-		//line asm6502/asm6502.y:45
+		//line asm6502/asm6502.y:98
 		{
-		yyVAL.statementList = StatementList{&yyS[yypt-1].statement, &yyS[yypt-0].statementList}
+		yyVAL.statementList = StatementList{yyS[yypt-1].statement, &yyS[yypt-0].statementList}
 	}
 	case 3:
-		//line asm6502/asm6502.y:47
+		//line asm6502/asm6502.y:100
 		{
-		yyVAL.statementList = StatementList{&yyS[yypt-0].statement, nil}
+		yyVAL.statementList = StatementList{yyS[yypt-0].statement, nil}
 	}
 	case 4:
-		//line asm6502/asm6502.y:51
+		//line asm6502/asm6502.y:104
 		{
-		yyVAL.statement = Statement{yyS[yypt-2].identifier, yyS[yypt-0].integer}
+		yyVAL.statement = yyS[yypt-0].assignStatement
+	}
+	case 5:
+		//line asm6502/asm6502.y:106
+		{
+		yyVAL.statement = yyS[yypt-0].instructionStatement
+	}
+	case 6:
+		//line asm6502/asm6502.y:110
+		{
+		yyVAL.assignStatement = AssignStatement{yyS[yypt-2].identifier, yyS[yypt-0].integer}
+	}
+	case 7:
+		//line asm6502/asm6502.y:114
+		{
+		// immediate address
+	yyVAL.instructionStatement = ImmediateInstruction{yyS[yypt-2].identifier, yyS[yypt-0].integer}
+	}
+	case 8:
+		//line asm6502/asm6502.y:117
+		{
+		// no address
+	yyVAL.instructionStatement = ImpliedInstruction{yyS[yypt-0].identifier}
 	}
 	}
 	goto yystack /* stack new state and value */

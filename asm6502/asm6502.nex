@@ -2,9 +2,6 @@
 	lval.identifier = yylex.Text()
 	return tokIdentifier
 }
-/=/ {
-	return tokEqual
-}
 /\$[0-9a-fA-F]+/ {
 	hexPart := yylex.Text()[1:]
 	n, err := strconv.ParseInt(hexPart, 16, 16)
@@ -21,6 +18,12 @@
 	}
 	lval.integer = int(n)
 	return tokInteger
+}
+/=/ {
+	return tokEqual
+}
+/#/ {
+	return tokPound
 }
 /;[^\n]*\n/ {
 	// ignore comments
