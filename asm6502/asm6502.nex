@@ -75,7 +75,7 @@ func (errs ParseErrors) Error() string {
 	return strings.Join(errs, "\n")
 }
 
-func ParseFile(filename string) (*Program, error) {
+func ParseFile(filename string) (*ProgramAST, error) {
 	parseLineNumber = 1
 	parseFilename = filename
 
@@ -89,7 +89,7 @@ func ParseFile(filename string) (*Program, error) {
 	if len(parseErrors) > 0 {
 		return nil, parseErrors
 	}
-	return program, nil
+	return programAst, nil
 }
 
 func (yylex Lexer) Error(e string) {

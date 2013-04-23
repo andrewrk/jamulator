@@ -29,11 +29,12 @@ func main() {
 		os.Exit(1)
 	}
 	filename := os.Args[1]
-	program, err := asm6502.ParseFile(filename)
+	programAst, err := asm6502.ParseFile(filename)
 	if err != nil { panic(err) }
-	program.Ast(&astPrinter{})
-	err = program.Compile("a.out")
+	programAst.Ast(&astPrinter{})
+	program, err := programAst.ToProgram()
 	if err != nil { panic(err) }
+	program.Compile("a.o")
 }
 
 func printUsage() {

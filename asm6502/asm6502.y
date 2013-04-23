@@ -12,11 +12,11 @@ type Visitor interface {
 	VisitEnd(n Node)
 }
 
-type Program struct {
+type ProgramAST struct {
 	statements StatementList
 }
 
-func (p Program) Ast(v Visitor) {
+func (p ProgramAST) Ast(v Visitor) {
 	v.Visit(p)
 	p.statements.Ast(v)
 	v.VisitEnd(p)
@@ -125,7 +125,7 @@ func (n IntegerDataItem) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-var program *Program
+var programAst *ProgramAST
 %}
 
 %union {
@@ -140,7 +140,7 @@ var program *Program
 	dataStatement DataStatement
 	dataList DataList
 	dataItem Node
-	program Program
+	programAst ProgramAST
 }
 
 %type <statementList> statementList
@@ -151,7 +151,7 @@ var program *Program
 %type <dataStatement> dataStatement
 %type <dataList> dataList
 %type <dataItem> dataItem
-%type <program> program
+%type <programAst> programAst
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
@@ -165,8 +165,8 @@ var program *Program
 
 %%
 
-program : statementList {
-	program = &Program{$1}
+programAst : statementList {
+	programAst = &ProgramAST{$1}
 }
 
 statementList : statementList statement {
