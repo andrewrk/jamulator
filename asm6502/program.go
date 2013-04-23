@@ -95,6 +95,43 @@ var absIndexedYOpcode = map[string] int {
 	"sta": 0x99,
 }
 
+var absOpcode = map[string] int {
+	"adc": 0x6d,
+	"and": 0x2d,
+	"asl": 0x0e,
+	"bit": 0x2c,
+	"cmp": 0xcd,
+	"cpx": 0xec,
+	"cpy": 0xcc,
+	"dec": 0xce,
+	"eor": 0x4d,
+	"inc": 0xee,
+	"jmp": 0x4c,
+	"jsr": 0x20,
+	"lda": 0xad,
+	"ldx": 0xae,
+	"ldy": 0xac,
+	"lsr": 0x4e,
+	"ora": 0x0d,
+	"rol": 0x2e,
+	"ror": 0x6e,
+	"sbc": 0xed,
+	"sta": 0x8d,
+	"stx": 0x8e,
+	"sty": 0x8c,
+}
+
+var relOpcode = map[string] int {
+	"bcc": 0x90,
+	"bcs": 0xb0,
+	"beq": 0xf0,
+	"bmi": 0x30,
+	"bne": 0xd0,
+	"bpl": 0x10,
+	"bvc": 0x50,
+	"bvs": 0x70,
+}
+
 type opcodeDef struct {
 	opcode int
 	size int
@@ -132,6 +169,17 @@ func compileInstruction(s InstructionStatement) (*Instruction, error) {
 			return &Instruction{s, opcode, 3}, nil
 		} else {
 			return nil, errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", ss.Line))
+		}
+	case DirectWithLabelInstruction:
+		opcode, ok := absOpcode[lowerOpName]
+		if ok {
+			return &Instruction{s, opcode, 3}, nil
+		} else {
+			opcode, ok = relOpcode[lowerOpName]
+			if !ok {
+				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", ss.Line, opName))
+			}
+			return &Instruction{s, opcode, 2}, nil
 		}
 	}
 	panic("Unrecognized instruction type")

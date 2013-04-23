@@ -102,17 +102,32 @@ func (n AbsoluteWithLabelIndexedInstruction) OpName() string {
 	return n.opName
 }
 
-type AbsoluteWithLabelInstruction struct {
+type AccumulatorInstruction struct {
 	opName string
-	LabelName string
+	Line int
 }
 
-func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
+func (n AccumulatorInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
 }
 
-func (n AbsoluteWithLabelInstruction) OpName() string {
+func (n AccumulatorInstruction) OpName() string {
+	return n.opName
+}
+
+type DirectWithLabelInstruction struct {
+	opName string
+	LabelName string
+	Line int
+}
+
+func (n DirectWithLabelInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
+func (n DirectWithLabelInstruction) OpName() string {
 	return n.opName
 }
 
@@ -254,7 +269,11 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
 	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber}
 } | tokIdentifier tokIdentifier {
-	$$ = AbsoluteWithLabelInstruction{$1, $2}
+	if $2 == "a" || $2 == "A" {
+		$$ = AccumulatorInstruction{$1, parseLineNumber}
+	} else {
+		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber}
+	}
 }
 
 %%
