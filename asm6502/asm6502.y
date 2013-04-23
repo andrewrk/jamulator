@@ -10,6 +10,7 @@ type Node interface {
 // an InstructionStatement is also a Node
 type InstructionStatement interface {
 	Ast(v Visitor)
+	OpName() string
 }
 
 type Visitor interface {
@@ -48,7 +49,7 @@ func (as AssignStatement) Ast(v Visitor) {
 }
 
 type ImmediateInstruction struct {
-	OpName string
+	opName string
 	Value int
 	Line int
 }
@@ -58,14 +59,22 @@ func (ii ImmediateInstruction) Ast(v Visitor) {
 	v.VisitEnd(ii)
 }
 
+func (ii ImmediateInstruction) OpName() string {
+	return ii.opName
+}
+
 type ImpliedInstruction struct {
-	OpName string
+	opName string
 	Line int
 }
 
 func (ii ImpliedInstruction) Ast(v Visitor) {
 	v.Visit(ii)
 	v.VisitEnd(ii)
+}
+
+func (ii ImpliedInstruction) OpName() string {
+	return ii.opName
 }
 
 type LabelStatement struct {
@@ -78,9 +87,10 @@ func (ls LabelStatement) Ast(v Visitor) {
 }
 
 type AbsoluteWithLabelIndexedInstruction struct {
-	OpName string
+	opName string
 	LabelName string
 	RegisterName string
+	Line int
 }
 
 func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
@@ -88,14 +98,22 @@ func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+func (n AbsoluteWithLabelIndexedInstruction) OpName() string {
+	return n.opName
+}
+
 type AbsoluteWithLabelInstruction struct {
-	OpName string
+	opName string
 	LabelName string
 }
 
 func (n AbsoluteWithLabelInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
+}
+
+func (n AbsoluteWithLabelInstruction) OpName() string {
+	return n.opName
 }
 
 type DataStatement struct {
@@ -229,12 +247,12 @@ assignStatement : tokIdentifier tokEqual tokInteger {
 
 instructionStatement : tokIdentifier tokPound tokInteger {
 	// immediate address
-	$$ = ImmediateInstruction{$1, $3, parseLineNumber - 1}
+	$$ = ImmediateInstruction{$1, $3, parseLineNumber}
 } | tokIdentifier {
 	// no address
-	$$ = ImpliedInstruction{$1, parseLineNumber - 1}
+	$$ = ImpliedInstruction{$1, parseLineNumber}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
-	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4}
+	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber}
 } | tokIdentifier tokIdentifier {
 	$$ = AbsoluteWithLabelInstruction{$1, $2}
 }

@@ -65,30 +65,76 @@ var immediateOpcode = map[string] int {
 	"sbc": 0xe9,
 }
 
+var absIndexedXOpcode = map[string] int {
+	"adc": 0x7d,
+	"and": 0x3d,
+	"asl": 0x1e,
+	"cmp": 0xdd,
+	"dec": 0xde,
+	"eor": 0x5d,
+	"inc": 0xfe,
+	"lda": 0xbd,
+	"ldy": 0xbc,
+	"lsr": 0x5e,
+	"ora": 0x1d,
+	"rol": 0x3e,
+	"ror": 0x7e,
+	"sbc": 0xfd,
+	"sta": 0x9d,
+}
+
+var absIndexedYOpcode = map[string] int {
+	"adc": 0x79,
+	"and": 0x39,
+	"cmp": 0xd9,
+	"eor": 0x59,
+	"lda": 0xb9,
+	"ldx": 0xbe,
+	"ora": 0x19,
+	"sbc": 0xf9,
+	"sta": 0x99,
+}
+
 type opcodeDef struct {
 	opcode int
 	size int
 }
 
 func compileInstruction(s InstructionStatement) (*Instruction, error) {
+	opName := s.OpName()
+	lowerOpName := strings.ToLower(opName)
 	switch ss := s.(type) {
 	case ImpliedInstruction:
-		lowerOpName := strings.ToLower(ss.OpName)
 		opcode, ok := impliedOpcode[lowerOpName]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized implied instruction: %s", ss.Line, ss.OpName))
+			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized implied instruction: %s", ss.Line, opName))
 		}
 		return &Instruction{s, opcode, 1}, nil
 	case ImmediateInstruction:
-		lowerOpName := strings.ToLower(ss.OpName)
 		opcode, ok := immediateOpcode[lowerOpName]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ss.Line, ss.OpName))
+			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ss.Line, opName))
 		}
 		return &Instruction{s, opcode, 2}, nil
+	case AbsoluteWithLabelIndexedInstruction:
+		lowerRegName := strings.ToLower(ss.RegisterName)
+		if lowerRegName == "x" {
+			opcode, ok := absIndexedXOpcode[lowerOpName]
+			if !ok {
+				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", ss.Line, opName))
+			}
+			return &Instruction{s, opcode, 3}, nil
+		} else if lowerRegName == "y" {
+			opcode, ok := absIndexedYOpcode[lowerOpName]
+			if !ok {
+				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", ss.Line, opName))
+			}
+			return &Instruction{s, opcode, 3}, nil
+		} else {
+			return nil, errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", ss.Line))
+		}
 	}
-
-	return nil, nil
+	panic("Unrecognized instruction type")
 }
 
 // collect all variable assignments into a map
