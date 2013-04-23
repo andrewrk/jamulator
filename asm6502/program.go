@@ -51,16 +51,43 @@ var impliedOpcode = map[string] int {
 	"tya": 0x98,
 }
 
+var immediateOpcode = map[string] int {
+	"adc": 0x69,
+	"and": 0x29,
+	"cmp": 0xc9,
+	"cpx": 0xe0,
+	"cpy": 0xc0,
+	"eor": 0x49,
+	"lda": 0xa9,
+	"ldx": 0xa2,
+	"ldy": 0xa0,
+	"ora": 0x09,
+	"sbc": 0xe9,
+}
+
+type opcodeDef struct {
+	opcode int
+	size int
+}
+
 func compileInstruction(s InstructionStatement) (*Instruction, error) {
 	switch ss := s.(type) {
 	case ImpliedInstruction:
 		lowerOpName := strings.ToLower(ss.OpName)
 		opcode, ok := impliedOpcode[lowerOpName]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized instruction: %s", ss.Line, ss.OpName))
+			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized implied instruction: %s", ss.Line, ss.OpName))
 		}
 		return &Instruction{s, opcode, 1}, nil
+	case ImmediateInstruction:
+		lowerOpName := strings.ToLower(ss.OpName)
+		opcode, ok := immediateOpcode[lowerOpName]
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ss.Line, ss.OpName))
+		}
+		return &Instruction{s, opcode, 2}, nil
 	}
+
 	return nil, nil
 }
 

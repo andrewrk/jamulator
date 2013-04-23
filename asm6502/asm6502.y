@@ -50,6 +50,7 @@ func (as AssignStatement) Ast(v Visitor) {
 type ImmediateInstruction struct {
 	OpName string
 	Value int
+	Line int
 }
 
 func (ii ImmediateInstruction) Ast(v Visitor) {
@@ -228,7 +229,7 @@ assignStatement : tokIdentifier tokEqual tokInteger {
 
 instructionStatement : tokIdentifier tokPound tokInteger {
 	// immediate address
-	$$ = ImmediateInstruction{$1, $3}
+	$$ = ImmediateInstruction{$1, $3, parseLineNumber - 1}
 } | tokIdentifier {
 	// no address
 	$$ = ImpliedInstruction{$1, parseLineNumber - 1}
