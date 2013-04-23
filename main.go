@@ -34,7 +34,7 @@ func main() {
 	programAst.Ast(&astPrinter{})
 	program, err := programAst.ToProgram()
 	if err != nil { panic(err) }
-	program.Compile("a.o")
+	program.Compile(filename + ".bc")
 }
 
 func printUsage() {

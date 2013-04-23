@@ -30,7 +30,11 @@ go install
 6. Compile & run:
 
 ```
-make && ./jamulator hello.6502.asm
+make
+./jamulator hello.6502.asm
+llc -filetype=obj hello.6502.asm.bc
+gcc hello.6502.asm.o
+./a.out
 ```
 
 ## Roadmap
