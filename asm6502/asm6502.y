@@ -7,6 +7,11 @@ type Node interface {
 	Ast(v Visitor)
 }
 
+// an InstructionStatement is also a Node
+type InstructionStatement interface {
+	Ast(v Visitor)
+}
+
 type Visitor interface {
 	Visit(n Node)
 	VisitEnd(n Node)
@@ -54,6 +59,7 @@ func (ii ImmediateInstruction) Ast(v Visitor) {
 
 type ImpliedInstruction struct {
 	OpName string
+	Line int
 }
 
 func (ii ImpliedInstruction) Ast(v Visitor) {
@@ -134,7 +140,7 @@ var programAst *ProgramAST
 	quotedString string
 	statementList StatementList
 	statement Node
-	instructionStatement Node
+	instructionStatement InstructionStatement
 	labelStatement LabelStatement
 	assignStatement AssignStatement
 	dataStatement DataStatement
@@ -225,7 +231,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	$$ = ImmediateInstruction{$1, $3}
 } | tokIdentifier {
 	// no address
-	$$ = ImpliedInstruction{$1}
+	$$ = ImpliedInstruction{$1, parseLineNumber - 1}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
 	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4}
 } | tokIdentifier tokIdentifier {
