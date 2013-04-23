@@ -33,6 +33,7 @@ func main() {
 	if err != nil { panic(err) }
 	programAst.Ast(&astPrinter{})
 	program, err := programAst.ToProgram()
+	fmt.Println("program", program)
 	if err != nil { panic(err) }
 	program.Compile(filename + ".bc")
 }
