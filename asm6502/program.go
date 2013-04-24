@@ -209,7 +209,7 @@ type opcodeDef struct {
 	size int
 }
 
-func (ii ImmediateInstruction) Measure(p *Program) error {
+func (ii *ImmediateInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(ii.OpName)
 	opcode, ok := immediateOpCode[lowerOpName]
 	if !ok {
@@ -223,7 +223,7 @@ func (ii ImmediateInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n ImmediateInstruction) Assemble(bin *machineCode) error {
+func (n *ImmediateInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(byte(n.OpCode))
 	if err != nil { return err }
 	return bin.writer.WriteByte(byte(n.Value))
@@ -433,8 +433,8 @@ func (n DataStatement) Measure(p *Program) error {
 	n.Size = 0
 	for _, dataItem := range(n.dataList) {
 		switch t := dataItem.(type) {
-		case StringDataItem: n.Size += len(t)
-		case IntegerDataItem: n.Size += 1
+		case *StringDataItem: n.Size += len(*t)
+		case *IntegerDataItem: n.Size += 1
 		default: panic("unknown data item type")
 		}
 	}
@@ -466,9 +466,9 @@ func (n IndirectInstruction) Assemble(bin *machineCode) error {
 // collect all variable assignments into a map
 func (p *Program) Visit(n Node) {
 	switch ss := n.(type) {
-	case AssignStatement:
+	case *AssignStatement:
 		p.Variables[ss.VarName] = ss.Value
-	case OrgPseudoOp:
+	case *OrgPseudoOp:
 		p.offset = ss.Value
 	case Measurer:
 		err := ss.Measure(p)
@@ -476,7 +476,7 @@ func (p *Program) Visit(n Node) {
 			p.Errors = append(p.Errors, err)
 		}
 		p.offset += ss.GetSize()
-	case LabelStatement:
+	case *LabelStatement:
 		if p.offset >= 0xffff {
 			err := errors.New(fmt.Sprintf("Line %d: Label memory address must fit in 2 bytes.", ss.Line))
 			p.Errors = append(p.Errors, err)
