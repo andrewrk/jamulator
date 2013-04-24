@@ -136,6 +136,17 @@ var indirectXOpCode = map[string] int {
 	"sta": 0x81,
 }
 
+var indirectYOpCode = map[string] int {
+	"adc": 0x71,
+	"and": 0x31,
+	"cmp": 0xd1,
+	"eor": 0x51,
+	"lda": 0xb1,
+	"ora": 0x11,
+	"sbc": 0xf1,
+	"sta": 0x91,
+}
+
 type opcodeDef struct {
 	opcode int
 	size int
@@ -247,7 +258,18 @@ func (n IndirectXInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectXOpCode[lowerOpName]
 	if !ok {
-		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect instruction: %s", n.Line, n.OpName))
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect x indexed instruction: %s", n.Line, n.OpName))
+	}
+	n.OpCode = opcode
+	n.Size = 2
+	return nil
+}
+
+func (n IndirectYInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	opcode, ok := indirectYOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect y indexed instruction: %s", n.Line, n.OpName))
 	}
 	n.OpCode = opcode
 	n.Size = 2
@@ -266,6 +288,15 @@ func (n DataStatement) Measure() error {
 	return nil
 }
 
+func (n IndirectInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	if lowerOpName != "jmp" {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect instruction: %s", n.Line, n.OpName))
+	}
+	n.OpCode = 0x6c
+	n.Size = 3
+	return nil
+}
 
 // collect all variable assignments into a map
 func (p *Program) Visit(n Node) {

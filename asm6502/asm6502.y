@@ -175,6 +175,34 @@ func (n IndirectXInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type IndirectYInstruction struct {
+	OpName string
+	Value int
+	Line int
+
+	OpCode int
+	Size int
+}
+
+func (n IndirectYInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
+type IndirectInstruction struct {
+	OpName string
+	Value int
+	Line int
+
+	OpCode int
+	Size int
+}
+
+func (n IndirectInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 type DataStatement struct {
 	dataList DataList
 
@@ -347,6 +375,13 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 		yylex.Error("Register argument must be X.")
 	}
 	$$ = IndirectXInstruction{$1, $3, parseLineNumber, 0, 0}
+} | tokIdentifier tokLParen tokInteger tokRParen tokComma tokIdentifier {
+	if $6 != "y" && $6 != "Y" {
+		yylex.Error("Register argument must be Y.")
+	}
+	$$ = IndirectYInstruction{$1, $3, parseLineNumber, 0, 0}
+} | tokIdentifier tokLParen tokInteger tokRParen {
+	$$ = IndirectInstruction{$1, $3, parseLineNumber, 0, 0}
 }
 
 %%
