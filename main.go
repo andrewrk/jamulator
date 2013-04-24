@@ -3,41 +3,35 @@ package main
 import (
 	"./asm6502"
 	"fmt"
-	"reflect"
 	"os"
+	"flag"
 )
 
-type astPrinter struct {
-	indentLevel int
-}
-
-func (ap *astPrinter) Visit(n asm6502.Node) {
-	for i := 0; i < ap.indentLevel; i++ {
-		fmt.Print(" ")
-	}
-	fmt.Println(reflect.TypeOf(n))
-	ap.indentLevel += 2
-}
-
-func (ap *astPrinter) VisitEnd(n asm6502.Node) {
-	ap.indentLevel -= 2
+var astFlag bool
+func init() {
+	flag.BoolVar(&astFlag, "ast", false, "Print the abstract syntax tree and quit")
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
+	flag.Parse()
+	if flag.NArg() != 1 {
+		fmt.Println("Usage: jamulator [options] code.asm")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	filename := os.Args[1]
+	filename := flag.Arg(0)
 	programAst, err := asm6502.ParseFile(filename)
 	if err != nil { panic(err) }
-	programAst.Ast(&astPrinter{})
-	program, err := programAst.ToProgram()
-	fmt.Println("program", program)
-	if err != nil { panic(err) }
+	if astFlag {
+		programAst.Print()
+		os.Exit(0)
+	}
+	program := programAst.ToProgram()
+	if len(program.Errors) > 0 {
+		for _, err := range(program.Errors) {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
+	}
 	program.Compile(filename + ".bc")
-}
-
-func printUsage() {
-	fmt.Println("Usage: jamulator code.asm")
 }

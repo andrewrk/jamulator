@@ -322,8 +322,8 @@ func NewProgram() *Program {
 	return &p
 }
 
-func (ast *ProgramAST) ToProgram() (*Program, error) {
+func (ast *ProgramAST) ToProgram() (*Program) {
 	p := NewProgram()
 	ast.Ast(p)
-	return p, nil
+	return p
 }
