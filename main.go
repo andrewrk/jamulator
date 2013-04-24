@@ -8,14 +8,16 @@ import (
 )
 
 var astFlag bool
+var assembleFlag bool
 func init() {
 	flag.BoolVar(&astFlag, "ast", false, "Print the abstract syntax tree and quit")
+	flag.BoolVar(&assembleFlag, "asm", false, "Assemble the input into machine code")
 }
 
 func main() {
 	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Printf("Usage: %s [options] code.asm\n", os.Args[0])
+	if flag.NArg() != 1 && flag.NArg() != 2 {
+		fmt.Printf("Usage: %s [options] inputfile [outputfile]\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -33,5 +35,17 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	program.Compile(filename + ".bc")
+	if assembleFlag {
+		outfile := filename + ".bin"
+		if flag.NArg() == 2 {
+			outfile = flag.Arg(1)
+		}
+		program.Assemble(outfile)
+	} else {
+		outfile := filename + ".bc"
+		if flag.NArg() == 2 {
+			outfile = flag.Arg(1)
+		}
+		program.Compile(outfile)
+	}
 }

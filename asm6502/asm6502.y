@@ -11,10 +11,6 @@ type Node interface {
 	Ast(v Visitor)
 }
 
-type Measurer interface {
-	Measure() error
-}
-
 type Visitor interface {
 	Visit(n Node)
 	VisitEnd(n Node)
@@ -65,6 +61,10 @@ func (ii ImmediateInstruction) Ast(v Visitor) {
 	v.VisitEnd(ii)
 }
 
+func (ii ImmediateInstruction) GetSize() int {
+	return ii.Size
+}
+
 type ImpliedInstruction struct {
 	OpName string
 	Line int
@@ -77,6 +77,10 @@ type ImpliedInstruction struct {
 func (ii ImpliedInstruction) Ast(v Visitor) {
 	v.Visit(ii)
 	v.VisitEnd(ii)
+}
+
+func (ii ImpliedInstruction) GetSize() int {
+	return ii.Size
 }
 
 type LabelStatement struct {
@@ -104,6 +108,10 @@ func (n DirectWithLabelIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+func (n DirectWithLabelIndexedInstruction) GetSize() int {
+	return n.Size
+}
+
 type DirectIndexedInstruction struct {
 	OpName string
 	Value int
@@ -120,6 +128,10 @@ func (n DirectIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+func (n DirectIndexedInstruction) GetSize() int {
+	return n.Size
+}
+
 type DirectWithLabelInstruction struct {
 	OpName string
 	LabelName string
@@ -132,6 +144,10 @@ type DirectWithLabelInstruction struct {
 func (n DirectWithLabelInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
+}
+
+func (n DirectWithLabelInstruction) GetSize() int {
+	return n.Size
 }
 
 type DirectInstruction struct {
@@ -148,6 +164,10 @@ func (n DirectInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+func (n DirectInstruction) GetSize() int {
+	return n.Size
+}
+
 type IndirectXInstruction struct {
 	OpName string
 	Value int
@@ -160,6 +180,10 @@ type IndirectXInstruction struct {
 func (n IndirectXInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
+}
+
+func (n IndirectXInstruction) GetSize() int {
+	return n.Size
 }
 
 type IndirectYInstruction struct {
@@ -176,6 +200,10 @@ func (n IndirectYInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+func (n IndirectYInstruction) GetSize() int {
+	return n.Size
+}
+
 type IndirectInstruction struct {
 	OpName string
 	Value int
@@ -189,6 +217,11 @@ func (n IndirectInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
 }
+
+func (n IndirectInstruction) GetSize() int {
+	return n.Size
+}
+
 
 type OrgPseudoOp struct {
 	Value int
@@ -210,6 +243,10 @@ func (n DataStatement) Ast(v Visitor) {
 	v.Visit(n)
 	n.dataList.Ast(v)
 	v.VisitEnd(n)
+}
+
+func (n DataStatement) GetSize() int {
+	return n.Size
 }
 
 type DataList []Node

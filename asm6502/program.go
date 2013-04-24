@@ -4,6 +4,8 @@ import (
 	"strings"
 	"errors"
 	"fmt"
+	"os"
+	"bufio"
 )
 
 // Program is a proper program, one that you can compile
@@ -15,6 +17,24 @@ type Program struct {
 	Variables map[string] int
 	Labels map[string] int
 	Errors []error
+
+	offset int
+}
+
+type Measurer interface {
+	Measure() error
+	GetSize() int
+}
+
+type Assembler interface {
+	Assemble(bin *machineCode) error
+}
+
+// Maintains the state for assembling a Program into
+// machine code
+type machineCode struct {
+	prog *Program
+	writer *bufio.Writer
 }
 
 var impliedOpCode = map[string] int {
@@ -187,8 +207,17 @@ func (ii ImmediateInstruction) Measure() error {
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ii.Line, ii.OpName))
 	}
+	if ii.Value > 0xf {
+		return errors.New(fmt.Sprintf("Line %d: Immediate instruction argument must be a 1 byte integer.", ii.Line))
+	}
 	ii.OpCode = opcode
 	ii.Size = 2
+	return nil
+}
+
+func (n ImmediateInstruction) Assemble(bin *machineCode) error {
+	bin.writer.WriteByte(byte(n.OpCode))
+	bin.writer.WriteByte(byte(n.Value))
 	return nil
 }
 
@@ -353,10 +382,40 @@ func (p *Program) Visit(n Node) {
 		if err != nil {
 			p.Errors = append(p.Errors, err)
 		}
+		p.offset += ss.GetSize()
+	case LabelStatement:
+		p.Labels[ss.LabelName] = p.offset
 	}
 }
 
 func (p *Program) VisitEnd(n Node) {}
+
+func (bin *machineCode) Visit(n Node) {
+	switch nn := n.(type) {
+	case Assembler:
+		nn.Assemble(bin)
+	}
+}
+
+func (bin *machineCode) VisitEnd(n Node) {}
+
+func (p *Program) Assemble(filename string) error {
+	fd, err := os.Create(filename)
+	if err != nil { return err}
+
+	writer := bufio.NewWriter(fd)
+	bin := machineCode{
+		p,
+		writer,
+	}
+	p.Ast.Ast(&bin)
+	writer.Flush()
+
+	err = fd.Close()
+	if err != nil { return err }
+
+	return nil
+}
 
 func (ast *ProgramAST) ToProgram() (*Program) {
 	p := Program{
@@ -364,7 +423,13 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 		map[string]int {},
 		map[string]int {},
 		[]error{},
+		0,
 	}
 	ast.Ast(&p)
 	return &p
+}
+
+func (n OrgPseudoOp) Assemble(bin *machineCode) error {
+	// TODO: seek to offset in this file
+	return nil
 }
