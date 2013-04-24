@@ -1,7 +1,10 @@
 %{
 package asm6502
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 type Node interface {
 	Ast(v Visitor)
@@ -181,6 +184,7 @@ var programAst *ProgramAST
 	dataList DataList
 	dataItem Node
 	programAst ProgramAST
+	processorDecl string
 }
 
 %type <statementList> statementList
@@ -192,6 +196,7 @@ var programAst *ProgramAST
 %type <dataList> dataList
 %type <dataItem> dataItem
 %type <programAst> programAst
+%type <processorDecl> processorDecl
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
@@ -202,6 +207,7 @@ var programAst *ProgramAST
 %token tokComma
 %token tokNewline
 %token tokData
+%token tokProcessor
 
 %%
 
@@ -231,9 +237,21 @@ statement : assignStatement tokNewline {
 	$$ = $1
 } | dataStatement tokNewline {
 	$$ = $1
+} | processorDecl tokNewline {
+	if $1 != "6502" {
+		yylex.Error("Unsupported processor: " + $1 + " - Only 6502 is supported.")
+	}
+	// empty statement
+	$$ = nil
 } | tokNewline {
 	// empty statement
 	$$ = nil
+}
+
+processorDecl : tokProcessor tokInteger {
+	$$ = strconv.FormatInt(int64($2), 10)
+} | tokProcessor tokIdentifier {
+	$$ = $2
 }
 
 dataStatement : tokData dataList {
