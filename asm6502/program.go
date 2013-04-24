@@ -139,6 +139,30 @@ var zeroPageYOpCode = map[string] byte {
 	"stx": 0x96,
 }
 
+var zeroPageOpCode = map[string] byte {
+	"adc": 0x65,
+	"and": 0x25,
+	"asl": 0x06,
+	"bit": 0x24,
+	"cmp": 0xc5,
+	"cpx": 0xe4,
+	"cpy": 0xc4,
+	"dec": 0xc6,
+	"eor": 0x45,
+	"inc": 0xe6,
+	"lda": 0xa5,
+	"ldx": 0xa6,
+	"ldy": 0xa4,
+	"lsr": 0x46,
+	"ora": 0x05,
+	"rol": 0x26,
+	"ror": 0x66,
+	"sbc": 0xe5,
+	"sta": 0x85,
+	"stx": 0x86,
+	"sty": 0x84,
+}
+
 var absIndexedYOpCode = map[string] byte {
 	"adc": 0x79,
 	"and": 0x39,
@@ -235,7 +259,7 @@ func (n *ImmediateInstruction) Assemble(bin *machineCode) error {
 	return bin.writer.WriteByte(byte(n.Value))
 }
 
-func (ii ImpliedInstruction) Measure(p *Program) error {
+func (ii *ImpliedInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(ii.OpName)
 	opcode, ok := impliedOpCode[lowerOpName]
 	if !ok {
@@ -246,11 +270,11 @@ func (ii ImpliedInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n ImpliedInstruction) Assemble(bin *machineCode) error {
+func (n *ImpliedInstruction) Assemble(bin *machineCode) error {
 	return bin.writer.WriteByte(byte(n.OpCode))
 }
 
-func (n DirectIndexedInstruction) Measure(p *Program) error {
+func (n *DirectIndexedInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
@@ -291,13 +315,13 @@ func (n DirectIndexedInstruction) Measure(p *Program) error {
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
-func (n DirectIndexedInstruction) Assemble(bin *machineCode) error {
+func (n *DirectIndexedInstruction) Assemble(bin *machineCode) error {
 	_, err := bin.writer.Write(n.Payload)
 	return err
 }
 
 
-func (n DirectWithLabelIndexedInstruction) Measure(p *Program) error {
+func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
@@ -321,10 +345,10 @@ func (n DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 }
 
 
-func (n DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
+func (n *DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset + uint16(n.Size))
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
 	}
@@ -335,7 +359,7 @@ func (n DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 }
 
 
-func (n DirectWithLabelInstruction) Measure(p *Program) error {
+func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 	if p.offset >= 0xffff {
 		return errors.New(fmt.Sprintf("Line %d: Instruction is at offset %#x which is greater than 2 bytes.", n.Line, p.offset))
 	}
@@ -356,18 +380,18 @@ func (n DirectWithLabelInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n DirectWithLabelInstruction) Assemble(bin *machineCode) error {
+func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset + uint16(n.Size))
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
 	}
 	if n.Size == 2 {
 		// relative address
-		delta := labelValue - n.Offset
-		if delta > 0xff {
-			return errors.New(fmt.Sprintf("Line %d: Label address must be within 255 bytes of instruction address.", n.Line))
+		delta := int(n.Offset) - int(labelValue)
+		if delta > 127 || delta < -128 {
+			return errors.New(fmt.Sprintf("Line %d: Label address must be within 127 bytes of instruction address.", n.Line))
 		}
 		return bin.writer.WriteByte(byte(delta))
 	}
@@ -378,9 +402,30 @@ func (n DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	return err
 }
 
-func (n DirectInstruction) Measure(p *Program) error {
+func (n *DirectInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
-	opcode, ok := absOpCode[lowerOpName]
+
+	// try indirect
+	opcode, ok := relOpCode[lowerOpName]
+	if ok {
+		if n.Value > 0xff {
+			return errors.New(fmt.Sprintf("Line %d: Relative memory address is limited to 1 byte.", n.Line))
+		}
+		n.Payload = []byte{opcode, byte(n.Value)}
+		return nil
+	}
+
+	// try zero page
+	if n.Value <= 0xff {
+		opcode, ok := zeroPageOpCode[lowerOpName]
+		if ok {
+			n.Payload = []byte{opcode, byte(n.Value)}
+			return nil
+		}
+	}
+
+	// must be absolute
+	opcode, ok = absOpCode[lowerOpName]
 	if ok {
 		if n.Value > 0xffff {
 			return errors.New(fmt.Sprintf("Line %d: Absolute memory address is limited to 2 bytes.", n.Line))
@@ -389,23 +434,16 @@ func (n DirectInstruction) Measure(p *Program) error {
 		binary.LittleEndian.PutUint16(n.Payload[1:], uint16(n.Value))
 		return nil
 	}
-	opcode, ok = relOpCode[lowerOpName]
-	if !ok {
-		return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
-	}
-	if n.Value > 0xff {
-		return errors.New(fmt.Sprintf("Line %d: Relative memory address is limited to 1 byte.", n.Line))
-	}
-	n.Payload = []byte{opcode, byte(n.Value)}
-	return nil
+
+	return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
 }
 
-func (n DirectInstruction) Assemble(bin *machineCode) error {
+func (n *DirectInstruction) Assemble(bin *machineCode) error {
 	_, err := bin.writer.Write(n.Payload)
 	return err
 }
 
-func (n IndirectXInstruction) Measure(p *Program) error {
+func (n *IndirectXInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectXOpCode[lowerOpName]
 	if !ok {
@@ -418,13 +456,13 @@ func (n IndirectXInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n IndirectXInstruction) Assemble(bin *machineCode) error {
+func (n *IndirectXInstruction) Assemble(bin *machineCode) error {
 	_, err := bin.writer.Write(n.Payload)
 	return err
 }
 
 
-func (n IndirectYInstruction) Measure(p *Program) error {
+func (n *IndirectYInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectYOpCode[lowerOpName]
 	if !ok {
@@ -437,12 +475,12 @@ func (n IndirectYInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n IndirectYInstruction) Assemble(bin *machineCode) error {
+func (n *IndirectYInstruction) Assemble(bin *machineCode) error {
 	_, err := bin.writer.Write(n.Payload)
 	return err
 }
 
-func (n DataStatement) Measure(p *Program) error {
+func (n *DataStatement) Measure(p *Program) error {
 	n.Size = 0
 	for _, dataItem := range(n.dataList) {
 		switch t := dataItem.(type) {
@@ -454,11 +492,11 @@ func (n DataStatement) Measure(p *Program) error {
 	return nil
 }
 
-func (n DataStatement) Assemble(bin *machineCode) error {
+func (n *DataStatement) Assemble(bin *machineCode) error {
 	return errors.New("data assembly not yet implemented")
 }
 
-func (n IndirectInstruction) Measure(p *Program) error {
+func (n *IndirectInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	if lowerOpName != "jmp" {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect instruction: %s", n.Line, n.OpName))
@@ -471,7 +509,7 @@ func (n IndirectInstruction) Measure(p *Program) error {
 	return nil
 }
 
-func (n IndirectInstruction) Assemble(bin *machineCode) error {
+func (n *IndirectInstruction) Assemble(bin *machineCode) error {
 	_, err := bin.writer.Write(n.Payload)
 	return err
 }
