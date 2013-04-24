@@ -18,6 +18,7 @@ type Program struct {
 }
 
 var impliedOpCode = map[string] int {
+	"asl": 0x0a,
 	"brk": 0x00,
 	"clc": 0x18,
 	"cld": 0xd8,
@@ -27,6 +28,7 @@ var impliedOpCode = map[string] int {
 	"dey": 0x88,
 	"inx": 0xe8,
 	"iny": 0xc8,
+	"lsr": 0x4a,
 	"nop": 0xea,
 	"pha": 0x48,
 	"php": 0x08,
