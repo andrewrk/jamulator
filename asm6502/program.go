@@ -43,7 +43,13 @@ func (m machineCode) Error() string {
 	return strings.Join(m.Errors, "\n")
 }
 
-
+func (bin *machineCode) getLabel(name string, offset uint16) (uint16, bool) {
+	if name == "." {
+		return offset, true
+	}
+	value, ok := bin.prog.Labels[name]
+	return value, ok
+}
 
 var impliedOpCode = map[string] byte {
 	"asl": 0x0a,
@@ -314,10 +320,14 @@ func (n DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
+
 func (n DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue := bin.prog.Labels[n.LabelName]
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
+	}
 	buf := []byte{0, 0}
 	binary.LittleEndian.PutUint16(buf, labelValue)
 	_, err = bin.writer.Write(buf)
@@ -349,7 +359,10 @@ func (n DirectWithLabelInstruction) Measure(p *Program) error {
 func (n DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue := bin.prog.Labels[n.LabelName]
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
+	}
 	if n.Size == 2 {
 		// relative address
 		delta := labelValue - n.Offset
@@ -480,8 +493,18 @@ func (p *Program) Visit(n Node) {
 		if p.offset >= 0xffff {
 			err := errors.New(fmt.Sprintf("Line %d: Label memory address must fit in 2 bytes.", ss.Line))
 			p.Errors = append(p.Errors, err)
+		} else if ss.LabelName == "." {
+			err := errors.New(fmt.Sprintf("Line %d: Reserved label name: '.'", ss.Line))
+			p.Errors = append(p.Errors, err)
+		} else {
+			_, exists := p.Labels[ss.LabelName]
+			if exists {
+				err := errors.New(fmt.Sprintf("Line %d: Label %s already defined.", ss.Line, ss.LabelName))
+				p.Errors = append(p.Errors, err)
+			} else {
+				p.Labels[ss.LabelName] = uint16(p.offset)
+			}
 		}
-		p.Labels[ss.LabelName] = uint16(p.offset)
 	}
 }
 
