@@ -15,7 +15,7 @@ func init() {
 func main() {
 	flag.Parse()
 	if flag.NArg() != 1 {
-		fmt.Println("Usage: jamulator [options] code.asm")
+		fmt.Printf("Usage: %s [options] code.asm\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
