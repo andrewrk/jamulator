@@ -52,7 +52,7 @@ type ImmediateInstruction struct {
 	Line int
 
 	// filled in later
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -70,7 +70,7 @@ type ImpliedInstruction struct {
 	Line int
 
 	// filled in later
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -99,7 +99,7 @@ type DirectWithLabelIndexedInstruction struct {
 	Line int
 
 	// filled in later
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -119,8 +119,7 @@ type DirectIndexedInstruction struct {
 	Line int
 
 	// filled in later
-	OpCode int
-	Size int
+	Payload []byte
 }
 
 func (n DirectIndexedInstruction) Ast(v Visitor) {
@@ -129,7 +128,7 @@ func (n DirectIndexedInstruction) Ast(v Visitor) {
 }
 
 func (n DirectIndexedInstruction) GetSize() int {
-	return n.Size
+	return len(n.Payload)
 }
 
 type DirectWithLabelInstruction struct {
@@ -137,7 +136,7 @@ type DirectWithLabelInstruction struct {
 	LabelName string
 	Line int
 
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -155,7 +154,7 @@ type DirectInstruction struct {
 	Value int
 	Line int
 
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -173,7 +172,7 @@ type IndirectXInstruction struct {
 	Value int
 	Line int
 
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -191,7 +190,7 @@ type IndirectYInstruction struct {
 	Value int
 	Line int
 
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -209,7 +208,7 @@ type IndirectInstruction struct {
 	Value int
 	Line int
 
-	OpCode int
+	OpCode byte
 	Size int
 }
 
@@ -395,7 +394,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
 	$$ = DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
 } | tokIdentifier tokInteger tokComma tokIdentifier {
-	$$ = DirectIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
+	$$ = DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}}
 } | tokIdentifier tokIdentifier {
 	if $2 == "a" || $2 == "A" {
 		$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}

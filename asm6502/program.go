@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"bufio"
+	"encoding/binary"
 )
 
 // Program is a proper program, one that you can compile
@@ -42,7 +43,7 @@ func (m machineCode) Error() string {
 	return strings.Join(m.Errors, "\n")
 }
 
-var impliedOpCode = map[string] int {
+var impliedOpCode = map[string] byte {
 	"asl": 0x0a,
 	"brk": 0x00,
 	"clc": 0x18,
@@ -74,7 +75,7 @@ var impliedOpCode = map[string] int {
 	"tya": 0x98,
 }
 
-var immediateOpCode = map[string] int {
+var immediateOpCode = map[string] byte {
 	"adc": 0x69,
 	"and": 0x29,
 	"cmp": 0xc9,
@@ -88,7 +89,7 @@ var immediateOpCode = map[string] int {
 	"sbc": 0xe9,
 }
 
-var zeroPageXOpcode = map[string] int {
+var zeroPageXOpcode = map[string] byte {
 	"adc": 0x75,
 	"and": 0x35,
 	"asl": 0x16,
@@ -107,7 +108,7 @@ var zeroPageXOpcode = map[string] int {
 	"sty": 0x94,
 }
 
-var absIndexedXOpCode = map[string] int {
+var absIndexedXOpCode = map[string] byte {
 	"adc": 0x7d,
 	"and": 0x3d,
 	"asl": 0x1e,
@@ -125,12 +126,12 @@ var absIndexedXOpCode = map[string] int {
 	"sta": 0x9d,
 }
 
-var zeroPageYOpCode = map[string] int {
+var zeroPageYOpCode = map[string] byte {
 	"ldx": 0xb6,
 	"stx": 0x96,
 }
 
-var absIndexedYOpCode = map[string] int {
+var absIndexedYOpCode = map[string] byte {
 	"adc": 0x79,
 	"and": 0x39,
 	"cmp": 0xd9,
@@ -142,7 +143,7 @@ var absIndexedYOpCode = map[string] int {
 	"sta": 0x99,
 }
 
-var absOpCode = map[string] int {
+var absOpCode = map[string] byte {
 	"adc": 0x6d,
 	"and": 0x2d,
 	"asl": 0x0e,
@@ -168,7 +169,7 @@ var absOpCode = map[string] int {
 	"sty": 0x8c,
 }
 
-var relOpCode = map[string] int {
+var relOpCode = map[string] byte {
 	"bcc": 0x90,
 	"bcs": 0xb0,
 	"beq": 0xf0,
@@ -179,7 +180,7 @@ var relOpCode = map[string] int {
 	"bvs": 0x70,
 }
 
-var indirectXOpCode = map[string] int {
+var indirectXOpCode = map[string] byte {
 	"adc": 0x61,
 	"and": 0x21,
 	"cmp": 0xc1,
@@ -190,7 +191,7 @@ var indirectXOpCode = map[string] int {
 	"sta": 0x81,
 }
 
-var indirectYOpCode = map[string] int {
+var indirectYOpCode = map[string] byte {
 	"adc": 0x71,
 	"and": 0x31,
 	"cmp": 0xd1,
@@ -212,7 +213,7 @@ func (ii ImmediateInstruction) Measure() error {
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ii.Line, ii.OpName))
 	}
-	if ii.Value > 0xf {
+	if ii.Value > 0xff {
 		return errors.New(fmt.Sprintf("Line %d: Immediate instruction argument must be a 1 byte integer.", ii.Line))
 	}
 	ii.OpCode = opcode
@@ -221,9 +222,9 @@ func (ii ImmediateInstruction) Measure() error {
 }
 
 func (n ImmediateInstruction) Assemble(bin *machineCode) error {
-	bin.writer.WriteByte(byte(n.OpCode))
-	bin.writer.WriteByte(byte(n.Value))
-	return nil
+	err := bin.writer.WriteByte(byte(n.OpCode))
+	if err != nil { return err }
+	return bin.writer.WriteByte(byte(n.Value))
 }
 
 func (ii ImpliedInstruction) Measure() error {
@@ -238,51 +239,53 @@ func (ii ImpliedInstruction) Measure() error {
 }
 
 func (n ImpliedInstruction) Assemble(bin *machineCode) error {
-	return errors.New("implied instruction assembly not yet implemented")
+	return bin.writer.WriteByte(byte(n.OpCode))
 }
-
 
 func (n DirectIndexedInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
-		if n.Value <= 0xf {
+		if n.Value <= 0xff {
 			opcode, ok := zeroPageXOpcode[lowerOpName]
 			if ok {
-				n.OpCode = opcode
-				n.Size = 2
+				n.Payload = []byte{opcode, byte(n.Value)}
 				return nil
 			}
+		} else if n.Value > 0xffff {
+			return errors.New(fmt.Sprintf("Line %d: Memory address is limited to 2 bytes.", n.Line))
 		}
 		opcode, ok := absIndexedXOpCode[lowerOpName]
 		if !ok {
 			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", n.Line, n.OpName))
 		}
-		n.OpCode = opcode
-		n.Size = 3
+		n.Payload = []byte{opcode, 0, 0}
+		binary.LittleEndian.PutUint16(n.Payload[1:], uint16(n.Value))
 		return nil
 	} else if lowerRegName == "y" {
-		if n.Value <= 0xf {
+		if n.Value <= 0xff {
 			opcode, ok := zeroPageYOpCode[lowerOpName]
 			if ok {
-				n.OpCode = opcode
-				n.Size = 2
+				n.Payload = []byte{opcode, byte(n.Value)}
 				return nil
 			}
+		} else if n.Value > 0xffff {
+			return errors.New(fmt.Sprintf("Line %d: Memory address is limited to 2 bytes.", n.Line))
 		}
 		opcode, ok := absIndexedYOpCode[lowerOpName]
 		if !ok {
 			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", n.Line, n.OpName))
 		}
-		n.OpCode = opcode
-		n.Size = 3
+		n.Payload = []byte{opcode, 0, 0}
+		binary.LittleEndian.PutUint16(n.Payload[1:], uint16(n.Value))
 		return nil
 	}
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
 func (n DirectIndexedInstruction) Assemble(bin *machineCode) error {
-	return errors.New("direct indexed instruction assembly not yet implemented")
+	_, err := bin.writer.Write(n.Payload)
+	return err
 }
 
 
