@@ -10,6 +10,15 @@
 	lval.identifier = yylex.Text()
 	return tokIdentifier
 }
+/%[01]+/ {
+	binPart := yylex.Text()[1:]
+	n, err := strconv.ParseInt(binPart, 2, 16)
+	if err != nil {
+		yylex.Error("Invalid binary integer: " + binPart)
+	}
+	lval.integer = int(n)
+	return tokInteger
+}
 /\$[0-9a-fA-F]+/ {
 	hexPart := yylex.Text()[1:]
 	n, err := strconv.ParseInt(hexPart, 16, 16)
