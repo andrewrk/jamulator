@@ -399,7 +399,7 @@ func (n IndirectXInstruction) Measure(p *Program) error {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect x indexed instruction: %s", n.Line, n.OpName))
 	}
 	if n.Value > 0xff {
-		return errors.New(fmt.Sprintf("Line %d: Indirect memory address is limited to 1 byte.", n.Line))
+		return errors.New(fmt.Sprintf("Line %d: Indirect X memory address is limited to 1 byte.", n.Line))
 	}
 	n.Payload = []byte{opcode, byte(n.Value)}
 	return nil
@@ -417,13 +417,16 @@ func (n IndirectYInstruction) Measure(p *Program) error {
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect y indexed instruction: %s", n.Line, n.OpName))
 	}
-	n.OpCode = opcode
-	n.Size = 2
+	if n.Value > 0xff {
+		return errors.New(fmt.Sprintf("Line %d: Indirect Y memory address is limited to 1 byte.", n.Line))
+	}
+	n.Payload = []byte{opcode, byte(n.Value)}
 	return nil
 }
 
 func (n IndirectYInstruction) Assemble(bin *machineCode) error {
-	return errors.New("indirect y instruction assembly not yet implemented")
+	_, err := bin.writer.Write(n.Payload)
+	return err
 }
 
 func (n DataStatement) Measure(p *Program) error {
