@@ -4,6 +4,7 @@ package asm6502
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type Node interface {
@@ -189,6 +190,15 @@ func (n IndirectInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type OrgPseudoOp struct {
+	Value int
+}
+
+func (n OrgPseudoOp) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 type DataStatement struct {
 	dataList DataList
 
@@ -355,7 +365,12 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0}
 	}
 } | tokIdentifier tokInteger {
-	$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
+	switch strings.ToLower($1) {
+	case "org":
+		$$ = OrgPseudoOp{$2}
+	default:
+		$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
+	}
 } | tokIdentifier tokLParen tokInteger tokComma tokIdentifier tokRParen {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")
