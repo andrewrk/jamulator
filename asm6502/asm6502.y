@@ -210,8 +210,7 @@ type IndirectInstruction struct {
 	Value int
 	Line int
 
-	OpCode byte
-	Size int
+	Payload []byte
 }
 
 func (n IndirectInstruction) Ast(v Visitor) {
@@ -220,7 +219,7 @@ func (n IndirectInstruction) Ast(v Visitor) {
 }
 
 func (n IndirectInstruction) GetSize() int {
-	return n.Size
+	return len(n.Payload)
 }
 
 
@@ -421,7 +420,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	}
 	$$ = IndirectYInstruction{$1, $3, parseLineNumber, 0, 0}
 } | tokIdentifier tokLParen tokInteger tokRParen {
-	$$ = IndirectInstruction{$1, $3, parseLineNumber, 0, 0}
+	$$ = IndirectInstruction{$1, $3, parseLineNumber, []byte{}}
 }
 
 %%

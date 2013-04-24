@@ -444,13 +444,17 @@ func (n IndirectInstruction) Measure(p *Program) error {
 	if lowerOpName != "jmp" {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect instruction: %s", n.Line, n.OpName))
 	}
-	n.OpCode = 0x6c
-	n.Size = 3
+	n.Payload = []byte{0x6c, 0, 0}
+	if n.Value > 0xffff {
+		return errors.New(fmt.Sprintf("Line %d: Memory address is limited to 2 bytes.", n.Line))
+	}
+	binary.LittleEndian.PutUint16(n.Payload[1:], uint16(n.Value))
 	return nil
 }
 
 func (n IndirectInstruction) Assemble(bin *machineCode) error {
-	return errors.New("indirect instruction assembly not yet implemented")
+	_, err := bin.writer.Write(n.Payload)
+	return err
 }
 
 // collect all variable assignments into a map
