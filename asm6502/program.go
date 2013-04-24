@@ -237,6 +237,11 @@ func (ii ImpliedInstruction) Measure() error {
 	return nil
 }
 
+func (n ImpliedInstruction) Assemble(bin *machineCode) error {
+	return errors.New("implied instruction assembly not yet implemented")
+}
+
+
 func (n DirectIndexedInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
@@ -276,6 +281,11 @@ func (n DirectIndexedInstruction) Measure() error {
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
+func (n DirectIndexedInstruction) Assemble(bin *machineCode) error {
+	return errors.New("direct indexed instruction assembly not yet implemented")
+}
+
+
 func (n DirectWithLabelIndexedInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
@@ -299,6 +309,11 @@ func (n DirectWithLabelIndexedInstruction) Measure() error {
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
+func (n DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
+	return errors.New("direct with label indexed instruction assembly not yet implemented")
+}
+
+
 func (n DirectWithLabelInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := absOpCode[lowerOpName]
@@ -314,6 +329,10 @@ func (n DirectWithLabelInstruction) Measure() error {
 	n.OpCode = opcode
 	n.Size = 2
 	return nil
+}
+
+func (n DirectWithLabelInstruction) Assemble(bin *machineCode) error {
+	return errors.New("direct with label instruction assembly not yet implemented")
 }
 
 func (n DirectInstruction) Measure() error {
@@ -333,6 +352,10 @@ func (n DirectInstruction) Measure() error {
 	return nil
 }
 
+func (n DirectInstruction) Assemble(bin *machineCode) error {
+	return errors.New("direct instruction assembly not yet implemented")
+}
+
 func (n IndirectXInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectXOpCode[lowerOpName]
@@ -344,6 +367,11 @@ func (n IndirectXInstruction) Measure() error {
 	return nil
 }
 
+func (n IndirectXInstruction) Assemble(bin *machineCode) error {
+	return errors.New("indirect x instruction assembly not yet implemented")
+}
+
+
 func (n IndirectYInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectYOpCode[lowerOpName]
@@ -353,6 +381,10 @@ func (n IndirectYInstruction) Measure() error {
 	n.OpCode = opcode
 	n.Size = 2
 	return nil
+}
+
+func (n IndirectYInstruction) Assemble(bin *machineCode) error {
+	return errors.New("indirect y instruction assembly not yet implemented")
 }
 
 func (n DataStatement) Measure() error {
@@ -367,6 +399,10 @@ func (n DataStatement) Measure() error {
 	return nil
 }
 
+func (n DataStatement) Assemble(bin *machineCode) error {
+	return errors.New("data assembly not yet implemented")
+}
+
 func (n IndirectInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	if lowerOpName != "jmp" {
@@ -375,6 +411,10 @@ func (n IndirectInstruction) Measure() error {
 	n.OpCode = 0x6c
 	n.Size = 3
 	return nil
+}
+
+func (n IndirectInstruction) Assemble(bin *machineCode) error {
+	return errors.New("indirect instruction assembly not yet implemented")
 }
 
 // collect all variable assignments into a map
@@ -444,7 +484,7 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 
 func (n OrgPseudoOp) Assemble(bin *machineCode) error {
 	if n.Value != 0 {
-		return errors.New("Only org 0 is currently supported.")
+		return errors.New(fmt.Sprintf("Line %d: Only org 0 is currently supported.", n.Line))
 	}
 	return nil
 }

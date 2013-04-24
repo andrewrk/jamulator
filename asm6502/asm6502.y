@@ -225,6 +225,7 @@ func (n IndirectInstruction) GetSize() int {
 
 type OrgPseudoOp struct {
 	Value int
+	Line int
 }
 
 func (n OrgPseudoOp) Ast(v Visitor) {
@@ -404,7 +405,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier tokInteger {
 	switch strings.ToLower($1) {
 	case "org":
-		$$ = OrgPseudoOp{$2}
+		$$ = OrgPseudoOp{$2, parseLineNumber}
 	default:
 		$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
 	}
