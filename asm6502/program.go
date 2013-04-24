@@ -13,17 +13,10 @@ import (
 type Program struct {
 	Variables map[string] int
 	Labels map[string] int
-	Instructions []*Instruction
 	Errors []error
 }
 
-type Instruction struct {
-	StatementAst InstructionStatement
-	OpCode int
-	OpSize int
-}
-
-var impliedOpcode = map[string] int {
+var impliedOpCode = map[string] int {
 	"brk": 0x00,
 	"clc": 0x18,
 	"cld": 0xd8,
@@ -51,7 +44,7 @@ var impliedOpcode = map[string] int {
 	"tya": 0x98,
 }
 
-var immediateOpcode = map[string] int {
+var immediateOpCode = map[string] int {
 	"adc": 0x69,
 	"and": 0x29,
 	"cmp": 0xc9,
@@ -65,7 +58,7 @@ var immediateOpcode = map[string] int {
 	"sbc": 0xe9,
 }
 
-var absIndexedXOpcode = map[string] int {
+var absIndexedXOpCode = map[string] int {
 	"adc": 0x7d,
 	"and": 0x3d,
 	"asl": 0x1e,
@@ -83,7 +76,7 @@ var absIndexedXOpcode = map[string] int {
 	"sta": 0x9d,
 }
 
-var absIndexedYOpcode = map[string] int {
+var absIndexedYOpCode = map[string] int {
 	"adc": 0x79,
 	"and": 0x39,
 	"cmp": 0xd9,
@@ -95,7 +88,7 @@ var absIndexedYOpcode = map[string] int {
 	"sta": 0x99,
 }
 
-var absOpcode = map[string] int {
+var absOpCode = map[string] int {
 	"adc": 0x6d,
 	"and": 0x2d,
 	"asl": 0x0e,
@@ -121,7 +114,7 @@ var absOpcode = map[string] int {
 	"sty": 0x8c,
 }
 
-var relOpcode = map[string] int {
+var relOpCode = map[string] int {
 	"bcc": 0x90,
 	"bcs": 0xb0,
 	"beq": 0xf0,
@@ -137,65 +130,90 @@ type opcodeDef struct {
 	size int
 }
 
-func compileInstruction(s InstructionStatement) (*Instruction, error) {
-	opName := s.OpName()
-	lowerOpName := strings.ToLower(opName)
-	switch ss := s.(type) {
-	case ImpliedInstruction:
-		opcode, ok := impliedOpcode[lowerOpName]
+func (ii ImmediateInstruction) Measure() error {
+	lowerOpName := strings.ToLower(ii.OpName)
+	opcode, ok := immediateOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ii.Line, ii.OpName))
+	}
+	ii.OpCode = opcode
+	ii.Size = 2
+	return nil
+}
+
+func (ii ImpliedInstruction) Measure() error {
+	lowerOpName := strings.ToLower(ii.OpName)
+	opcode, ok := impliedOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized implied instruction: %s", ii.Line, ii.OpName))
+	}
+	ii.OpCode = opcode
+	ii.Size = 1
+	return nil
+}
+
+func (n AbsoluteWithLabelIndexedInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	lowerRegName := strings.ToLower(n.RegisterName)
+	if lowerRegName == "x" {
+		opcode, ok := absIndexedXOpCode[lowerOpName]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized implied instruction: %s", ss.Line, opName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", n.Line, n.OpName))
 		}
-		return &Instruction{s, opcode, 1}, nil
-	case ImmediateInstruction:
-		opcode, ok := immediateOpcode[lowerOpName]
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	} else if lowerRegName == "y" {
+		opcode, ok := absIndexedYOpCode[lowerOpName]
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized immediate instruction: %s", ss.Line, opName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", n.Line, n.OpName))
 		}
-		return &Instruction{s, opcode, 2}, nil
-	case AbsoluteWithLabelIndexedInstruction:
-		lowerRegName := strings.ToLower(ss.RegisterName)
-		if lowerRegName == "x" {
-			opcode, ok := absIndexedXOpcode[lowerOpName]
-			if !ok {
-				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", ss.Line, opName))
-			}
-			return &Instruction{s, opcode, 3}, nil
-		} else if lowerRegName == "y" {
-			opcode, ok := absIndexedYOpcode[lowerOpName]
-			if !ok {
-				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", ss.Line, opName))
-			}
-			return &Instruction{s, opcode, 3}, nil
-		} else {
-			return nil, errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", ss.Line))
-		}
-	case DirectWithLabelInstruction:
-		opcode, ok := absOpcode[lowerOpName]
-		if ok {
-			return &Instruction{s, opcode, 3}, nil
-		} else {
-			opcode, ok = relOpcode[lowerOpName]
-			if !ok {
-				return nil, errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", ss.Line, opName))
-			}
-			return &Instruction{s, opcode, 2}, nil
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	}
+	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
+}
+
+func (n DirectWithLabelInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	opcode, ok := absOpCode[lowerOpName]
+	if ok {
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	}
+	opcode, ok = relOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
+	}
+	n.OpCode = opcode
+	n.Size = 2
+	return nil
+}
+
+func (n DataStatement) Measure() error {
+	n.Size = 0
+	for _, dataItem := range(n.dataList) {
+		switch t := dataItem.(type) {
+		case StringDataItem: n.Size += len(t)
+		case IntegerDataItem: n.Size += 1
+		default: panic("unknown data item type")
 		}
 	}
-	panic("Unrecognized instruction type")
+	return nil
 }
+
 
 // collect all variable assignments into a map
 func (p *Program) Visit(n Node) {
 	switch ss := n.(type) {
 	case AssignStatement:
 		p.Variables[ss.VarName] = ss.Value
-	case InstructionStatement:
-		i, err := compileInstruction(ss)
+	case Measurer:
+		err := ss.Measure()
 		if err != nil {
 			p.Errors = append(p.Errors, err)
-		} else if i != nil {
-			p.Instructions = append(p.Instructions, i)
 		}
 	}
 }
@@ -206,7 +224,6 @@ func NewProgram() *Program {
 	p := Program{
 		map[string]int {},
 		map[string]int {},
-		[]*Instruction{},
 		[]error{},
 	}
 	return &p

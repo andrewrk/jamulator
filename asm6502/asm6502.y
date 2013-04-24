@@ -7,10 +7,8 @@ type Node interface {
 	Ast(v Visitor)
 }
 
-// an InstructionStatement is also a Node
-type InstructionStatement interface {
-	Ast(v Visitor)
-	OpName() string
+type Measurer interface {
+	Measure() error
 }
 
 type Visitor interface {
@@ -49,9 +47,13 @@ func (as AssignStatement) Ast(v Visitor) {
 }
 
 type ImmediateInstruction struct {
-	opName string
+	OpName string
 	Value int
 	Line int
+
+	// filled in later
+	OpCode int
+	Size int
 }
 
 func (ii ImmediateInstruction) Ast(v Visitor) {
@@ -59,22 +61,18 @@ func (ii ImmediateInstruction) Ast(v Visitor) {
 	v.VisitEnd(ii)
 }
 
-func (ii ImmediateInstruction) OpName() string {
-	return ii.opName
-}
-
 type ImpliedInstruction struct {
-	opName string
+	OpName string
 	Line int
+
+	// filled in later
+	OpCode int
+	Size int
 }
 
 func (ii ImpliedInstruction) Ast(v Visitor) {
 	v.Visit(ii)
 	v.VisitEnd(ii)
-}
-
-func (ii ImpliedInstruction) OpName() string {
-	return ii.opName
 }
 
 type LabelStatement struct {
@@ -87,10 +85,14 @@ func (ls LabelStatement) Ast(v Visitor) {
 }
 
 type AbsoluteWithLabelIndexedInstruction struct {
-	opName string
+	OpName string
 	LabelName string
 	RegisterName string
 	Line int
+
+	// filled in later
+	OpCode int
+	Size int
 }
 
 func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
@@ -98,13 +100,13 @@ func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-func (n AbsoluteWithLabelIndexedInstruction) OpName() string {
-	return n.opName
-}
-
 type AccumulatorInstruction struct {
-	opName string
+	OpName string
 	Line int
+
+	// filled in later
+	OpCode int
+	Size int
 }
 
 func (n AccumulatorInstruction) Ast(v Visitor) {
@@ -112,14 +114,13 @@ func (n AccumulatorInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-func (n AccumulatorInstruction) OpName() string {
-	return n.opName
-}
-
 type DirectWithLabelInstruction struct {
-	opName string
+	OpName string
 	LabelName string
 	Line int
+
+	OpCode int
+	Size int
 }
 
 func (n DirectWithLabelInstruction) Ast(v Visitor) {
@@ -127,12 +128,11 @@ func (n DirectWithLabelInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-func (n DirectWithLabelInstruction) OpName() string {
-	return n.opName
-}
-
 type DataStatement struct {
 	dataList DataList
+
+	// filled in later
+	Size int
 }
 
 func (n DataStatement) Ast(v Visitor) {
@@ -174,7 +174,7 @@ var programAst *ProgramAST
 	quotedString string
 	statementList StatementList
 	statement Node
-	instructionStatement InstructionStatement
+	instructionStatement Node
 	labelStatement LabelStatement
 	assignStatement AssignStatement
 	dataStatement DataStatement
@@ -237,7 +237,7 @@ statement : assignStatement tokNewline {
 }
 
 dataStatement : tokData dataList {
-	$$ = DataStatement{$2}
+	$$ = DataStatement{$2, 0}
 }
 
 dataList : dataList tokComma dataItem {
@@ -262,17 +262,17 @@ assignStatement : tokIdentifier tokEqual tokInteger {
 
 instructionStatement : tokIdentifier tokPound tokInteger {
 	// immediate address
-	$$ = ImmediateInstruction{$1, $3, parseLineNumber}
+	$$ = ImmediateInstruction{$1, $3, parseLineNumber, 0, 0}
 } | tokIdentifier {
 	// no address
-	$$ = ImpliedInstruction{$1, parseLineNumber}
+	$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
-	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber}
+	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier {
 	if $2 == "a" || $2 == "A" {
-		$$ = AccumulatorInstruction{$1, parseLineNumber}
+		$$ = AccumulatorInstruction{$1, parseLineNumber, 0, 0}
 	} else {
-		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber}
+		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0}
 	}
 }
 
