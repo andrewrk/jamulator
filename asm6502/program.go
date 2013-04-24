@@ -125,6 +125,17 @@ var relOpCode = map[string] int {
 	"bvs": 0x70,
 }
 
+var indirectXOpCode = map[string] int {
+	"adc": 0x61,
+	"and": 0x21,
+	"cmp": 0xc1,
+	"eor": 0x41,
+	"lda": 0xa1,
+	"ora": 0x01,
+	"sbc": 0xe1,
+	"sta": 0x81,
+}
+
 type opcodeDef struct {
 	opcode int
 	size int
@@ -226,6 +237,17 @@ func (n DirectInstruction) Measure() error {
 	opcode, ok = relOpCode[lowerOpName]
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
+	}
+	n.OpCode = opcode
+	n.Size = 2
+	return nil
+}
+
+func (n IndirectXInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	opcode, ok := indirectXOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized indirect instruction: %s", n.Line, n.OpName))
 	}
 	n.OpCode = opcode
 	n.Size = 2

@@ -51,6 +51,12 @@
 /,/ {
 	return tokComma
 }
+/\(/ {
+	return tokLParen
+}
+/\)/ {
+	return tokRParen
+}
 /[ \t\r]/ {
 	// ignore whitespace
 }

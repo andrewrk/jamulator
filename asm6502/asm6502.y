@@ -161,6 +161,20 @@ func (n DirectInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type IndirectXInstruction struct {
+	OpName string
+	Value int
+	Line int
+
+	OpCode int
+	Size int
+}
+
+func (n IndirectXInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 type DataStatement struct {
 	dataList DataList
 
@@ -238,6 +252,8 @@ var programAst *ProgramAST
 %token tokNewline
 %token tokData
 %token tokProcessor
+%token tokLParen
+%token tokRParen
 
 %%
 
@@ -326,6 +342,11 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	}
 } | tokIdentifier tokInteger {
 	$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
+} | tokIdentifier tokLParen tokInteger tokComma tokIdentifier tokRParen {
+	if $5 != "x" && $5 != "X" {
+		yylex.Error("Register argument must be X.")
+	}
+	$$ = IndirectXInstruction{$1, $3, parseLineNumber, 0, 0}
 }
 
 %%
