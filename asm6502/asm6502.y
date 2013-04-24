@@ -102,6 +102,7 @@ type DirectWithLabelIndexedInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
+	Offset uint16
 }
 
 func (n DirectWithLabelIndexedInstruction) Ast(v Visitor) {
@@ -139,6 +140,7 @@ type DirectWithLabelInstruction struct {
 
 	OpCode byte
 	Size int
+	Offset uint16
 }
 
 func (n DirectWithLabelInstruction) Ast(v Visitor) {
@@ -392,14 +394,14 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	// no address
 	$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
-	$$ = DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
+	$$ = DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0, 0}
 } | tokIdentifier tokInteger tokComma tokIdentifier {
 	$$ = DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}}
 } | tokIdentifier tokIdentifier {
 	if $2 == "a" || $2 == "A" {
 		$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}
 	} else {
-		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0}
+		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
 	}
 } | tokIdentifier tokInteger {
 	switch strings.ToLower($1) {
