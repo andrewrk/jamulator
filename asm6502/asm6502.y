@@ -174,8 +174,7 @@ type IndirectXInstruction struct {
 	Value int
 	Line int
 
-	OpCode byte
-	Size int
+	Payload []byte
 }
 
 func (n IndirectXInstruction) Ast(v Visitor) {
@@ -184,7 +183,7 @@ func (n IndirectXInstruction) Ast(v Visitor) {
 }
 
 func (n IndirectXInstruction) GetSize() int {
-	return n.Size
+	return len(n.Payload)
 }
 
 type IndirectYInstruction struct {
@@ -413,7 +412,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")
 	}
-	$$ = IndirectXInstruction{$1, $3, parseLineNumber, 0, 0}
+	$$ = IndirectXInstruction{$1, $3, parseLineNumber, []byte{}}
 } | tokIdentifier tokLParen tokInteger tokRParen tokComma tokIdentifier {
 	if $6 != "y" && $6 != "Y" {
 		yylex.Error("Register argument must be Y.")
