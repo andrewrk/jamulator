@@ -154,8 +154,7 @@ type DirectInstruction struct {
 	Value int
 	Line int
 
-	OpCode byte
-	Size int
+	Payload []byte
 }
 
 func (n DirectInstruction) Ast(v Visitor) {
@@ -164,7 +163,7 @@ func (n DirectInstruction) Ast(v Visitor) {
 }
 
 func (n DirectInstruction) GetSize() int {
-	return n.Size
+	return len(n.Payload)
 }
 
 type IndirectXInstruction struct {
@@ -406,7 +405,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	case "org":
 		$$ = OrgPseudoOp{$2, parseLineNumber}
 	default:
-		$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
+		$$ = DirectInstruction{$1, $2, parseLineNumber, []byte{}}
 	}
 } | tokIdentifier tokLParen tokInteger tokComma tokIdentifier tokRParen {
 	if $5 != "x" && $5 != "X" {

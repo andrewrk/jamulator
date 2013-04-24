@@ -253,7 +253,7 @@ func (n DirectIndexedInstruction) Measure() error {
 				return nil
 			}
 		} else if n.Value > 0xffff {
-			return errors.New(fmt.Sprintf("Line %d: Memory address is limited to 2 bytes.", n.Line))
+			return errors.New(fmt.Sprintf("Line %d: Absolute memory address is limited to 2 bytes.", n.Line))
 		}
 		opcode, ok := absIndexedXOpCode[lowerOpName]
 		if !ok {
@@ -270,7 +270,7 @@ func (n DirectIndexedInstruction) Measure() error {
 				return nil
 			}
 		} else if n.Value > 0xffff {
-			return errors.New(fmt.Sprintf("Line %d: Memory address is limited to 2 bytes.", n.Line))
+			return errors.New(fmt.Sprintf("Line %d: Absolute memory address is limited to 2 bytes.", n.Line))
 		}
 		opcode, ok := absIndexedYOpCode[lowerOpName]
 		if !ok {
@@ -342,21 +342,27 @@ func (n DirectInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := absOpCode[lowerOpName]
 	if ok {
-		n.OpCode = opcode
-		n.Size = 3
+		if n.Value > 0xffff {
+			return errors.New(fmt.Sprintf("Line %d: Absolute memory address is limited to 2 bytes.", n.Line))
+		}
+		n.Payload = []byte{opcode, 0, 0}
+		binary.LittleEndian.PutUint16(n.Payload[1:], uint16(n.Value))
 		return nil
 	}
 	opcode, ok = relOpCode[lowerOpName]
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
 	}
-	n.OpCode = opcode
-	n.Size = 2
+	if n.Value > 0xff {
+		return errors.New(fmt.Sprintf("Line %d: Relative memory address is limited to 1 byte.", n.Line))
+	}
+	n.Payload = []byte{opcode, byte(n.Value)}
 	return nil
 }
 
 func (n DirectInstruction) Assemble(bin *machineCode) error {
-	return errors.New("direct instruction assembly not yet implemented")
+	_, err := bin.writer.Write(n.Payload)
+	return err
 }
 
 func (n IndirectXInstruction) Measure() error {
