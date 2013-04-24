@@ -1,7 +1,7 @@
 /[pP][rR][oO][cC][eE][sS][sS][oO][rR]/ {
 	return tokProcessor
 }
-/\.[dD][aA][tT][aA]/ {
+/(\.[dD][aA][tT][aA]|[dD][cC]\.[bB])/ {
 	return tokData
 }
 /"[^"\n]*"/ {
@@ -15,7 +15,7 @@
 }
 /%[01]+/ {
 	binPart := yylex.Text()[1:]
-	n, err := strconv.ParseInt(binPart, 2, 16)
+	n, err := strconv.ParseUint(binPart, 2, 16)
 	if err != nil {
 		yylex.Error("Invalid binary integer: " + binPart)
 	}
@@ -24,7 +24,7 @@
 }
 /\$[0-9a-fA-F]+/ {
 	hexPart := yylex.Text()[1:]
-	n, err := strconv.ParseInt(hexPart, 16, 16)
+	n, err := strconv.ParseUint(hexPart, 16, 16)
 	if err != nil {
 		yylex.Error("Invalid hexademical integer: " + hexPart)
 	}
@@ -32,7 +32,7 @@
 	return tokInteger
 }
 /[0-9]+/ {
-	n, err := strconv.ParseInt(yylex.Text(), 10, 16)
+	n, err := strconv.ParseUint(yylex.Text(), 10, 16)
 	if err != nil {
 		yylex.Error("Invalid decimal integer: " + yylex.Text())
 	}
