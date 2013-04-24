@@ -16,7 +16,7 @@ import (
 type Program struct {
 	Ast *ProgramAST
 	Variables map[string] int
-	Labels map[string] int
+	Labels map[string] uint16
 	Errors []error
 
 	offset int
@@ -313,7 +313,13 @@ func (n DirectWithLabelIndexedInstruction) Measure() error {
 }
 
 func (n DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
-	return errors.New("direct with label indexed instruction assembly not yet implemented")
+	err := bin.writer.WriteByte(n.OpCode)
+	if err != nil { return err }
+	labelValue := bin.prog.Labels[n.LabelName]
+	buf := []byte{0, 0}
+	binary.LittleEndian.PutUint16(buf, labelValue)
+	_, err = bin.writer.Write(buf)
+	return err
 }
 
 
@@ -431,6 +437,8 @@ func (p *Program) Visit(n Node) {
 	switch ss := n.(type) {
 	case AssignStatement:
 		p.Variables[ss.VarName] = ss.Value
+	case OrgPseudoOp:
+		p.offset = ss.Value
 	case Measurer:
 		err := ss.Measure()
 		if err != nil {
@@ -438,7 +446,11 @@ func (p *Program) Visit(n Node) {
 		}
 		p.offset += ss.GetSize()
 	case LabelStatement:
-		p.Labels[ss.LabelName] = p.offset
+		if p.offset >= 0xffff {
+			err := errors.New(fmt.Sprintf("Line %d: Label memory address must fit in 2 bytes.", ss.Line))
+			p.Errors = append(p.Errors, err)
+		}
+		p.Labels[ss.LabelName] = uint16(p.offset)
 	}
 }
 
@@ -483,7 +495,7 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 	p := Program{
 		ast,
 		map[string]int {},
-		map[string]int {},
+		map[string]uint16 {},
 		[]error{},
 		0,
 	}

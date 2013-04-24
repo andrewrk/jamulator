@@ -85,6 +85,7 @@ func (ii ImpliedInstruction) GetSize() int {
 
 type LabelStatement struct {
 	LabelName string
+	Line int
 }
 
 func (ls LabelStatement) Ast(v Visitor) {
@@ -377,7 +378,7 @@ dataItem : tokQuotedString {
 }
 
 labelStatement : tokIdentifier tokColon {
-	$$ = LabelStatement{$1}
+	$$ = LabelStatement{$1, parseLineNumber}
 }
 
 assignStatement : tokIdentifier tokEqual tokInteger {
