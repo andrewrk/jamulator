@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"bufio"
+	"io"
 	"encoding/binary"
 )
 
@@ -560,11 +561,8 @@ func (bin *machineCode) Visit(n Node) {
 
 func (bin *machineCode) VisitEnd(n Node) {}
 
-func (p *Program) Assemble(filename string) error {
-	fd, err := os.Create(filename)
-	if err != nil { return err}
-
-	writer := bufio.NewWriter(fd)
+func (p *Program) Assemble(w io.Writer) error {
+	writer := bufio.NewWriter(w)
 	bin := machineCode{
 		p,
 		writer,
@@ -573,12 +571,21 @@ func (p *Program) Assemble(filename string) error {
 	p.Ast.Ast(&bin)
 	writer.Flush()
 
-	err = fd.Close()
-	if err != nil { return err }
-
 	if len(bin.Errors) > 0 {
 		return bin
 	}
+
+	return nil
+}
+
+func (p *Program) AssembleToFile(filename string) error {
+	fd, err := os.Create(filename)
+	if err != nil { return err}
+
+	err = p.Assemble(fd)
+	err2 := fd.Close()
+	if err != nil { return err }
+	if err2 != nil { return err2 }
 
 	return nil
 }
