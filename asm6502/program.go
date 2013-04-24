@@ -35,6 +35,11 @@ type Assembler interface {
 type machineCode struct {
 	prog *Program
 	writer *bufio.Writer
+	Errors []string
+}
+
+func (m machineCode) Error() string {
+	return strings.Join(m.Errors, "\n")
 }
 
 var impliedOpCode = map[string] int {
@@ -393,7 +398,10 @@ func (p *Program) VisitEnd(n Node) {}
 func (bin *machineCode) Visit(n Node) {
 	switch nn := n.(type) {
 	case Assembler:
-		nn.Assemble(bin)
+		err := nn.Assemble(bin)
+		if err != nil {
+			bin.Errors = append(bin.Errors, err.Error())
+		}
 	}
 }
 
@@ -407,12 +415,17 @@ func (p *Program) Assemble(filename string) error {
 	bin := machineCode{
 		p,
 		writer,
+		[]string{},
 	}
 	p.Ast.Ast(&bin)
 	writer.Flush()
 
 	err = fd.Close()
 	if err != nil { return err }
+
+	if len(bin.Errors) > 0 {
+		return bin
+	}
 
 	return nil
 }
@@ -430,6 +443,8 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 }
 
 func (n OrgPseudoOp) Assemble(bin *machineCode) error {
-	// TODO: seek to offset in this file
+	if n.Value != 0 {
+		return errors.New("Only org 0 is currently supported.")
+	}
 	return nil
 }

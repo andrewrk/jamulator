@@ -40,12 +40,14 @@ func main() {
 		if flag.NArg() == 2 {
 			outfile = flag.Arg(1)
 		}
-		program.Assemble(outfile)
+		err := program.Assemble(outfile)
+		if err != nil { panic(err) }
 	} else {
 		outfile := filename + ".bc"
 		if flag.NArg() == 2 {
 			outfile = flag.Arg(1)
 		}
-		program.Compile(outfile)
+		err := program.Compile(outfile)
+		if err != nil { panic(err) }
 	}
 }
