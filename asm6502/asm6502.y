@@ -119,20 +119,6 @@ func (n DirectIndexedInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-type AccumulatorInstruction struct {
-	OpName string
-	Line int
-
-	// filled in later
-	OpCode int
-	Size int
-}
-
-func (n AccumulatorInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
 type DirectWithLabelInstruction struct {
 	OpName string
 	LabelName string
@@ -364,7 +350,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	$$ = DirectIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier {
 	if $2 == "a" || $2 == "A" {
-		$$ = AccumulatorInstruction{$1, parseLineNumber, 0, 0}
+		$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}
 	} else {
 		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0}
 	}

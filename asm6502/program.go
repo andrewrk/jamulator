@@ -11,6 +11,7 @@ import (
 // Program and 6502 machine code can be read directly into
 // a Program
 type Program struct {
+	Ast *ProgramAST
 	Variables map[string] int
 	Labels map[string] int
 	Errors []error
@@ -31,6 +32,8 @@ var impliedOpCode = map[string] int {
 	"php": 0x08,
 	"pla": 0x68,
 	"plp": 0x28,
+	"rol": 0x2a,
+	"ror": 0x6a,
 	"rti": 0x40,
 	"rts": 0x60,
 	"sec": 0x38,
@@ -313,17 +316,13 @@ func (p *Program) Visit(n Node) {
 
 func (p *Program) VisitEnd(n Node) {}
 
-func NewProgram() *Program {
+func (ast *ProgramAST) ToProgram() (*Program) {
 	p := Program{
+		ast,
 		map[string]int {},
 		map[string]int {},
 		[]error{},
 	}
+	ast.Ast(&p)
 	return &p
-}
-
-func (ast *ProgramAST) ToProgram() (*Program) {
-	p := NewProgram()
-	ast.Ast(p)
-	return p
 }
