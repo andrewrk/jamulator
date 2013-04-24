@@ -192,6 +192,23 @@ func (n DirectWithLabelInstruction) Measure() error {
 	return nil
 }
 
+func (n DirectInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	opcode, ok := absOpCode[lowerOpName]
+	if ok {
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	}
+	opcode, ok = relOpCode[lowerOpName]
+	if !ok {
+		return errors.New(fmt.Sprintf("Line %d: Unrecognized direct instruction: %s", n.Line, n.OpName))
+	}
+	n.OpCode = opcode
+	n.Size = 2
+	return nil
+}
+
 func (n DataStatement) Measure() error {
 	n.Size = 0
 	for _, dataItem := range(n.dataList) {

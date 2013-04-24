@@ -131,6 +131,20 @@ func (n DirectWithLabelInstruction) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type DirectInstruction struct {
+	OpName string
+	Value int
+	Line int
+
+	OpCode int
+	Size int
+}
+
+func (n DirectInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 type DataStatement struct {
 	dataList DataList
 
@@ -292,6 +306,8 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	} else {
 		$$ = DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0}
 	}
+} | tokIdentifier tokInteger {
+	$$ = DirectInstruction{$1, $2, parseLineNumber, 0, 0}
 }
 
 %%
