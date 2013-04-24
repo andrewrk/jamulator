@@ -152,13 +152,13 @@ func (ii ImpliedInstruction) Measure() error {
 	return nil
 }
 
-func (n AbsoluteWithLabelIndexedInstruction) Measure() error {
+func (n DirectIndexedInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
 		opcode, ok := absIndexedXOpCode[lowerOpName]
 		if !ok {
-			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", n.Line, n.OpName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, X instruction: %s", n.Line, n.OpName))
 		}
 		n.OpCode = opcode
 		n.Size = 3
@@ -166,7 +166,30 @@ func (n AbsoluteWithLabelIndexedInstruction) Measure() error {
 	} else if lowerRegName == "y" {
 		opcode, ok := absIndexedYOpCode[lowerOpName]
 		if !ok {
-			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", n.Line, n.OpName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, Y instruction: %s", n.Line, n.OpName))
+		}
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	}
+	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
+}
+
+func (n DirectWithLabelIndexedInstruction) Measure() error {
+	lowerOpName := strings.ToLower(n.OpName)
+	lowerRegName := strings.ToLower(n.RegisterName)
+	if lowerRegName == "x" {
+		opcode, ok := absIndexedXOpCode[lowerOpName]
+		if !ok {
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, X instruction: %s", n.Line, n.OpName))
+		}
+		n.OpCode = opcode
+		n.Size = 3
+		return nil
+	} else if lowerRegName == "y" {
+		opcode, ok := absIndexedYOpCode[lowerOpName]
+		if !ok {
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, Y instruction: %s", n.Line, n.OpName))
 		}
 		n.OpCode = opcode
 		n.Size = 3

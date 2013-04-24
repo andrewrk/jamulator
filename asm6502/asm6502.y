@@ -87,7 +87,7 @@ func (ls LabelStatement) Ast(v Visitor) {
 	v.VisitEnd(ls)
 }
 
-type AbsoluteWithLabelIndexedInstruction struct {
+type DirectWithLabelIndexedInstruction struct {
 	OpName string
 	LabelName string
 	RegisterName string
@@ -98,7 +98,23 @@ type AbsoluteWithLabelIndexedInstruction struct {
 	Size int
 }
 
-func (n AbsoluteWithLabelIndexedInstruction) Ast(v Visitor) {
+func (n DirectWithLabelIndexedInstruction) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
+type DirectIndexedInstruction struct {
+	OpName string
+	Value int
+	RegisterName string
+	Line int
+
+	// filled in later
+	OpCode int
+	Size int
+}
+
+func (n DirectIndexedInstruction) Ast(v Visitor) {
 	v.Visit(n)
 	v.VisitEnd(n)
 }
@@ -299,7 +315,9 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	// no address
 	$$ = ImpliedInstruction{$1, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier tokComma tokIdentifier {
-	$$ = AbsoluteWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
+	$$ = DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
+} | tokIdentifier tokInteger tokComma tokIdentifier {
+	$$ = DirectIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0}
 } | tokIdentifier tokIdentifier {
 	if $2 == "a" || $2 == "A" {
 		$$ = AccumulatorInstruction{$1, parseLineNumber, 0, 0}
