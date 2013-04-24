@@ -63,6 +63,25 @@ var immediateOpCode = map[string] int {
 	"sbc": 0xe9,
 }
 
+var zeroPageXOpcode = map[string] int {
+	"adc": 0x75,
+	"and": 0x35,
+	"asl": 0x16,
+	"cmp": 0xd5,
+	"dec": 0xd6,
+	"eor": 0x55,
+	"inc": 0xf6,
+	"lda": 0xb5,
+	"ldy": 0xb4,
+	"lsr": 0x56,
+	"ora": 0x15,
+	"rol": 0x36,
+	"ror": 0x76,
+	"sbc": 0xf5,
+	"sta": 0x95,
+	"sty": 0x94,
+}
+
 var absIndexedXOpCode = map[string] int {
 	"adc": 0x7d,
 	"and": 0x3d,
@@ -79,6 +98,11 @@ var absIndexedXOpCode = map[string] int {
 	"ror": 0x7e,
 	"sbc": 0xfd,
 	"sta": 0x9d,
+}
+
+var zeroPageYOpCode = map[string] int {
+	"ldx": 0xb6,
+	"stx": 0x96,
 }
 
 var absIndexedYOpCode = map[string] int {
@@ -183,17 +207,33 @@ func (n DirectIndexedInstruction) Measure() error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
+		if n.Value <= 0xf {
+			opcode, ok := zeroPageXOpcode[lowerOpName]
+			if ok {
+				n.OpCode = opcode
+				n.Size = 2
+				return nil
+			}
+		}
 		opcode, ok := absIndexedXOpCode[lowerOpName]
 		if !ok {
-			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, X instruction: %s", n.Line, n.OpName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, X instruction: %s", n.Line, n.OpName))
 		}
 		n.OpCode = opcode
 		n.Size = 3
 		return nil
 	} else if lowerRegName == "y" {
+		if n.Value <= 0xf {
+			opcode, ok := zeroPageYOpCode[lowerOpName]
+			if ok {
+				n.OpCode = opcode
+				n.Size = 2
+				return nil
+			}
+		}
 		opcode, ok := absIndexedYOpCode[lowerOpName]
 		if !ok {
-			return errors.New(fmt.Sprintf("Line %d: Unrecognized direct, Y instruction: %s", n.Line, n.OpName))
+			return errors.New(fmt.Sprintf("Line %d: Unrecognized absolute, Y instruction: %s", n.Line, n.OpName))
 		}
 		n.OpCode = opcode
 		n.Size = 3
