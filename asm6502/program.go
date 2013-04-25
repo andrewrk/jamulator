@@ -528,11 +528,43 @@ func (n *DataStatement) Assemble(bin *machineCode) error {
 }
 
 func (n *DataWordStatement) Measure(p *Program) error {
-	return errors.New("data word code gen not yet supported")
+	n.Size = 0
+	n.Offset = uint16(p.offset)
+	for _, dataItem := range(n.dataList) {
+		switch t := dataItem.(type) {
+		case *IntegerDataItem:
+			if *t > 0xffff {
+				return errors.New(fmt.Sprintf("Line %d: Word data item limited to 2 bytes.", n.Line))
+			}
+			n.Size += 2
+		case *LabelCall: n.Size += 2
+		default: panic("unknown data item type")
+		}
+	}
+	return nil
 }
 
 func (n *DataWordStatement) Assemble(bin *machineCode) error {
-	return errors.New("data word code gen not yet supported")
+	for _, dataItem := range(n.dataList) {
+		switch t := dataItem.(type) {
+		case *IntegerDataItem:
+			int16buf := []byte{0, 0}
+			binary.LittleEndian.PutUint16(int16buf, uint16(*t))
+			_, err := bin.writer.Write(int16buf)
+			if err != nil { return err }
+		case *LabelCall:
+			labelValue, ok := bin.getLabel(t.LabelName, n.Offset + uint16(n.Size))
+			if !ok {
+				return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
+			}
+			int16buf := []byte{0, 0}
+			binary.LittleEndian.PutUint16(int16buf, labelValue)
+			_, err := bin.writer.Write(int16buf)
+			if err != nil { return err }
+		default: panic("unknown data item type")
+		}
+	}
+	return nil
 }
 
 func (n *IndirectInstruction) Measure(p *Program) error {
@@ -570,9 +602,6 @@ func (p *Program) Visit(n Node) {
 		if p.offset >= 0xffff {
 			err := errors.New(fmt.Sprintf("Line %d: Label memory address must fit in 2 bytes.", ss.Line))
 			p.Errors = append(p.Errors, err)
-		} else if ss.LabelName == "." {
-			err := errors.New(fmt.Sprintf("Line %d: Reserved label name: '.'", ss.Line))
-			p.Errors = append(p.Errors, err)
 		} else {
 			_, exists := p.Labels[ss.LabelName]
 			if exists {
@@ -580,6 +609,19 @@ func (p *Program) Visit(n Node) {
 				p.Errors = append(p.Errors, err)
 			} else {
 				p.Labels[ss.LabelName] = uint16(p.offset)
+			}
+		}
+	case *SubroutineDecl:
+		if p.offset >= 0xffff {
+			err := errors.New(fmt.Sprintf("Line %d: Subroutine memory address must fit in 2 bytes.", ss.Line))
+			p.Errors = append(p.Errors, err)
+		} else {
+			_, exists := p.Labels[ss.Name]
+			if exists {
+				err := errors.New(fmt.Sprintf("Line %d: Subroutine %s already defined.", ss.Line, ss.Name))
+				p.Errors = append(p.Errors, err)
+			} else {
+				p.Labels[ss.Name] = uint16(p.offset)
 			}
 		}
 	}

@@ -265,9 +265,11 @@ func (n *DataStatement) GetSize() int {
 
 type DataWordStatement struct {
 	dataList WordList
+	Line int
 
 	// filled in later
 	Size int
+	Offset uint16
 }
 
 func (n *DataWordStatement) Ast(v Visitor) {
@@ -395,7 +397,7 @@ statementList : statementList tokNewline statement {
 }
 
 statement : tokDot tokIdentifier instructionStatement {
-	$$ = &LabeledStatement{$2, $3, parseLineNumber}
+	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
 } | orgPsuedoOp {
 	$$ = $1
 } | subroutineDecl {
@@ -403,7 +405,7 @@ statement : tokDot tokIdentifier instructionStatement {
 } | instructionStatement {
 	$$ = $1
 } | tokDot tokIdentifier dataStatement {
-	$$ = &LabeledStatement{$2, $3, parseLineNumber}
+	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
 } | dataStatement {
 	$$ = $1
 } | assignStatement {
@@ -424,7 +426,7 @@ statement : tokDot tokIdentifier instructionStatement {
 dataStatement : tokData dataList {
 	$$ = &DataStatement{$2, parseLineNumber, 0, 0}
 } | tokDataWord wordList {
-	$$ = &DataWordStatement{$2, 0}
+	$$ = &DataWordStatement{$2, parseLineNumber, 0, 0}
 }
 
 processorDecl : tokProcessor tokInteger {
