@@ -233,6 +233,16 @@ func (n *OrgPseudoOp) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type SubroutineDecl struct {
+	Name string
+	Line int
+}
+
+func (n *SubroutineDecl) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 type DataStatement struct {
 	dataList DataList
 
@@ -292,6 +302,7 @@ var programAst *ProgramAST
 	processorDecl string
 	labelName string
 	orgPsuedoOp *OrgPseudoOp
+	subroutineDecl *SubroutineDecl
 }
 
 %type <statementList> statementList
@@ -305,6 +316,7 @@ var programAst *ProgramAST
 %type <processorDecl> processorDecl
 %type <labelName> labelName
 %type <orgPsuedoOp> orgPsuedoOp
+%type <subroutineDecl> subroutineDecl
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
@@ -320,6 +332,7 @@ var programAst *ProgramAST
 %token tokRParen
 %token tokDot
 %token tokOrg
+%token tokSubroutine
 
 %%
 
@@ -344,6 +357,8 @@ statementList : statementList tokNewline statement {
 statement : tokDot tokIdentifier instructionStatement {
 	$$ = &LabeledStatement{$2, $3, parseLineNumber}
 } | orgPsuedoOp {
+	$$ = $1
+} | subroutineDecl {
 	$$ = $1
 } | instructionStatement {
 	$$ = $1
@@ -399,6 +414,10 @@ orgPsuedoOp : tokOrg tokInteger {
 		yylex.Error("ORG directive fill parameter must be a single byte.")
 	}
 	$$ = &OrgPseudoOp{$2, byte($4), parseLineNumber}
+}
+
+subroutineDecl : tokIdentifier tokSubroutine {
+	$$ = &SubroutineDecl{$1, parseLineNumber}
 }
 
 instructionStatement : tokIdentifier tokPound tokInteger {

@@ -7,6 +7,9 @@
 /[oO][rR][gG]/ {
 	return tokOrg
 }
+/[sS][uU][bB][rR][oO][uU][tT][iI][nN][eE]/ {
+	return tokSubroutine
+}
 /"[^"\n]*"/ {
 	t := yylex.Text()
 	lval.quotedString = t[1:len(t)-1]
