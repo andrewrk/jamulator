@@ -378,9 +378,9 @@ dataList : dataList tokComma dataItem {
 dataItem : tokQuotedString {
 	tmp := StringDataItem($1)
 	$$ = &tmp
-} | tokInteger {
-	tmp := IntegerDataItem($1)
-	$$ = &tmp
+} | tokPound tokInteger {
+  tmp := IntegerDataItem($2)
+  $$ = &tmp
 }
 
 assignStatement : tokIdentifier tokEqual tokInteger {
