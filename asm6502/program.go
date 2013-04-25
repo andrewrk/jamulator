@@ -483,10 +483,16 @@ func (n *IndirectYInstruction) Assemble(bin *machineCode) error {
 
 func (n *DataStatement) Measure(p *Program) error {
 	n.Size = 0
+	n.Offset = uint16(p.offset)
 	for _, dataItem := range(n.dataList) {
 		switch t := dataItem.(type) {
 		case *StringDataItem: n.Size += len(*t)
-		case *IntegerDataItem: n.Size += 1
+		case *IntegerDataItem:
+			if *t > 0xff {
+				return errors.New(fmt.Sprintf("Line %d: Integer data item limited to 1 byte.", n.Line))
+			}
+			n.Size += 1
+		case *LabelCall: n.Size += 2
 		default: panic("unknown data item type")
 		}
 	}
@@ -494,7 +500,27 @@ func (n *DataStatement) Measure(p *Program) error {
 }
 
 func (n *DataStatement) Assemble(bin *machineCode) error {
-	return errors.New("data assembly not yet implemented")
+	for _, dataItem := range(n.dataList) {
+		switch t := dataItem.(type) {
+			case *StringDataItem:
+				_, err := bin.writer.WriteString(string(*t))
+				if err != nil { return err }
+			case *IntegerDataItem:
+				err := bin.writer.WriteByte(byte(*t))
+				if err != nil { return err }
+			case *LabelCall:
+				labelValue, ok := bin.getLabel(t.LabelName, n.Offset + uint16(n.Size))
+				if !ok {
+					return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
+				}
+				int16buf := []byte{0, 0}
+				binary.LittleEndian.PutUint16(int16buf, uint16(labelValue))
+				_, err := bin.writer.Write(int16buf)
+				if err != nil { return err }
+			default: panic("unknown data item type")
+		}
+	}
+	return nil
 }
 
 func (n *IndirectInstruction) Measure(p *Program) error {

@@ -247,9 +247,11 @@ func (n *SubroutineDecl) Ast(v Visitor) {
 
 type DataStatement struct {
 	dataList DataList
+	Line int
 
 	// filled in later
 	Size int
+	Offset uint16
 }
 
 func (n *DataStatement) Ast(v Visitor) {
@@ -421,7 +423,7 @@ statement : tokDot tokIdentifier instructionStatement {
 }
 
 dataStatement : tokData dataList {
-	$$ = &DataStatement{$2, 0}
+	$$ = &DataStatement{$2, parseLineNumber, 0, 0}
 } | tokDataWord wordList {
 	$$ = &DataWordStatement{$2, 0}
 }
