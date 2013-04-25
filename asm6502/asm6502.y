@@ -90,7 +90,9 @@ type LabeledStatement struct {
 
 func (ls *LabeledStatement) Ast(v Visitor) {
 	v.Visit(ls)
-	ls.Stmt.Ast(v)
+	if ls.Stmt != nil {
+		ls.Stmt.Ast(v)
+	}
 	v.VisitEnd(ls)
 }
 
@@ -260,9 +262,36 @@ func (n *DataStatement) GetSize() int {
 	return n.Size
 }
 
+type DataWordStatement struct {
+	dataList WordList
+
+	// filled in later
+	Size int
+}
+
+func (n *DataWordStatement) Ast(v Visitor) {
+	v.Visit(n)
+	n.dataList.Ast(v)
+	v.VisitEnd(n)
+}
+
+func (n *DataWordStatement) GetSize() int {
+	return n.Size
+}
+
 type DataList []Node
 
 func (n DataList) Ast(v Visitor) {
+	v.Visit(n)
+	for _, di := range(n) {
+		di.Ast(v)
+	}
+	v.VisitEnd(n)
+}
+
+type WordList []Node
+
+func (n WordList) Ast(v Visitor) {
 	v.Visit(n)
 	for _, di := range(n) {
 		di.Ast(v)
@@ -284,49 +313,59 @@ func (n *IntegerDataItem) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
+type LabelCall struct {
+	LabelName string
+}
+
+func (n *LabelCall) Ast(v Visitor) {
+	v.Visit(n)
+	v.VisitEnd(n)
+}
+
 var programAst *ProgramAST
 %}
 
 %union {
 	integer int
-	identifier string
+	str string
 	quotedString string
 	statementList StatementList
-	statement Node
-	instructionStatement Node
 	assignStatement *AssignStatement
-	dataStatement *DataStatement
 	dataList DataList
-	dataItem Node
+	wordList WordList
 	programAst ProgramAST
-	processorDecl string
-	labelName string
 	orgPsuedoOp *OrgPseudoOp
 	subroutineDecl *SubroutineDecl
+	node Node
 }
 
 %type <statementList> statementList
 %type <assignStatement> assignStatement
-%type <statement> statement
-%type <instructionStatement> instructionStatement
-%type <dataStatement> dataStatement
+%type <node> statement
+%type <node> instructionStatement
+%type <node> dataStatement
 %type <dataList> dataList
-%type <dataItem> dataItem
+%type <wordList> wordList
+%type <node> dataItem
 %type <programAst> programAst
-%type <processorDecl> processorDecl
-%type <labelName> labelName
+%type <str> processorDecl
+%type <str> labelName
 %type <orgPsuedoOp> orgPsuedoOp
 %type <subroutineDecl> subroutineDecl
+%type <node> numberExpr
 
-%token <identifier> tokIdentifier
+%token <str> tokIdentifier
+%token <str> tokRegister
 %token <integer> tokInteger
-%token <quotedString> tokQuotedString
+%token <str> tokQuotedString
+%token <str> tokInstruction
 %token tokEqual
 %token tokPound
 %token tokDot
 %token tokComma
 %token tokNewline
 %token tokData
+%token tokDataWord
 %token tokProcessor
 %token tokLParen
 %token tokRParen
@@ -368,6 +407,8 @@ statement : tokDot tokIdentifier instructionStatement {
 	$$ = $1
 } | assignStatement {
 	$$ = $1
+} | tokIdentifier {
+	$$ = &LabeledStatement{$1, nil, parseLineNumber}
 } | processorDecl {
 	if $1 != "6502" {
 		yylex.Error("Unsupported processor: " + $1 + " - Only 6502 is supported.")
@@ -379,14 +420,22 @@ statement : tokDot tokIdentifier instructionStatement {
 	$$ = nil
 }
 
+dataStatement : tokData dataList {
+	$$ = &DataStatement{$2, 0}
+} | tokDataWord wordList {
+	$$ = &DataWordStatement{$2, 0}
+}
+
 processorDecl : tokProcessor tokInteger {
 	$$ = strconv.FormatInt(int64($2), 10)
 } | tokProcessor tokIdentifier {
 	$$ = $2
 }
 
-dataStatement : tokData dataList {
-	$$ = &DataStatement{$2, 0}
+wordList : wordList tokComma numberExpr {
+	$$ = append($1, $3)
+} | numberExpr {
+	$$ = []Node{$1}
 }
 
 dataList : dataList tokComma dataItem {
@@ -395,12 +444,18 @@ dataList : dataList tokComma dataItem {
 	$$ = []Node{$1}
 }
 
+numberExpr : tokPound tokInteger {
+	tmp := IntegerDataItem($2)
+	$$ = &tmp
+} | labelName {
+	$$ = &LabelCall{$1}
+}
+
 dataItem : tokQuotedString {
 	tmp := StringDataItem($1)
 	$$ = &tmp
-} | tokPound tokInteger {
-	tmp := IntegerDataItem($2)
-	$$ = &tmp
+} | numberExpr {
+	$$ = $1
 }
 
 assignStatement : tokIdentifier tokEqual tokInteger {
@@ -420,31 +475,31 @@ subroutineDecl : tokIdentifier tokSubroutine {
 	$$ = &SubroutineDecl{$1, parseLineNumber}
 }
 
-instructionStatement : tokIdentifier tokPound tokInteger {
+instructionStatement : tokInstruction tokPound tokInteger {
 	// immediate address
 	$$ = &ImmediateInstruction{$1, $3, parseLineNumber, 0, 0}
-} | tokIdentifier {
+} | tokInstruction {
 	// no address
 	$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0}
-} | tokIdentifier labelName tokComma tokIdentifier {
+} | tokInstruction labelName tokComma tokRegister {
 	$$ = &DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0, 0}
-} | tokIdentifier tokInteger tokComma tokIdentifier {
+} | tokInstruction tokInteger tokComma tokRegister {
 	$$ = &DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}}
-} | tokIdentifier labelName {
+} | tokInstruction labelName {
 	$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
-} | tokIdentifier tokInteger {
+} | tokInstruction tokInteger {
 	$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}}
-} | tokIdentifier tokLParen tokInteger tokComma tokIdentifier tokRParen {
+} | tokInstruction tokLParen tokInteger tokComma tokRegister tokRParen {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")
 	}
 	$$ = &IndirectXInstruction{$1, $3, parseLineNumber, []byte{}}
-} | tokIdentifier tokLParen tokInteger tokRParen tokComma tokIdentifier {
+} | tokInstruction tokLParen tokInteger tokRParen tokComma tokRegister {
 	if $6 != "y" && $6 != "Y" {
 		yylex.Error("Register argument must be Y.")
 	}
 	$$ = &IndirectYInstruction{$1, $3, parseLineNumber, []byte{}}
-} | tokIdentifier tokLParen tokInteger tokRParen {
+} | tokInstruction tokLParen tokInteger tokRParen {
 	$$ = &IndirectInstruction{$1, $3, parseLineNumber, []byte{}}
 }
 

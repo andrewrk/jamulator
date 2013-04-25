@@ -1,8 +1,19 @@
+/[aA][dD][cC]|[aA][nN][dD]|[aA][sS][lL]|[bB][cC][cC]|[bB][cC][sS]|[bB][eE][qQ]|[bB][iI][tT]|[bB][mM][iI]|[bB][nN][eE]|[bB][pP][lL]|[bB][rR][kK]|[bB][vV][cC]|[bB][vV][sS]|[cC][lL][cC]|[cC][lL][dD]|[cC][lL][iI]|[cC][lL][vV]|[cC][mM][pP]|[cC][pP][xX]|[cC][pP][yY]|[dD][eE][cC]|[dD][eE][xX]|[dD][eE][yY]|[eE][oO][rR]|[iI][nN][cC]|[iI][nN][xX]|[iI][nN][yY]|[jJ][mM][pP]|[jJ][sS][rR]|[lL][dD][aA]|[lL][dD][xX]|[lL][dD][yY]|[lL][sS][rR]|[nN][oO][pP]|[oO][rR][aA]|[pP][hH][aA]|[pP][hH][pP]|[pP][lL][aA]|[pP][lL][pP]|[rR][oO][lL]|[rR][oO][rR]|[rR][tT][iI]|[rR][tT][sS]|[sS][bB][cC]|[sS][eE][cC]|[sS][eE][dD]|[sS][eE][iI]|[sS][tT][aA]|[sS][tT][xX]|[sS][tT][yY]|[tT][aA][xX]|[tT][aA][yY]|[tT][sS][xX]|[tT][xX][aA]|[tT][xX][sS]|[tT][yY][aA]/ {
+	lval.str = yylex.Text()
+	return tokInstruction
+}
+/[xX]|[yY]|[aA]/ {
+	lval.str = yylex.Text()
+	return tokRegister
+}
 /[pP][rR][oO][cC][eE][sS][sS][oO][rR]/ {
 	return tokProcessor
 }
 /[dD][cC]\.[bB]/ {
 	return tokData
+}
+/[dD][cC]\.[wW]/ {
+	return tokDataWord
 }
 /[oO][rR][gG]/ {
 	return tokOrg
@@ -12,11 +23,11 @@
 }
 /"[^"\n]*"/ {
 	t := yylex.Text()
-	lval.quotedString = t[1:len(t)-1]
+	lval.str = t[1:len(t)-1]
 	return tokQuotedString
 }
 /[a-zA-Z][a-zA-Z_.0-9]*/ {
-	lval.identifier = yylex.Text()
+	lval.str = yylex.Text()
 	return tokIdentifier
 }
 /%[01]+/ {
