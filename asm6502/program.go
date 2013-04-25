@@ -30,6 +30,7 @@ type Measurer interface {
 
 type Assembler interface {
 	Assemble(bin *machineCode) error
+	GetSize() int
 }
 
 // Maintains the state for assembling a Program into
@@ -38,6 +39,9 @@ type machineCode struct {
 	prog *Program
 	writer *bufio.Writer
 	Errors []string
+	offset int
+	expectedOffset int
+	firstOrg bool
 }
 
 func (m machineCode) Error() string {
@@ -523,6 +527,14 @@ func (n *DataStatement) Assemble(bin *machineCode) error {
 	return nil
 }
 
+func (n *DataWordStatement) Measure(p *Program) error {
+	return errors.New("data word code gen not yet supported")
+}
+
+func (n *DataWordStatement) Assemble(bin *machineCode) error {
+	return errors.New("data word code gen not yet supported")
+}
+
 func (n *IndirectInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	if lowerOpName != "jmp" {
@@ -577,11 +589,24 @@ func (p *Program) VisitEnd(n Node) {}
 
 func (bin *machineCode) Visit(n Node) {
 	switch nn := n.(type) {
+	case *OrgPseudoOp:
+		bin.offset = nn.Value
+		if bin.firstOrg {
+			bin.firstOrg = false
+			bin.expectedOffset = bin.offset
+		}
 	case Assembler:
+		for bin.offset > bin.expectedOffset {
+			// org fill
+			bin.writer.WriteByte(0)
+			bin.expectedOffset += 1
+		}
 		err := nn.Assemble(bin)
 		if err != nil {
 			bin.Errors = append(bin.Errors, err.Error())
 		}
+		bin.offset += nn.GetSize()
+		bin.expectedOffset = bin.offset
 	}
 }
 
@@ -593,6 +618,9 @@ func (p *Program) Assemble(w io.Writer) error {
 		p,
 		writer,
 		[]string{},
+		0,
+		0,
+		true,
 	}
 	p.Ast.Ast(&bin)
 	writer.Flush()
@@ -628,9 +656,3 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 	return &p
 }
 
-func (n OrgPseudoOp) Assemble(bin *machineCode) error {
-	if n.Value != 0 {
-		return errors.New(fmt.Sprintf("Line %d: Only org 0 is currently supported.", n.Line))
-	}
-	return nil
-}

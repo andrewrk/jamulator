@@ -226,7 +226,6 @@ func (n *IndirectInstruction) GetSize() int {
 
 type OrgPseudoOp struct {
 	Value int
-	Fill byte
 	Line int
 }
 
@@ -465,12 +464,15 @@ assignStatement : tokIdentifier tokEqual tokInteger {
 }
 
 orgPsuedoOp : tokOrg tokInteger {
-	$$ = &OrgPseudoOp{$2, 0, parseLineNumber}
+	$$ = &OrgPseudoOp{$2, parseLineNumber}
 } | tokOrg tokInteger tokComma tokInteger {
 	if $4 > 0xff {
 		yylex.Error("ORG directive fill parameter must be a single byte.")
 	}
-	$$ = &OrgPseudoOp{$2, byte($4), parseLineNumber}
+	if $4 != 0 {
+		yylex.Error("ORG directive only supports filling with zero.")
+	}
+	$$ = &OrgPseudoOp{$2, parseLineNumber}
 }
 
 subroutineDecl : tokIdentifier tokSubroutine {
