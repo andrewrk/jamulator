@@ -12,12 +12,12 @@ Currently an in progress 6502 assembler.
     go get github.com/superjoe30/nex
     ```
 
-3. Install llvm-3.1 from your package manager.
-4. Install gollvm:
+3. Install llvm-3.1 or llvm-3.2 from your package manager.
+4. Install gollvm (replace 3.2 with 3.1 if you want):
 
     ```
-    export CGO_CFLAGS=$(llvm-config-3.1 --cflags)
-    export CGO_LDFLAGS="$(llvm-config-3.1 --ldflags) -Wl,-L$(llvm-config-3.1 --libdir) -lLLVM-$(llvm-config-3.1 --version)"
+    export CGO_CFLAGS=$(llvm-config-3.2 --cflags)
+    export CGO_LDFLAGS="$(llvm-config-3.2 --ldflags) -Wl,-L$(llvm-config-3.2 --libdir) -lLLVM-$(llvm-config-3.2 --version)"
     go get github.com/axw/gollvm/llvm
     ```
 
