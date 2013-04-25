@@ -1,7 +1,7 @@
 /[pP][rR][oO][cC][eE][sS][sS][oO][rR]/ {
 	return tokProcessor
 }
-/(\.[dD][aA][tT][aA]|[dD][cC]\.[bB])/ {
+/[dD][cC]\.[bB]/ {
 	return tokData
 }
 /"[^"\n]*"/ {
@@ -9,7 +9,7 @@
 	lval.quotedString = t[1:len(t)-1]
 	return tokQuotedString
 }
-/[a-zA-Z_.][a-zA-Z_.0-9]*/ {
+/[a-zA-Z][a-zA-Z_.0-9]*/ {
 	lval.identifier = yylex.Text()
 	return tokIdentifier
 }
@@ -45,8 +45,8 @@
 /#/ {
 	return tokPound
 }
-/:/ {
-	return tokColon
+/\./ {
+  return tokDot
 }
 /,/ {
 	return tokComma

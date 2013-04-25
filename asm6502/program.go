@@ -528,7 +528,7 @@ func (p *Program) Visit(n Node) {
 			p.Errors = append(p.Errors, err)
 		}
 		p.offset += ss.GetSize()
-	case *LabelStatement:
+	case *LabeledStatement:
 		if p.offset >= 0xffff {
 			err := errors.New(fmt.Sprintf("Line %d: Label memory address must fit in 2 bytes.", ss.Line))
 			p.Errors = append(p.Errors, err)

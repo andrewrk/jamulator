@@ -83,13 +83,15 @@ func (ii *ImpliedInstruction) GetSize() int {
 	return ii.Size
 }
 
-type LabelStatement struct {
+type LabeledStatement struct {
 	LabelName string
+	Stmt Node
 	Line int
 }
 
-func (ls *LabelStatement) Ast(v Visitor) {
+func (ls *LabeledStatement) Ast(v Visitor) {
 	v.Visit(ls)
+	ls.Stmt.Ast(v)
 	v.VisitEnd(ls)
 }
 
@@ -282,38 +284,39 @@ var programAst *ProgramAST
 	statementList StatementList
 	statement Node
 	instructionStatement Node
-	labelStatement *LabelStatement
 	assignStatement *AssignStatement
 	dataStatement *DataStatement
 	dataList DataList
 	dataItem Node
 	programAst ProgramAST
 	processorDecl string
+	labelName string
 }
 
 %type <statementList> statementList
 %type <assignStatement> assignStatement
 %type <statement> statement
 %type <instructionStatement> instructionStatement
-%type <labelStatement> labelStatement
 %type <dataStatement> dataStatement
 %type <dataList> dataList
 %type <dataItem> dataItem
 %type <programAst> programAst
 %type <processorDecl> processorDecl
+%type <labelName> labelName
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
 %token <quotedString> tokQuotedString
 %token tokEqual
 %token tokPound
-%token tokColon
+%token tokDot
 %token tokComma
 %token tokNewline
 %token tokData
 %token tokProcessor
 %token tokLParen
 %token tokRParen
+%token tokDot
 
 %%
 
@@ -321,11 +324,11 @@ programAst : statementList {
 	programAst = &ProgramAST{$1}
 }
 
-statementList : statementList statement {
-	if $2 == nil {
+statementList : statementList tokNewline statement {
+	if $3 == nil {
 		$$ = $1
 	} else {
-		$$ = append($1, $2)
+		$$ = append($1, $3)
 	}
 } | statement {
 	if $1 == nil {
@@ -335,21 +338,23 @@ statementList : statementList statement {
 	}
 }
 
-statement : assignStatement tokNewline {
+statement : tokDot tokIdentifier instructionStatement {
+	$$ = &LabeledStatement{$2, $3, parseLineNumber}
+} | instructionStatement {
 	$$ = $1
-} | instructionStatement tokNewline {
+} | tokDot tokIdentifier dataStatement {
+	$$ = &LabeledStatement{$2, $3, parseLineNumber}
+} | dataStatement {
 	$$ = $1
-} | labelStatement {
+} | assignStatement {
 	$$ = $1
-} | dataStatement tokNewline {
-	$$ = $1
-} | processorDecl tokNewline {
+} | processorDecl {
 	if $1 != "6502" {
 		yylex.Error("Unsupported processor: " + $1 + " - Only 6502 is supported.")
 	}
 	// empty statement
 	$$ = nil
-} | tokNewline {
+} | {
 	// empty statement
 	$$ = nil
 }
@@ -378,10 +383,6 @@ dataItem : tokQuotedString {
 	$$ = &tmp
 }
 
-labelStatement : tokIdentifier tokColon {
-	$$ = &LabelStatement{$1, parseLineNumber}
-}
-
 assignStatement : tokIdentifier tokEqual tokInteger {
 	$$ = &AssignStatement{$1, $3}
 }
@@ -392,16 +393,12 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier {
 	// no address
 	$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0}
-} | tokIdentifier tokIdentifier tokComma tokIdentifier {
+} | tokIdentifier labelName tokComma tokIdentifier {
 	$$ = &DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0, 0}
 } | tokIdentifier tokInteger tokComma tokIdentifier {
 	$$ = &DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}}
-} | tokIdentifier tokIdentifier {
-	if $2 == "a" || $2 == "A" {
-		$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0}
-	} else {
-		$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
-	}
+} | tokIdentifier labelName {
+	$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
 } | tokIdentifier tokInteger {
 	switch strings.ToLower($1) {
 	case "org":
@@ -421,6 +418,14 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 	$$ = &IndirectYInstruction{$1, $3, parseLineNumber, []byte{}}
 } | tokIdentifier tokLParen tokInteger tokRParen {
 	$$ = &IndirectInstruction{$1, $3, parseLineNumber, []byte{}}
+}
+
+labelName : tokDot {
+	$$ = "."
+} | tokIdentifier {
+	$$ = $1
+} | tokDot tokIdentifier {
+	$$ = "." + $2
 }
 
 %%
