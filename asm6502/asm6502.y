@@ -4,7 +4,6 @@ package asm6502
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 type Node interface {
@@ -225,6 +224,7 @@ func (n *IndirectInstruction) GetSize() int {
 
 type OrgPseudoOp struct {
 	Value int
+	Fill byte
 	Line int
 }
 
@@ -291,6 +291,7 @@ var programAst *ProgramAST
 	programAst ProgramAST
 	processorDecl string
 	labelName string
+	orgPsuedoOp *OrgPseudoOp
 }
 
 %type <statementList> statementList
@@ -303,6 +304,7 @@ var programAst *ProgramAST
 %type <programAst> programAst
 %type <processorDecl> processorDecl
 %type <labelName> labelName
+%type <orgPsuedoOp> orgPsuedoOp
 
 %token <identifier> tokIdentifier
 %token <integer> tokInteger
@@ -317,6 +319,7 @@ var programAst *ProgramAST
 %token tokLParen
 %token tokRParen
 %token tokDot
+%token tokOrg
 
 %%
 
@@ -340,6 +343,8 @@ statementList : statementList tokNewline statement {
 
 statement : tokDot tokIdentifier instructionStatement {
 	$$ = &LabeledStatement{$2, $3, parseLineNumber}
+} | orgPsuedoOp {
+	$$ = $1
 } | instructionStatement {
 	$$ = $1
 } | tokDot tokIdentifier dataStatement {
@@ -379,12 +384,21 @@ dataItem : tokQuotedString {
 	tmp := StringDataItem($1)
 	$$ = &tmp
 } | tokPound tokInteger {
-  tmp := IntegerDataItem($2)
-  $$ = &tmp
+	tmp := IntegerDataItem($2)
+	$$ = &tmp
 }
 
 assignStatement : tokIdentifier tokEqual tokInteger {
 	$$ = &AssignStatement{$1, $3}
+}
+
+orgPsuedoOp : tokOrg tokInteger {
+	$$ = &OrgPseudoOp{$2, 0, parseLineNumber}
+} | tokOrg tokInteger tokComma tokInteger {
+	if $4 > 0xff {
+		yylex.Error("ORG directive fill parameter must be a single byte.")
+	}
+	$$ = &OrgPseudoOp{$2, byte($4), parseLineNumber}
 }
 
 instructionStatement : tokIdentifier tokPound tokInteger {
@@ -400,12 +414,7 @@ instructionStatement : tokIdentifier tokPound tokInteger {
 } | tokIdentifier labelName {
 	$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
 } | tokIdentifier tokInteger {
-	switch strings.ToLower($1) {
-	case "org":
-		$$ = &OrgPseudoOp{$2, parseLineNumber}
-	default:
-		$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}}
-	}
+	$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}}
 } | tokIdentifier tokLParen tokInteger tokComma tokIdentifier tokRParen {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")

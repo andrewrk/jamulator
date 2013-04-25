@@ -4,6 +4,9 @@
 /[dD][cC]\.[bB]/ {
 	return tokData
 }
+/[oO][rR][gG]/ {
+	return tokOrg
+}
 /"[^"\n]*"/ {
 	t := yylex.Text()
 	lval.quotedString = t[1:len(t)-1]
@@ -46,7 +49,7 @@
 	return tokPound
 }
 /\./ {
-  return tokDot
+	return tokDot
 }
 /,/ {
 	return tokComma
