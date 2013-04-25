@@ -6,7 +6,7 @@
 
    ORG   $C000    ;16Kb PRG-ROM, 8Kb CHR-ROM
 
-   dc.b "Zelda Simulator, ©1998 Chris Covell (ccovell@direct.ca)"
+   dc.b "Zelda Simulator, c1998 Chris Covell (ccovell@direct.ca)"
 
 Reset_Routine  SUBROUTINE
    cld         ;Clear decimal flag

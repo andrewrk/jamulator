@@ -353,7 +353,7 @@ func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 func (n *DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset + uint16(n.Size))
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
 	}
@@ -388,13 +388,13 @@ func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset + uint16(n.Size))
+	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
 	}
 	if n.Size == 2 {
 		// relative address
-		delta := int(n.Offset) - int(labelValue)
+		delta := int(labelValue) - (int(n.Offset) + int(n.Size))
 		if delta > 127 || delta < -128 {
 			return errors.New(fmt.Sprintf("Line %d: Label address must be within 127 bytes of instruction address.", n.Line))
 		}
@@ -513,7 +513,7 @@ func (n *DataStatement) Assemble(bin *machineCode) error {
 				err := bin.writer.WriteByte(byte(*t))
 				if err != nil { return err }
 			case *LabelCall:
-				labelValue, ok := bin.getLabel(t.LabelName, n.Offset + uint16(n.Size))
+				labelValue, ok := bin.getLabel(t.LabelName, n.Offset)
 				if !ok {
 					return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
 				}
@@ -553,7 +553,7 @@ func (n *DataWordStatement) Assemble(bin *machineCode) error {
 			_, err := bin.writer.Write(int16buf)
 			if err != nil { return err }
 		case *LabelCall:
-			labelValue, ok := bin.getLabel(t.LabelName, n.Offset + uint16(n.Size))
+			labelValue, ok := bin.getLabel(t.LabelName, n.Offset)
 			if !ok {
 				return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
 			}
