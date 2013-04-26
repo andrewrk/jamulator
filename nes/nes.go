@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"io"
 	"errors"
+	"fmt"
 )
 
 const (
@@ -19,16 +20,54 @@ const (
 	DualCompatTv
 )
 
+type TvSystem int
+
+func (tvs TvSystem) String() string {
+	if tvs == NtscTv {
+		return "NTSC"
+	} else if tvs == PalTv {
+		return "PAL"
+	}
+	return "Dual Compatible"
+}
+
+type Mirroring int
+
+func (m Mirroring) String() string {
+	if m == HorizontalMirroring {
+		return "Horizontal"
+	} else if m == VerticalMirroring {
+		return "Vertical"
+	}
+	return "Four Screen VRAM"
+}
+
 type Rom struct {
-	PrgBankCount int // Size of PRG ROM in 16 KB units
-	ChrBankCount int // Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
-	PrgRamSize int // Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility)
+	PrgRom [][]byte
+	ChrRom [][]byte
 
 	Mapper byte
-	Mirroring int
+	Mirroring Mirroring
 	BatteryBacked bool
-	TvSystem int
+	TvSystem TvSystem
 	SRamPresent bool
+}
+
+func (r *Rom) String() string {
+	return fmt.Sprintf("PRG Banks: %d\n"+
+		"CHR Banks: %d\n"+
+		"Mapper: %d\n"+
+		"Mirroring: %s\n"+
+		"Battery Backed: %t\n"+
+		"TvSystem: %s\n"+
+		"SRamPResent: %t",
+		len(r.PrgRom),
+		len(r.ChrRom),
+		r.Mapper,
+		r.Mirroring.String(),
+		r.BatteryBacked,
+		r.TvSystem.String(),
+		r.SRamPresent)
 }
 
 func Disassemble(ioreader io.Reader) (*Rom, error) {
@@ -42,11 +81,13 @@ func Disassemble(ioreader io.Reader) (*Rom, error) {
 	if string(buf[0:4]) != "NES\x1a" {
 		return nil, errors.New("Invalid ROM file")
 	}
-	r.PrgBankCount = int(buf[4])
-	r.ChrBankCount = int(buf[5])
+	prgBankCount := int(buf[4])
+	chrBankCount := int(buf[5])
 	flags6 := buf[6]
 	flags7 := buf[7]
-	r.PrgRamSize = int(buf[8])
+	if buf[8] != 0 && buf[8] != 1 {
+		return nil, errors.New("Only 8KB program RAM supported")
+	}
 	flags9 := buf[9]
 	flags10 := buf[10]
 
@@ -85,6 +126,24 @@ func Disassemble(ioreader io.Reader) (*Rom, error) {
 	if flags10 & 0x20 != 0 {
 		return nil, errors.New("bus conflicts unsupported")
 	}
+
+	r.PrgRom = make([][]byte, prgBankCount)
+	for i := 0; i < prgBankCount; i++ {
+		bank := make([]byte, 0x4000)
+		_, err := reader.Read(bank)
+		if err != nil { return nil, err }
+		r.PrgRom[i] = bank
+	}
+
+	r.ChrRom = make([][]byte, chrBankCount)
+	for i := 0; i < chrBankCount; i++ {
+		bank := make([]byte, 0x2000)
+		_, err := reader.Read(bank)
+		if err != nil { return nil, err }
+		r.ChrRom[i] = bank
+	}
+
+
 	return r, nil
 }
 

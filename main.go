@@ -63,7 +63,7 @@ func main() {
 	} else if unRomFlag {
 		rom, err := nes.DisassembleFile(filename)
 		if err != nil { panic(err) }
-		fmt.Println("rom", rom)
+		fmt.Println(rom.String())
 		return
 	} else if disassembleFlag {
 		panic("disasseble not yet supported")
