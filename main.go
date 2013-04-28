@@ -77,7 +77,15 @@ func main() {
 		if err != nil { panic(err) }
 		return
 	} else if disassembleFlag {
-		panic("disasseble not yet supported")
+		p, err := asm6502.DisassembleFile(filename)
+		if err != nil { panic(err) }
+		outfile := removeExtension(filename) + ".asm"
+		if flag.NArg() == 2 {
+			outfile = flag.Arg(1)
+		}
+		err = p.WriteSourceFile(outfile)
+		if err != nil { panic(err) }
+		return
 	} else if romFlag {
 		panic("rom assembly not yet supported")
 	}
