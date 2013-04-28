@@ -48,11 +48,25 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
 			p.Ast.statements = append(p.Ast.statements, i)
 		case absXAddr:
-			r.ReadByte()
-			r.ReadByte()
+			i := new(DirectIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			valuePart := i.Payload[1:]
+			_, err := io.ReadAtLeast(r, valuePart, 2)
+			if err != nil { return nil, err }
+			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			i.RegisterName = "X"
+			p.Ast.statements = append(p.Ast.statements, i)
 		case absYAddr:
-			r.ReadByte()
-			r.ReadByte()
+			i := new(DirectIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			valuePart := i.Payload[1:]
+			_, err := io.ReadAtLeast(r, valuePart, 2)
+			if err != nil { return nil, err }
+			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			i.RegisterName = "Y"
+			p.Ast.statements = append(p.Ast.statements, i)
 		case immedAddr:
 			i := new(ImmediateInstruction)
 			i.OpName = opCodeInfo.opName
@@ -65,12 +79,31 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.OpName = opCodeInfo.opName
 			p.Ast.statements = append(p.Ast.statements, i)
 		case indirectAddr:
-			r.ReadByte()
-			r.ReadByte()
+			// note: only JMP uses this
+			i := new(IndirectInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			valuePart := i.Payload[1:]
+			_, err := io.ReadAtLeast(r, valuePart, 2)
+			if err != nil { return nil, err }
+			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			p.Ast.statements = append(p.Ast.statements, i)
 		case xIndexIndirectAddr:
-			r.ReadByte()
+			i := new(IndirectXInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			p.Ast.statements = append(p.Ast.statements, i)
 		case indirectYIndexAddr:
-			r.ReadByte()
+			i := new(IndirectYInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			p.Ast.statements = append(p.Ast.statements, i)
 		case relativeAddr:
 			r.ReadByte()
 		case zeroPageAddr:
@@ -82,9 +115,23 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.Value = int(v)
 			p.Ast.statements = append(p.Ast.statements, i)
 		case zeroXIndexAddr:
-			r.ReadByte()
+			i := new(DirectIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			i.RegisterName = "X"
+			p.Ast.statements = append(p.Ast.statements, i)
 		case zeroYIndexAddr:
-			r.ReadByte()
+			i := new(DirectIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			i.RegisterName = "Y"
+			p.Ast.statements = append(p.Ast.statements, i)
 
 		}
 	}
@@ -132,6 +179,21 @@ func (i *ImpliedInstruction) Render(sw SourceWriter) error {
 
 func (i *DirectInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x\n", i.OpName, i.Value))
+	return err
+}
+
+func (i *DirectIndexedInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x, %s\n", i.OpName, i.Value, i.RegisterName))
+	return err
+}
+
+func (i *IndirectXInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x, X)\n", i.OpName, i.Value))
+	return err
+}
+
+func (i *IndirectYInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x), Y\n", i.OpName, i.Value))
 	return err
 }
 

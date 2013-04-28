@@ -162,7 +162,7 @@ var opCodeDataMap = []opCodeData{
 	{"", nilAddr},
 	{"", nilAddr},
 	{"", nilAddr},
-	{"adc", absAddr},
+	{"adc", absXAddr},
 	{"ror", absAddr},
 	{"", nilAddr},
 
