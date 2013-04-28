@@ -39,10 +39,12 @@ func main() {
 	if flag.NArg() != 1 && flag.NArg() != 2 { usageAndQuit() }
 	filename := flag.Arg(0)
 	if astFlag || assembleFlag || compileFlag {
+		fmt.Printf("Parsing %s\n", filename)
 		programAst, err := asm6502.ParseFile(filename)
 		if err != nil { panic(err) }
 		if astFlag { programAst.Print() }
 		if !assembleFlag && !compileFlag { return }
+		fmt.Printf("Assembling %s\n", filename)
 		program := programAst.ToProgram()
 		if len(program.Errors) > 0 {
 			for _, err := range(program.Errors) {
@@ -55,6 +57,7 @@ func main() {
 			if flag.NArg() == 2 {
 				outfile = flag.Arg(1)
 			}
+			fmt.Printf("Compiling to %s\n", outfile)
 			err := program.Compile(outfile)
 			if err != nil { panic(err) }
 		}
@@ -62,6 +65,7 @@ func main() {
 		if flag.NArg() == 2 {
 			outfile = flag.Arg(1)
 		}
+		fmt.Printf("Writing to %s\n", outfile)
 		err = program.AssembleToFile(outfile)
 		if err != nil { panic(err) }
 		return

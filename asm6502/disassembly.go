@@ -57,6 +57,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			_, hasZeroPageVersion := zeroPageOpCode[i.OpName]
+			if hasZeroPageVersion && i.Value <= 0xff {
+				// this would be recompiled as a zero-page instruction - must be data
+				p.appendDataByte(opCode)
+				p.appendDataByte(valuePart[0])
+				p.appendDataByte(valuePart[1])
+				break
+			}
 			p.Ast.statements = append(p.Ast.statements, i)
 		case absXAddr:
 			i := new(DirectIndexedInstruction)
@@ -73,6 +81,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			_, hasZeroPageVersion := zeroPageXOpcode[i.OpName]
+			if hasZeroPageVersion && i.Value <= 0xff {
+				// this would be recompiled as a zero-page instruction - must be data
+				p.appendDataByte(opCode)
+				p.appendDataByte(valuePart[0])
+				p.appendDataByte(valuePart[1])
+				break
+			}
 			i.RegisterName = "X"
 			p.Ast.statements = append(p.Ast.statements, i)
 		case absYAddr:
@@ -90,6 +106,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			_, hasZeroPageVersion := zeroPageYOpCode[i.OpName]
+			if hasZeroPageVersion && i.Value <= 0xff {
+				// this would be recompiled as a zero-page instruction - must be data
+				p.appendDataByte(opCode)
+				p.appendDataByte(valuePart[0])
+				p.appendDataByte(valuePart[1])
+				break
+			}
 			i.RegisterName = "Y"
 			p.Ast.statements = append(p.Ast.statements, i)
 		case immedAddr:
