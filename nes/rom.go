@@ -145,3 +145,73 @@ func LoadFile(filename string) (*Rom, error) {
 	return r, nil
 }
 
+func (r *Rom) Save(writer io.Writer) error {
+	w := bufio.NewWriter(writer)
+	flags6 := byte(0)
+	flags7 := byte(0)
+	flags9 := byte(0)
+	flags10 := byte(0)
+
+	// mapper number
+	flags6 |= (r.Mapper & 0x0f) << 4
+	flags7 |= r.Mapper & 0xf0
+
+	// mirroring
+	switch r.Mirroring {
+	case HorizontalMirroring: flags6 |= 0x1
+	case VerticalMirroring: // nothing to do
+	case FourScreenVRamMirroring: flags6 |= 0x8
+	default: panic("Unknown mirroring")
+	}
+
+	if r.BatteryBacked { flags6 |= 0x2 }
+
+	switch r.TvSystem {
+	case PalTv:
+		flags9 |= 0x1
+		flags10 |= 0x2
+	case NtscTv: // nothing to do
+	case DualCompatTv:
+		flags10 |= 0x3
+	default: panic("unknown tv system")
+	}
+
+	if r.SRamPresent { flags6 |= 0x10 }
+
+	header := []byte{
+		'N', 'E', 'S', 0x1a,
+		byte(len(r.PrgRom)),
+		byte(len(r.ChrRom)),
+		flags6,
+		flags7,
+		1,
+		flags9,
+		flags10,
+		0, 0, 0, 0, 0, 0,
+	}
+	_, err := w.Write(header)
+	if err != nil { return err }
+
+	for _, bank := range(r.PrgRom) {
+		_, err := w.Write(bank)
+		if err != nil { return err }
+	}
+
+	for _, bank := range(r.ChrRom) {
+		_, err := w.Write(bank)
+		if err != nil { return err }
+	}
+
+	w.Flush()
+	return nil
+}
+
+func (r *Rom) SaveFile(dir string) error {
+	fd, err := os.Create(path.Join(dir, r.Filename))
+	if err != nil { return err }
+	err = r.Save(fd)
+	err2 := fd.Close()
+	if err != nil { return err }
+	if err2 != nil { return err2 }
+	return nil
+}

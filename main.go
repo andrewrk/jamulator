@@ -66,27 +66,37 @@ func main() {
 		if err != nil { panic(err) }
 		return
 	} else if unRomFlag {
+		fmt.Printf("loading %s\n", filename)
 		rom, err := nes.LoadFile(filename)
 		if err != nil { panic(err) }
 		outdir := removeExtension(filename)
 		if flag.NArg() == 2 {
 			outdir = flag.Arg(1)
 		}
+		fmt.Printf("disassembling to %s\n", outdir)
 		err = rom.DisassembleToDir(outdir)
 		if err != nil { panic(err) }
 		return
 	} else if disassembleFlag {
+		fmt.Printf("disassembling %s\n", filename)
 		p, err := asm6502.DisassembleFile(filename)
 		if err != nil { panic(err) }
 		outfile := removeExtension(filename) + ".asm"
 		if flag.NArg() == 2 {
 			outfile = flag.Arg(1)
 		}
+		fmt.Printf("writing source %s\n", outfile)
 		err = p.WriteSourceFile(outfile)
 		if err != nil { panic(err) }
 		return
 	} else if romFlag {
-		panic("rom assembly not yet supported")
+		fmt.Printf("building rom from %s\n", filename)
+		r, err := nes.AssembleFile(filename)
+		if err != nil { panic(err) }
+		fmt.Printf("saving rom %s\n", r.Filename)
+		err = r.SaveFile(path.Dir(filename))
+		if err != nil { panic(err) }
+		return
 	}
 	usageAndQuit()
 }

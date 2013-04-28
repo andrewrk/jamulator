@@ -23,6 +23,14 @@ type Program struct {
 	offset int
 }
 
+func (p *Program) Error() string {
+	errStrs := make([]string, 0, len(p.Errors))
+	for _, e := range(p.Errors) {
+		errStrs = append(errStrs, e.Error())
+	}
+	return strings.Join(errStrs, "\n")
+}
+
 type Measurer interface {
 	Measure(p *Program) error
 	GetSize() int
