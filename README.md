@@ -1,8 +1,21 @@
 # jamulator
 
-Currently an in progress 6502 assembler.
+## Features
 
-## Getting Started
+ * 6502 assembler / disassembler
+ * unpack & disassemble NES roms and then put them back together
+
+## Roadmap
+
+ * Ability to emulate an NES ROM
+ * When emulating, capture how memory addresses are used to figure
+   out what is data and what is code
+ * Use LLVM to recompile 6502 assembly with a custom ABI into
+   native executables.
+ * Use LLVM to recompile NES games into native executables.
+
+
+## Getting Started Developing
 
 1. Set up your `$GOPATH`. Make sure the `bin` folder from your go path
    is in `$PATH`.
@@ -47,13 +60,4 @@ Currently an in progress 6502 assembler.
     gcc hello.6502.asm.o
     ./a.out
     ```
-
-## Roadmap
-
- * Get a 6502 assembler working.
- * Get a 6502 disassembler working.
- * Use LLVM to recompile 6502 assembly with a custom ABI into
-   native executables.
- * Get a NES ROM disassembler working.
- * Use LLVM to recompile NES games into native executables.
 
