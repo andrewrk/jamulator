@@ -74,7 +74,13 @@ func Disassemble(reader io.Reader) (*Program, error) {
 		case relativeAddr:
 			r.ReadByte()
 		case zeroPageAddr:
-			r.ReadByte()
+			i := new(DirectInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			p.Ast.statements = append(p.Ast.statements, i)
 		case zeroXIndexAddr:
 			r.ReadByte()
 		case zeroYIndexAddr:
