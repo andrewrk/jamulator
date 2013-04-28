@@ -1,11 +1,14 @@
 package nes
 
 import (
+	"../asm6502"
 	"os"
 	"bufio"
 	"io"
 	"errors"
 	"fmt"
+	"bytes"
+	"path"
 )
 
 const (
@@ -28,7 +31,7 @@ func (tvs TvSystem) String() string {
 	} else if tvs == PalTv {
 		return "PAL"
 	}
-	return "Dual Compatible"
+	return "DualCompatible"
 }
 
 type Mirroring int
@@ -39,10 +42,11 @@ func (m Mirroring) String() string {
 	} else if m == VerticalMirroring {
 		return "Vertical"
 	}
-	return "Four Screen VRAM"
+	return "FourScreenVRAM"
 }
 
 type Rom struct {
+	Filename string
 	PrgRom [][]byte
 	ChrRom [][]byte
 
@@ -70,7 +74,82 @@ func (r *Rom) String() string {
 		r.SRamPresent)
 }
 
-func Disassemble(ioreader io.Reader) (*Rom, error) {
+func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
+	jam := bufio.NewWriter(jamFd)
+
+	jam.WriteString("# output file name when this rom is assembled\n")
+	jam.WriteString(fmt.Sprintf("filename=%s\n", r.Filename))
+	jam.WriteString("# see http://wiki.nesdev.com/w/index.php/Mapper\n")
+	jam.WriteString(fmt.Sprintf("mapper=%d\n", r.Mapper))
+	jam.WriteString("# 'Horizontal', 'Vertical', or 'FourScreenVRAM'\n")
+	jam.WriteString(fmt.Sprintf("mirroring=%s\n", r.Mirroring.String()))
+	jam.WriteString("# whether SRAM in CPU $6000-$7FFF is present\n")
+	jam.WriteString(fmt.Sprintf("sram=%t\n", r.SRamPresent))
+	jam.WriteString("# whether the SRAM in CPU $6000-$7FFF, if present, is battery backed\n")
+	jam.WriteString(fmt.Sprintf("battery=%t\n", r.BatteryBacked))
+	jam.WriteString("# 'NTSC', 'PAL', or 'DualCompatible'\n")
+	jam.WriteString(fmt.Sprintf("tvsystem=%s\n", r.TvSystem.String()))
+
+	// save the prg rom
+	jam.WriteString("# assembly code\n")
+	for i, bank := range(r.PrgRom) {
+		buf := bytes.NewBuffer(bank)
+		program, err := asm6502.Disassemble(buf)
+		if err != nil { return err }
+		outpath := fmt.Sprintf("prg%d.asm", i)
+		err = program.WriteSourceFile(path.Join(dest, outpath))
+		if err != nil { return err }
+		_, err = jam.WriteString(fmt.Sprintf("prg=%s\n", outpath))
+		if err != nil { return err }
+	}
+	// save the chr banks
+	jam.WriteString("# video data\n")
+	for i, bank := range(r.ChrRom) {
+		buf := bytes.NewBuffer(bank)
+		outpath := fmt.Sprintf("chr%d.chr", i)
+		chrFd, err := os.Create(path.Join(dest, outpath))
+		if err != nil { return err }
+		chr := bufio.NewWriter(chrFd)
+		_, err = io.Copy(chr, buf)
+		if err != nil {
+			chrFd.Close()
+			return err
+		}
+		_, err = jam.WriteString(fmt.Sprintf("chr=%s\n", outpath))
+		if err != nil {
+			chrFd.Close()
+			return err
+		}
+		chr.Flush()
+		err = chrFd.Close()
+		if err != nil { return err }
+	}
+
+	jam.Flush()
+	return nil
+}
+
+func (r *Rom) DisassembleToDir(dest string) error {
+	// create the folder
+	err := os.Mkdir(dest, 0770)
+	if err != nil { return err }
+	// put a .jam file which describes how to reassemble
+	baseJamFilename := removeExtension(r.Filename)
+	if len(baseJamFilename) == 0 {
+		baseJamFilename = "rom"
+	}
+	jamFilename := path.Join(dest, baseJamFilename + ".jam")
+	jamFd, err := os.Create(jamFilename)
+	if err != nil { return err }
+
+	err = r.disassembleToDirWithJam(dest, jamFd)
+	err2 := jamFd.Close()
+	if err != nil { return err }
+	if err2 != nil { return err2 }
+	return nil
+}
+
+func Load(ioreader io.Reader) (*Rom, error) {
 	reader := bufio.NewReader(ioreader)
 	r := new(Rom)
 
@@ -130,7 +209,7 @@ func Disassemble(ioreader io.Reader) (*Rom, error) {
 	r.PrgRom = make([][]byte, prgBankCount)
 	for i := 0; i < prgBankCount; i++ {
 		bank := make([]byte, 0x4000)
-		_, err := reader.Read(bank)
+		_, err := io.ReadAtLeast(reader, bank, len(bank))
 		if err != nil { return nil, err }
 		r.PrgRom[i] = bank
 	}
@@ -138,7 +217,7 @@ func Disassemble(ioreader io.Reader) (*Rom, error) {
 	r.ChrRom = make([][]byte, chrBankCount)
 	for i := 0; i < chrBankCount; i++ {
 		bank := make([]byte, 0x2000)
-		_, err := reader.Read(bank)
+		_, err := io.ReadAtLeast(reader, bank, len(bank))
 		if err != nil { return nil, err }
 		r.ChrRom[i] = bank
 	}
@@ -147,14 +226,19 @@ func Disassemble(ioreader io.Reader) (*Rom, error) {
 	return r, nil
 }
 
-func DisassembleFile(filename string) (*Rom, error) {
+func LoadFile(filename string) (*Rom, error) {
 	fd, err := os.Open(filename)
 	if err != nil { return nil, err }
 
-	r, err := Disassemble(fd)
+	r, err := Load(fd)
+	r.Filename = path.Base(filename)
 	err2 := fd.Close()
 	if err != nil { return nil, err }
 	if err2 != nil { return nil, err2 }
 
 	return r, nil
+}
+
+func removeExtension(filename string) string {
+	return filename[0:len(filename)-len(path.Ext(filename))]
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"flag"
+	"path"
 )
 
 var astFlag bool
@@ -29,6 +30,10 @@ func usageAndQuit() {
 	os.Exit(1)
 }
 
+func removeExtension(filename string) string {
+	return filename[0:len(filename)-len(path.Ext(filename))]
+}
+
 func main() {
 	flag.Parse()
 	if flag.NArg() != 1 && flag.NArg() != 2 { usageAndQuit() }
@@ -46,14 +51,14 @@ func main() {
 			os.Exit(1)
 		}
 		if compileFlag {
-			outfile := filename + ".bc"
+			outfile := removeExtension(filename) + ".bc"
 			if flag.NArg() == 2 {
 				outfile = flag.Arg(1)
 			}
 			err := program.Compile(outfile)
 			if err != nil { panic(err) }
 		}
-		outfile := filename + ".bin"
+		outfile := removeExtension(filename) + ".bin"
 		if flag.NArg() == 2 {
 			outfile = flag.Arg(1)
 		}
@@ -61,9 +66,15 @@ func main() {
 		if err != nil { panic(err) }
 		return
 	} else if unRomFlag {
-		rom, err := nes.DisassembleFile(filename)
+		rom, err := nes.LoadFile(filename)
 		if err != nil { panic(err) }
 		fmt.Println(rom.String())
+		outdir := removeExtension(filename)
+		if flag.NArg() == 2 {
+			outdir = flag.Arg(1)
+		}
+		err = rom.DisassembleToDir(outdir)
+		if err != nil { panic(err) }
 		return
 	} else if disassembleFlag {
 		panic("disasseble not yet supported")
