@@ -22,6 +22,7 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 	jam.WriteString("# see http://wiki.nesdev.com/w/index.php/Mapper\n")
 	jam.WriteString(fmt.Sprintf("mapper=%d\n", r.Mapper))
 	jam.WriteString("# 'Horizontal', 'Vertical', or 'FourScreenVRAM'\n")
+	jam.WriteString("# see http://wiki.nesdev.com/w/index.php/Mirroring\n")
 	jam.WriteString(fmt.Sprintf("mirroring=%s\n", r.Mirroring.String()))
 	jam.WriteString("# whether SRAM in CPU $6000-$7FFF is present\n")
 	jam.WriteString(fmt.Sprintf("sram=%t\n", r.SRamPresent))
