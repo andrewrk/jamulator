@@ -19,6 +19,14 @@ type Renderer interface {
 	Render(SourceWriter) error
 }
 
+func (p *Program) appendDataByte(b byte) {
+	i := new(DataStatement)
+	i.dataList = make(DataList, 1)
+	item := IntegerDataItem(b)
+	i.dataList[0] = &item
+	p.Ast.statements = append(p.Ast.statements, i)
+}
+
 func Disassemble(reader io.Reader) (*Program, error) {
 	r := bufio.NewReader(reader)
 
@@ -33,17 +41,20 @@ func Disassemble(reader io.Reader) (*Program, error) {
 		opCodeInfo := opCodeDataMap[opCode]
 		switch opCodeInfo.addrMode {
 		case nilAddr:
-			i := new(DataStatement)
-			i.dataList = make(DataList, 1)
-			item := IntegerDataItem(opCode)
-			i.dataList[0] = &item
-			p.Ast.statements = append(p.Ast.statements, i)
+			p.appendDataByte(opCode)
 		case absAddr:
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Payload = []byte{opCode, 0, 0}
 			valuePart := i.Payload[1:]
-			_, err := io.ReadAtLeast(r, valuePart, 2)
+			nn, err := io.ReadAtLeast(r, valuePart, 2)
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				if nn > 0 { p.appendDataByte(valuePart[0]) }
+				if nn > 1 { p.appendDataByte(valuePart[1]) }
+				break
+			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
 			p.Ast.statements = append(p.Ast.statements, i)
@@ -52,7 +63,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.OpName = opCodeInfo.opName
 			i.Payload = []byte{opCode, 0, 0}
 			valuePart := i.Payload[1:]
-			_, err := io.ReadAtLeast(r, valuePart, 2)
+			nn, err := io.ReadAtLeast(r, valuePart, 2)
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				if nn > 0 { p.appendDataByte(valuePart[0]) }
+				if nn > 1 { p.appendDataByte(valuePart[1]) }
+				break
+			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
 			i.RegisterName = "X"
@@ -62,7 +80,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.OpName = opCodeInfo.opName
 			i.Payload = []byte{opCode, 0, 0}
 			valuePart := i.Payload[1:]
-			_, err := io.ReadAtLeast(r, valuePart, 2)
+			nn, err := io.ReadAtLeast(r, valuePart, 2)
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				if nn > 0 { p.appendDataByte(valuePart[0]) }
+				if nn > 1 { p.appendDataByte(valuePart[1]) }
+				break
+			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
 			i.RegisterName = "Y"
@@ -71,6 +96,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(ImmediateInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Value = int(v)
 			p.Ast.statements = append(p.Ast.statements, i)
@@ -84,7 +114,14 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.OpName = opCodeInfo.opName
 			i.Payload = []byte{opCode, 0, 0}
 			valuePart := i.Payload[1:]
-			_, err := io.ReadAtLeast(r, valuePart, 2)
+			nn, err := io.ReadAtLeast(r, valuePart, 2)
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				if nn > 0 { p.appendDataByte(valuePart[0]) }
+				if nn > 1 { p.appendDataByte(valuePart[1]) }
+				continue
+			}
 			if err != nil { return nil, err }
 			i.Value = int(binary.LittleEndian.Uint16(valuePart))
 			p.Ast.statements = append(p.Ast.statements, i)
@@ -92,6 +129,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(IndirectXInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
@@ -100,6 +142,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(IndirectYInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
@@ -108,6 +155,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
@@ -116,6 +168,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
@@ -124,6 +181,11 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(DirectIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
@@ -133,12 +195,16 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i := new(DirectIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			v, err := r.ReadByte()
+			if err == io.EOF {
+				// oops, this must be data.
+				p.appendDataByte(opCode)
+				break
+			}
 			if err != nil { return nil, err }
 			i.Payload = []byte{opCode, v}
 			i.Value = int(v)
 			i.RegisterName = "Y"
 			p.Ast.statements = append(p.Ast.statements, i)
-
 		}
 	}
 
