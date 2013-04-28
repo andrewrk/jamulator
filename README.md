@@ -43,17 +43,17 @@
 6. Run the tests:
 
     ```
-    go test asm6502/*.go
+    make test
     ```
 
-6. Compile & run:
+7. Compile & run:
 
     ```
     make
     ./jamulator
     ```
 
-7. If you want to compile a .bc file to a native EXE:
+8. If you want to compile a .bc file to a native EXE:
 
     ```
     llc -filetype=obj file.bc
