@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"bufio"
 	"strings"
+	"encoding/binary"
 )
 
 type SourceWriter struct {
@@ -38,8 +39,20 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.dataList[0] = &item
 			p.Ast.statements = append(p.Ast.statements, i)
 		case absAddr:
+			i := new(DirectInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			valuePart := i.Payload[1:]
+			_, err := io.ReadAtLeast(r, valuePart, 2)
+			if err != nil { return nil, err }
+			i.Value = int(binary.LittleEndian.Uint16(valuePart))
+			p.Ast.statements = append(p.Ast.statements, i)
 		case absXAddr:
+			r.ReadByte()
+			r.ReadByte()
 		case absYAddr:
+			r.ReadByte()
+			r.ReadByte()
 		case immedAddr:
 			i := new(ImmediateInstruction)
 			i.OpName = opCodeInfo.opName
@@ -52,12 +65,20 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.OpName = opCodeInfo.opName
 			p.Ast.statements = append(p.Ast.statements, i)
 		case indirectAddr:
+			r.ReadByte()
+			r.ReadByte()
 		case xIndexIndirectAddr:
+			r.ReadByte()
 		case indirectYIndexAddr:
+			r.ReadByte()
 		case relativeAddr:
+			r.ReadByte()
 		case zeroPageAddr:
+			r.ReadByte()
 		case zeroXIndexAddr:
+			r.ReadByte()
 		case zeroYIndexAddr:
+			r.ReadByte()
 
 		}
 	}
@@ -100,6 +121,11 @@ func (i *ImmediateInstruction) Render(sw SourceWriter) error {
 
 func (i *ImpliedInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s\n", i.OpName))
+	return err
+}
+
+func (i *DirectInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x\n", i.OpName, i.Value))
 	return err
 }
 

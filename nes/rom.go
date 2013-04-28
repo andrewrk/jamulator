@@ -155,7 +155,7 @@ func Load(ioreader io.Reader) (*Rom, error) {
 
 	// read the header
 	buf := make([]byte, 16)
-	_, err := reader.Read(buf)
+	_, err := io.ReadAtLeast(reader, buf, 16)
 	if err != nil { return nil, err }
 	if string(buf[0:4]) != "NES\x1a" {
 		return nil, errors.New("Invalid ROM file")
