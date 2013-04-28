@@ -57,23 +57,6 @@ type Rom struct {
 	SRamPresent bool
 }
 
-func (r *Rom) String() string {
-	return fmt.Sprintf("PRG Banks: %d\n"+
-		"CHR Banks: %d\n"+
-		"Mapper: %d\n"+
-		"Mirroring: %s\n"+
-		"Battery Backed: %t\n"+
-		"TvSystem: %s\n"+
-		"SRamPResent: %t",
-		len(r.PrgRom),
-		len(r.ChrRom),
-		r.Mapper,
-		r.Mirroring.String(),
-		r.BatteryBacked,
-		r.TvSystem.String(),
-		r.SRamPresent)
-}
-
 func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 	jam := bufio.NewWriter(jamFd)
 

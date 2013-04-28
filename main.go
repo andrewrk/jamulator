@@ -68,7 +68,6 @@ func main() {
 	} else if unRomFlag {
 		rom, err := nes.LoadFile(filename)
 		if err != nil { panic(err) }
-		fmt.Println(rom.String())
 		outdir := removeExtension(filename)
 		if flag.NArg() == 2 {
 			outdir = flag.Arg(1)
