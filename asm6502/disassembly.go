@@ -105,7 +105,13 @@ func Disassemble(reader io.Reader) (*Program, error) {
 			i.Value = int(v)
 			p.Ast.statements = append(p.Ast.statements, i)
 		case relativeAddr:
-			r.ReadByte()
+			i := new(DirectInstruction)
+			i.OpName = opCodeInfo.opName
+			v, err := r.ReadByte()
+			if err != nil { return nil, err }
+			i.Payload = []byte{opCode, v}
+			i.Value = int(v)
+			p.Ast.statements = append(p.Ast.statements, i)
 		case zeroPageAddr:
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
@@ -184,6 +190,11 @@ func (i *DirectInstruction) Render(sw SourceWriter) error {
 
 func (i *DirectIndexedInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x, %s\n", i.OpName, i.Value, i.RegisterName))
+	return err
+}
+
+func (i *IndirectInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x)\n", i.OpName, i.Value))
 	return err
 }
 
