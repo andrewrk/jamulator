@@ -264,6 +264,13 @@ func (d *Disassembly) readAllAsData() error {
 	return nil
 }
 
+func (d *Disassembly) insertLabelAt(addr int, name string) {
+	elem := d.offsets[addr]
+	stmt := new(LabeledStatement)
+	stmt.LabelName = name
+	d.list.InsertBefore(stmt, elem)
+}
+
 func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	elem1 := d.offsets[addr]
 	elem2 := elem1.Next()
@@ -272,16 +279,15 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	if len(s1.dataList) != 1 { panic("expected DataList len 1") }
 	if len(s2.dataList) != 1 { panic("expected DataList len 1") }
 	n1 := s1.dataList[0].(*IntegerDataItem)
-	n2 := s1.dataList[0].(*IntegerDataItem)
+	n2 := s2.dataList[0].(*IntegerDataItem)
 
 	targetAddr := binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)})
+	d.insertLabelAt(int(targetAddr), name)
 
 	newStmt := new(DataWordStatement)
 	newStmt.Offset = addr
 	newStmt.Size = 2
-	tmp := IntegerDataItem(targetAddr)
-	newStmt.dataList = WordList{&tmp}
-
+	newStmt.dataList = WordList{&LabelCall{name}}
 	newElem := d.list.InsertBefore(newStmt, elem1)
 	d.offsets[addr] = newElem
 	d.list.Remove(newElem.Next())
@@ -577,6 +583,22 @@ func (s *DataWordStatement) Render(sw SourceWriter) error {
 	}
 	_, err = sw.writer.WriteString("\n")
 	return err
+}
+
+func (s *LabeledStatement) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(s.LabelName)
+	if err != nil { return err }
+	_, err = sw.writer.WriteString(":")
+	if err != nil { return err }
+
+	if s.Stmt == nil {
+		_, err = sw.writer.WriteString("\n")
+		return err
+	}
+	_, err = sw.writer.WriteString(" ")
+	if err != nil { return err }
+	n := s.Stmt.(Renderer)
+	return n.Render(sw)
 }
 
 func (p *Program) WriteSource(writer io.Writer) error {
