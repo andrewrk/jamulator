@@ -21,6 +21,10 @@ var testAsmList = []testAsm{
 		"test/zelda.asm",
 		"test/zelda.bin.ref",
 	},
+	{
+		"test/hello.asm",
+		"test/hello.bin.ref",
+	},
 }
 
 var testDisAsmList = []string {

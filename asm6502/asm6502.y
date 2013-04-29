@@ -105,7 +105,7 @@ type DirectWithLabelIndexedInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
-	Offset uint16
+	Offset int
 }
 
 func (n *DirectWithLabelIndexedInstruction) Ast(v Visitor) {
@@ -143,7 +143,7 @@ type DirectWithLabelInstruction struct {
 
 	OpCode byte
 	Size int
-	Offset uint16
+	Offset int
 }
 
 func (n *DirectWithLabelInstruction) Ast(v Visitor) {
@@ -250,7 +250,7 @@ type DataStatement struct {
 
 	// filled in later
 	Size int
-	Offset uint16
+	Offset int
 }
 
 func (n *DataStatement) Ast(v Visitor) {
@@ -269,7 +269,7 @@ type DataWordStatement struct {
 
 	// filled in later
 	Size int
-	Offset uint16
+	Offset int
 }
 
 func (n *DataWordStatement) Ast(v Visitor) {
@@ -356,6 +356,7 @@ var programAst *ProgramAST
 %type <orgPsuedoOp> orgPsuedoOp
 %type <subroutineDecl> subroutineDecl
 %type <node> numberExpr
+%type <node> numberExprOptionalPound
 
 %token <str> tokIdentifier
 %token <str> tokRegister
@@ -373,6 +374,7 @@ var programAst *ProgramAST
 %token tokLParen
 %token tokRParen
 %token tokDot
+%token tokColon
 %token tokOrg
 %token tokSubroutine
 
@@ -398,6 +400,8 @@ statementList : statementList tokNewline statement {
 
 statement : tokDot tokIdentifier instructionStatement {
 	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
+} | tokIdentifier tokColon instructionStatement {
+	$$ = &LabeledStatement{$1, $3, parseLineNumber}
 } | orgPsuedoOp {
 	$$ = $1
 } | subroutineDecl {
@@ -406,11 +410,15 @@ statement : tokDot tokIdentifier instructionStatement {
 	$$ = $1
 } | tokDot tokIdentifier dataStatement {
 	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
+} | tokIdentifier tokColon dataStatement {
+	$$ = &LabeledStatement{$1, $3, parseLineNumber}
 } | dataStatement {
 	$$ = $1
 } | assignStatement {
 	$$ = $1
 } | tokIdentifier {
+	$$ = &LabeledStatement{$1, nil, parseLineNumber}
+} | tokIdentifier tokColon {
 	$$ = &LabeledStatement{$1, nil, parseLineNumber}
 } | processorDecl {
 	if $1 != "6502" {
@@ -454,10 +462,17 @@ numberExpr : tokPound tokInteger {
 	$$ = &LabelCall{$1}
 }
 
+numberExprOptionalPound : numberExpr {
+	$$ = $1
+} | tokInteger {
+	tmp := IntegerDataItem($1)
+	$$ = &tmp
+}
+
 dataItem : tokQuotedString {
 	tmp := StringDataItem($1)
 	$$ = &tmp
-} | numberExpr {
+} | numberExprOptionalPound {
 	$$ = $1
 }
 

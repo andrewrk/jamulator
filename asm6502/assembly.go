@@ -17,7 +17,7 @@ import (
 type Program struct {
 	Ast *ProgramAST
 	Variables map[string] int
-	Labels map[string] uint16
+	Labels map[string] int
 	Errors []error
 
 	offset int
@@ -56,11 +56,16 @@ func (m machineCode) Error() string {
 	return strings.Join(m.Errors, "\n")
 }
 
-func (bin *machineCode) getLabel(name string, offset uint16) (uint16, bool) {
+func (bin *machineCode) getSymbol(name string, offset int) (int, bool) {
 	if name == "." {
 		return offset, true
 	}
-	value, ok := bin.prog.Labels[name]
+	// look up as variable
+	value, ok := bin.prog.Variables[name]
+	if !ok {
+		// look up as label
+		value, ok = bin.prog.Labels[name]
+	}
 	return value, ok
 }
 
@@ -361,12 +366,15 @@ func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 func (n *DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	symbolValue, ok := bin.getSymbol(n.LabelName, n.Offset)
 	if !ok {
-		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
+		return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, n.LabelName))
+	}
+	if symbolValue > 0xffff {
+		return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, n.LabelName))
 	}
 	buf := []byte{0, 0}
-	binary.LittleEndian.PutUint16(buf, labelValue)
+	binary.LittleEndian.PutUint16(buf, uint16(symbolValue))
 	_, err = bin.writer.Write(buf)
 	return err
 }
@@ -376,7 +384,7 @@ func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 	if p.offset >= 0xffff {
 		return errors.New(fmt.Sprintf("Line %d: Instruction is at offset %#x which is greater than 2 bytes.", n.Line, p.offset))
 	}
-	n.Offset = uint16(p.offset)
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := absOpCode[lowerOpName]
 	if ok {
@@ -396,13 +404,16 @@ func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
 	if err != nil { return err }
-	labelValue, ok := bin.getLabel(n.LabelName, n.Offset)
+	symbolValue, ok := bin.getSymbol(n.LabelName, n.Offset)
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
 	}
+	if symbolValue > 0xffff {
+		return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, n.LabelName))
+	}
 	if n.Size == 2 {
 		// relative address
-		delta := int(labelValue) - (int(n.Offset) + int(n.Size))
+		delta := symbolValue - (n.Offset + n.Size)
 		if delta > 127 || delta < -128 {
 			return errors.New(fmt.Sprintf("Line %d: Label address must be within 127 bytes of instruction address.", n.Line))
 		}
@@ -410,7 +421,7 @@ func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	}
 	// absolute address
 	buf := []byte{0, 0}
-	binary.LittleEndian.PutUint16(buf, labelValue)
+	binary.LittleEndian.PutUint16(buf, uint16(symbolValue))
 	_, err = bin.writer.Write(buf)
 	return err
 }
@@ -495,7 +506,7 @@ func (n *IndirectYInstruction) Assemble(bin *machineCode) error {
 
 func (n *DataStatement) Measure(p *Program) error {
 	n.Size = 0
-	n.Offset = uint16(p.offset)
+	n.Offset = p.offset
 	for _, dataItem := range(n.dataList) {
 		switch t := dataItem.(type) {
 		case *StringDataItem: n.Size += len(*t)
@@ -521,12 +532,15 @@ func (n *DataStatement) Assemble(bin *machineCode) error {
 				err := bin.writer.WriteByte(byte(*t))
 				if err != nil { return err }
 			case *LabelCall:
-				labelValue, ok := bin.getLabel(t.LabelName, n.Offset)
+				symbolValue, ok := bin.getSymbol(t.LabelName, n.Offset)
 				if !ok {
-					return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
+					return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, t.LabelName))
+				}
+				if symbolValue > 0xffff {
+					return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, t.LabelName))
 				}
 				int16buf := []byte{0, 0}
-				binary.LittleEndian.PutUint16(int16buf, uint16(labelValue))
+				binary.LittleEndian.PutUint16(int16buf, uint16(symbolValue))
 				_, err := bin.writer.Write(int16buf)
 				if err != nil { return err }
 			default: panic("unknown data item type")
@@ -537,7 +551,7 @@ func (n *DataStatement) Assemble(bin *machineCode) error {
 
 func (n *DataWordStatement) Measure(p *Program) error {
 	n.Size = 0
-	n.Offset = uint16(p.offset)
+	n.Offset = p.offset
 	for _, dataItem := range(n.dataList) {
 		switch t := dataItem.(type) {
 		case *IntegerDataItem:
@@ -561,12 +575,15 @@ func (n *DataWordStatement) Assemble(bin *machineCode) error {
 			_, err := bin.writer.Write(int16buf)
 			if err != nil { return err }
 		case *LabelCall:
-			labelValue, ok := bin.getLabel(t.LabelName, n.Offset)
+			symbolValue, ok := bin.getSymbol(t.LabelName, n.Offset)
 			if !ok {
-				return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, t.LabelName))
+				return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, t.LabelName))
+			}
+			if symbolValue > 0xffff {
+				return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, t.LabelName))
 			}
 			int16buf := []byte{0, 0}
-			binary.LittleEndian.PutUint16(int16buf, labelValue)
+			binary.LittleEndian.PutUint16(int16buf, uint16(symbolValue))
 			_, err := bin.writer.Write(int16buf)
 			if err != nil { return err }
 		default: panic("unknown data item type")
@@ -616,7 +633,7 @@ func (p *Program) Visit(n Node) {
 				err := errors.New(fmt.Sprintf("Line %d: Label %s already defined.", ss.Line, ss.LabelName))
 				p.Errors = append(p.Errors, err)
 			} else {
-				p.Labels[ss.LabelName] = uint16(p.offset)
+				p.Labels[ss.LabelName] = p.offset
 			}
 		}
 	case *SubroutineDecl:
@@ -629,7 +646,7 @@ func (p *Program) Visit(n Node) {
 				err := errors.New(fmt.Sprintf("Line %d: Subroutine %s already defined.", ss.Line, ss.Name))
 				p.Errors = append(p.Errors, err)
 			} else {
-				p.Labels[ss.Name] = uint16(p.offset)
+				p.Labels[ss.Name] = p.offset
 			}
 		}
 	}
@@ -698,7 +715,7 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 	p := Program{
 		ast,
 		map[string]int {},
-		map[string]uint16 {},
+		map[string]int {},
 		[]error{},
 		0,
 	}

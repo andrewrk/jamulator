@@ -9,7 +9,7 @@
 /[pP][rR][oO][cC][eE][sS][sS][oO][rR]/ {
 	return tokProcessor
 }
-/[dD][cC]\.[bB]/ {
+/\.[dD][aA][tT][aA]|[dD][cC]\.[bB]/ {
 	return tokData
 }
 /[dD][cC]\.[wW]/ {
@@ -58,6 +58,9 @@
 }
 /=/ {
 	return tokEqual
+}
+/:/ {
+	return tokColon
 }
 /#/ {
 	return tokPound
