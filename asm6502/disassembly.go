@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 	"container/list"
-	//"encoding/binary"
+	"encoding/binary"
 )
 
 type SourceWriter struct {
@@ -264,8 +264,28 @@ func (d *Disassembly) readAllAsData() error {
 	return nil
 }
 
-func (d *Disassembly) markAsDataWordLabel(elem *list.Element, name string) {
-	// TODO: actually do something
+func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
+	elem1 := d.offsets[addr]
+	elem2 := elem1.Next()
+	s1 := elem1.Value.(*DataStatement)
+	s2 := elem2.Value.(*DataStatement)
+	if len(s1.dataList) != 1 { panic("expected DataList len 1") }
+	if len(s2.dataList) != 1 { panic("expected DataList len 1") }
+	n1 := s1.dataList[0].(*IntegerDataItem)
+	n2 := s1.dataList[0].(*IntegerDataItem)
+
+	targetAddr := binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)})
+
+	newStmt := new(DataWordStatement)
+	newStmt.Offset = addr
+	newStmt.Size = 2
+	tmp := IntegerDataItem(targetAddr)
+	newStmt.dataList = WordList{&tmp}
+
+	newElem := d.list.InsertBefore(newStmt, elem1)
+	d.offsets[addr] = newElem
+	d.list.Remove(newElem.Next())
+	d.list.Remove(newElem.Next())
 }
 
 func (d *Disassembly) collapseDataStatements() {
@@ -316,49 +336,64 @@ func dataListToStr(dl DataList) string {
 	return str
 }
 
+const orgMinRepeatAmt = 64
+type orgIdentifier struct {
+	repeatingByte byte
+	firstElem *list.Element
+	repeatCount int
+	dis *Disassembly
+}
+
+func (oi *orgIdentifier) stop(e *list.Element) {
+	if oi.repeatCount > orgMinRepeatAmt {
+		firstOffset := oi.firstElem.Value.(*DataStatement).Offset
+		for i := 0; i < oi.repeatCount; i++ {
+			delItem := oi.firstElem
+			oi.firstElem = oi.firstElem.Next()
+			oi.dis.list.Remove(delItem)
+		}
+		orgStmt := new(OrgPseudoOp)
+		orgStmt.Value = firstOffset + oi.repeatCount
+		orgStmt.Fill = oi.repeatingByte
+		oi.dis.list.InsertBefore(orgStmt, e)
+	}
+	oi.repeatCount = 0
+}
+
+func (oi *orgIdentifier) start(e *list.Element, b byte) {
+	oi.firstElem = e
+	oi.repeatingByte = b
+	oi.repeatCount = 1
+}
+
+func (oi *orgIdentifier) gotByte(e *list.Element, b byte) {
+	if oi.repeatCount == 0 {
+		oi.start(e, b)
+	} else if b == oi.repeatingByte {
+		oi.repeatCount += 1
+	} else {
+		oi.stop(e)
+		oi.start(e, b)
+	}
+}
+
 func (d *Disassembly) identifyOrgs() {
-	// if a byte repeats this many times, use an org statement
-	const MIN_REPEAT_AMT = 64
-	if d.list.Len() < MIN_REPEAT_AMT { return }
-	var repeatingByte byte
-	var firstElem *list.Element
-	repeatCount := 0
+	// if a byte repeats enough, use an org statement
+	if d.list.Len() < orgMinRepeatAmt { return }
+	orgIdent := new(orgIdentifier)
+	orgIdent.dis = d
 	for e := d.list.Front().Next(); e != nil; e = e.Next() {
 		dataStmt, ok := e.Value.(*DataStatement)
 		if !ok || len(dataStmt.dataList) != 1 {
-			repeatCount = 0
+			orgIdent.stop(e)
 			continue
 		}
-		vptr, ok := dataStmt.dataList[0].(*IntegerDataItem)
+		v, ok := dataStmt.dataList[0].(*IntegerDataItem)
 		if !ok {
-			repeatCount = 0
+			orgIdent.stop(e)
 			continue
 		}
-		v := byte(*vptr)
-		if repeatCount == 0 {
-			firstElem = e
-			repeatingByte = v
-			repeatCount = 1
-		} else if v == repeatingByte {
-			repeatCount += 1
-		} else {
-			if repeatCount > MIN_REPEAT_AMT {
-				firstOffset := firstElem.Value.(*DataStatement).Offset
-				for i := 0; i < repeatCount; i++ {
-					delItem := firstElem
-					firstElem = firstElem.Next()
-					d.list.Remove(delItem)
-				}
-				orgStmt := new(OrgPseudoOp)
-				orgStmt.Value = firstOffset + repeatCount
-				orgStmt.Fill = repeatingByte
-				d.list.InsertBefore(orgStmt, e)
-			}
-
-			firstElem = e
-			repeatingByte = v
-			repeatCount = 1
-		}
+		orgIdent.gotByte(e, byte(*v))
 	}
 }
 
@@ -414,9 +449,9 @@ func Disassemble(reader io.Reader) (*Program, error) {
 	if err != nil { return nil, err }
 
 	// use the known entry points to recursively disassemble data statements
-	dis.markAsDataWordLabel(dis.offsets[0xfffa], "NMI_Routine")
-	dis.markAsDataWordLabel(dis.offsets[0xfffc], "Reset_Routine")
-	dis.markAsDataWordLabel(dis.offsets[0xfffe], "IRQ_Routine")
+	dis.markAsDataWordLabel(0xfffa, "NMI_Routine")
+	dis.markAsDataWordLabel(0xfffc, "Reset_Routine")
+	dis.markAsDataWordLabel(0xfffe, "IRQ_Routine")
 
 	dis.identifyOrgs()
 	dis.groupAsciiStrings()
@@ -514,6 +549,26 @@ func (s *DataStatement) Render(sw SourceWriter) error {
 			if err != nil { return err }
 		case *IntegerDataItem:
 			_, err = sw.writer.WriteString(fmt.Sprintf("#$%02x", int(*t)))
+			if err != nil { return err }
+		}
+		if i < len(s.dataList) - 1 {
+			sw.writer.WriteString(", ")
+		}
+	}
+	_, err = sw.writer.WriteString("\n")
+	return err
+}
+
+func (s *DataWordStatement) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString("dc.w ")
+	if err != nil { return err }
+	for i, node := range(s.dataList) {
+		switch t := node.(type) {
+		case *LabelCall:
+			_, err = sw.writer.WriteString(t.LabelName)
+			if err != nil { return err }
+		case *IntegerDataItem:
+			_, err = sw.writer.WriteString(fmt.Sprintf("#$%04x", int(*t)))
 			if err != nil { return err }
 		}
 		if i < len(s.dataList) - 1 {
