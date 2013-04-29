@@ -232,6 +232,11 @@ func (d *Disassembly) toProgram() *Program {
 	p := new(Program)
 	p.Ast = new(ProgramAST)
 	p.Ast.statements = make(StatementList, 0, d.list.Len())
+
+	orgStatement := new(OrgPseudoOp)
+	orgStatement.Value = 0xc000
+	p.Ast.statements = append(p.Ast.statements, orgStatement)
+
 	for e := d.list.Front(); e != nil; e = e.Next() {
 		p.Ast.statements = append(p.Ast.statements, e.Value.(Node))
 	}
@@ -248,7 +253,7 @@ func (d *Disassembly) readAllAsData() error {
 		i.dataList = make(DataList, 1)
 		item := IntegerDataItem(b)
 		i.dataList[0] = &item
-		i.Offset = len(d.offsets)
+		i.Offset = offset
 		i.Size = 1
 		d.offsets[offset] = d.list.PushBack(i)
 		offset += 1
@@ -311,6 +316,52 @@ func dataListToStr(dl DataList) string {
 	return str
 }
 
+func (d *Disassembly) identifyOrgs() {
+	// if a byte repeats this many times, use an org statement
+	const MIN_REPEAT_AMT = 64
+	if d.list.Len() < MIN_REPEAT_AMT { return }
+	var repeatingByte byte
+	var firstElem *list.Element
+	repeatCount := 0
+	for e := d.list.Front().Next(); e != nil; e = e.Next() {
+		dataStmt, ok := e.Value.(*DataStatement)
+		if !ok || len(dataStmt.dataList) != 1 {
+			repeatCount = 0
+			continue
+		}
+		vptr, ok := dataStmt.dataList[0].(*IntegerDataItem)
+		if !ok {
+			repeatCount = 0
+			continue
+		}
+		v := byte(*vptr)
+		if repeatCount == 0 {
+			firstElem = e
+			repeatingByte = v
+			repeatCount = 1
+		} else if v == repeatingByte {
+			repeatCount += 1
+		} else {
+			if repeatCount > MIN_REPEAT_AMT {
+				firstOffset := firstElem.Value.(*DataStatement).Offset
+				for i := 0; i < repeatCount; i++ {
+					delItem := firstElem
+					firstElem = firstElem.Next()
+					d.list.Remove(delItem)
+				}
+				orgStmt := new(OrgPseudoOp)
+				orgStmt.Value = firstOffset + repeatCount
+				orgStmt.Fill = repeatingByte
+				d.list.InsertBefore(orgStmt, e)
+			}
+
+			firstElem = e
+			repeatingByte = v
+			repeatCount = 1
+		}
+	}
+}
+
 func (d *Disassembly) groupAsciiStrings() {
 	if d.list.Len() < 3 { return }
 	for e := d.list.Front().Next().Next(); e != nil; e = e.Next() {
@@ -367,6 +418,7 @@ func Disassemble(reader io.Reader) (*Program, error) {
 	dis.markAsDataWordLabel(dis.offsets[0xfffc], "Reset_Routine")
 	dis.markAsDataWordLabel(dis.offsets[0xfffe], "IRQ_Routine")
 
+	dis.identifyOrgs()
 	dis.groupAsciiStrings()
 	dis.collapseDataStatements()
 
@@ -435,6 +487,16 @@ func (i *IndirectXInstruction) Render(sw SourceWriter) error {
 
 func (i *IndirectYInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x), Y\n", i.OpName, i.Value))
+	return err
+}
+
+func (i *OrgPseudoOp) Render(sw SourceWriter) error {
+	var err error
+	if i.Fill == 0 {
+		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x\n", i.Value))
+	} else {
+		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x, %02x\n", i.Value, i.Fill))
+	}
 	return err
 }
 
