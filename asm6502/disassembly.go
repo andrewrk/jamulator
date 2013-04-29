@@ -264,11 +264,93 @@ func (d *Disassembly) markAsDataWordLabel(elem *list.Element, name string) {
 }
 
 func (d *Disassembly) collapseDataStatements() {
-	// TODO: actually do something
+	if d.list.Len() < 2 { return }
+	const MAX_DATA_LIST_LEN = 16
+	for e := d.list.Front().Next(); e != nil; e = e.Next() {
+		dataStmt, ok := e.Value.(*DataStatement)
+		if !ok { continue }
+		prev, ok := e.Prev().Value.(*DataStatement)
+		if !ok { continue }
+		if len(prev.dataList) + len(dataStmt.dataList) > MAX_DATA_LIST_LEN { continue }
+		for _, v := range(dataStmt.dataList) {
+			prev.dataList = append(prev.dataList, v)
+		}
+		elToDel := e
+		e = e.Prev()
+		d.list.Remove(elToDel)
+
+	}
+}
+
+
+func allAscii(dl DataList) bool {
+	for _, v := range(dl) {
+		switch t := v.(type) {
+		case *IntegerDataItem:
+			if *t < 32 || *t > 126 {
+				return false
+			}
+		case *StringDataItem:
+			// nothing to do
+		default:
+			panic("unrecognized data list item")
+		}
+	}
+	return true
+}
+
+func dataListToStr(dl DataList) string {
+	str := ""
+	for _, v := range(dl) {
+		switch t := v.(type) {
+		case *IntegerDataItem: str += string(*t)
+		case *StringDataItem: str += string(*t)
+		default: panic("unknown data item type")
+		}
+	}
+	return str
 }
 
 func (d *Disassembly) groupAsciiStrings() {
-	// TODO: actually do something
+	if d.list.Len() < 3 { return }
+	for e := d.list.Front().Next().Next(); e != nil; e = e.Next() {
+		dataStmt, ok := e.Value.(*DataStatement)
+		if !ok { continue }
+		if !allAscii(dataStmt.dataList) {
+			e = e.Next()
+			if e == nil { break }
+			e = e.Next()
+			if e == nil { break }
+			continue
+		}
+		prev1, ok := e.Prev().Value.(*DataStatement)
+		if !ok { continue }
+		if !allAscii(prev1.dataList) {
+			e = e.Next()
+			if e == nil { break }
+			continue
+		}
+		prev2, ok := e.Prev().Prev().Value.(*DataStatement)
+		if !ok { continue }
+		if !allAscii(prev2.dataList) {
+			continue
+		}
+		// convert prev2 to string data item
+		str := ""
+		str += dataListToStr(prev2.dataList)
+		str += dataListToStr(prev1.dataList)
+		str += dataListToStr(dataStmt.dataList)
+		prev2.dataList = make([]Node, 1)
+		tmp := StringDataItem(str)
+		prev2.dataList[0] = &tmp
+
+		// delete prev1 and e
+		e = e.Prev().Prev()
+		d.list.Remove(e.Next())
+		d.list.Remove(e.Next())
+		e = e.Next()
+		if e == nil { break }
+	}
 }
 
 func Disassemble(reader io.Reader) (*Program, error) {
@@ -277,22 +359,17 @@ func Disassemble(reader io.Reader) (*Program, error) {
 	dis.list = new(list.List)
 	dis.offsets = make(map[int]*list.Element)
 
-	// step 1 - read the entire file into data statements
 	err := dis.readAllAsData()
 	if err != nil { return nil, err }
 
-	// step 2 - use the known entry points to recursively disassemble data statements
+	// use the known entry points to recursively disassemble data statements
 	dis.markAsDataWordLabel(dis.offsets[0xfffa], "NMI_Routine")
 	dis.markAsDataWordLabel(dis.offsets[0xfffc], "Reset_Routine")
 	dis.markAsDataWordLabel(dis.offsets[0xfffe], "IRQ_Routine")
 
-	// step 3 - collapse data statements into data lists
+	dis.groupAsciiStrings()
 	dis.collapseDataStatements()
 
-	// step 4 - identify and group ascii strings
-	dis.groupAsciiStrings()
-
-	// step 5 - convert to AST
 	p := dis.toProgram()
 
 	return p, nil
