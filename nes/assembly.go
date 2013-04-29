@@ -167,11 +167,14 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 			if err != nil { return nil, err }
 			program := programAst.ToProgram()
 			if len(program.Errors) > 0 { return nil, program }
-			bank := make([]byte, 0x4000)
+			bank := make([]byte, 0, 0x4000)
 			buf := bytes.NewBuffer(bank)
 			err = program.Assemble(buf)
 			if err != nil { return nil, err }
-			r.PrgRom = append(r.PrgRom, bank)
+			if buf.Len() != 0x4000 {
+				return nil, errors.New(fmt.Sprintf("%s: PRG ROM should be 0x4000 bytes; instead it is 0x%x", prgfile, buf.Len()))
+			}
+			r.PrgRom = append(r.PrgRom, buf.Bytes())
 		case "chr":
 			chrfile := path.Join(dir, parts[1])
 			chrFd, err := os.Open(chrfile)

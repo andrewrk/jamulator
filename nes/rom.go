@@ -80,9 +80,9 @@ func Load(ioreader io.Reader) (*Rom, error) {
 	if flags6 & 0x8 != 0 {
 		r.Mirroring = FourScreenVRamMirroring
 	} else if flags6 & 0x1 != 0 {
-		r.Mirroring = VerticalMirroring
-	} else {
 		r.Mirroring = HorizontalMirroring
+	} else {
+		r.Mirroring = VerticalMirroring
 	}
 	if flags6 & 0x2 != 0 {
 		r.BatteryBacked = true
@@ -176,7 +176,7 @@ func (r *Rom) Save(writer io.Writer) error {
 	default: panic("unknown tv system")
 	}
 
-	if r.SRamPresent { flags6 |= 0x10 }
+	if !r.SRamPresent { flags10 |= 0x10 }
 
 	header := []byte{
 		'N', 'E', 'S', 0x1a,
@@ -184,10 +184,10 @@ func (r *Rom) Save(writer io.Writer) error {
 		byte(len(r.ChrRom)),
 		flags6,
 		flags7,
-		1,
+		0,
 		flags9,
 		flags10,
-		0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0,
 	}
 	_, err := w.Write(header)
 	if err != nil { return err }
