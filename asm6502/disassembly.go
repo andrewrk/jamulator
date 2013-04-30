@@ -21,211 +21,230 @@ type Renderer interface {
 	Render(SourceWriter) error
 }
 
-//func (p *Program) disassembleAsInstruction(index int) {
-//	n := p.Ast.statements[index].(*DataStatement)
-//	if len(n.dataList) != 0 { panic("expected DataStatement of size 1") }
-//	intDataItem := n.dataList[0].(*IntegerDataItem)
-//	opCode := byte(*intDataItem)
-//	opCodeInfo := opCodeDataMap[opCode]
-//	switch opCodeInfo.addrMode {
-//	case nilAddr:
-//		panic("can't disassemble as instruction: bad op code")
-//	case absAddr:
-//		i := new(DirectInstruction)
-//		i.OpName = opCodeInfo.opName
-//		i.Payload = []byte{opCode, 0, 0}
-//		i.Value = 
-//		valuePart := i.Payload[1:]
-//		nn, err := io.ReadAtLeast(r, valuePart, 2)
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			if nn > 0 { p.appendDataByte(valuePart[0]) }
-//			if nn > 1 { p.appendDataByte(valuePart[1]) }
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Value = int(binary.LittleEndian.Uint16(valuePart))
-//		_, hasZeroPageVersion := zeroPageOpCode[i.OpName]
-//		if hasZeroPageVersion && i.Value <= 0xff {
-//			// this would be recompiled as a zero-page instruction - must be data
-//			p.appendDataByte(opCode)
-//			p.appendDataByte(valuePart[0])
-//			p.appendDataByte(valuePart[1])
-//			break
-//		}
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case absXAddr:
-//		i := new(DirectIndexedInstruction)
-//		i.OpName = opCodeInfo.opName
-//		i.Payload = []byte{opCode, 0, 0}
-//		valuePart := i.Payload[1:]
-//		nn, err := io.ReadAtLeast(r, valuePart, 2)
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			if nn > 0 { p.appendDataByte(valuePart[0]) }
-//			if nn > 1 { p.appendDataByte(valuePart[1]) }
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Value = int(binary.LittleEndian.Uint16(valuePart))
-//		_, hasZeroPageVersion := zeroPageXOpcode[i.OpName]
-//		if hasZeroPageVersion && i.Value <= 0xff {
-//			// this would be recompiled as a zero-page instruction - must be data
-//			p.appendDataByte(opCode)
-//			p.appendDataByte(valuePart[0])
-//			p.appendDataByte(valuePart[1])
-//			break
-//		}
-//		i.RegisterName = "X"
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case absYAddr:
-//		i := new(DirectIndexedInstruction)
-//		i.OpName = opCodeInfo.opName
-//		i.Payload = []byte{opCode, 0, 0}
-//		valuePart := i.Payload[1:]
-//		nn, err := io.ReadAtLeast(r, valuePart, 2)
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			if nn > 0 { p.appendDataByte(valuePart[0]) }
-//			if nn > 1 { p.appendDataByte(valuePart[1]) }
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Value = int(binary.LittleEndian.Uint16(valuePart))
-//		_, hasZeroPageVersion := zeroPageYOpCode[i.OpName]
-//		if hasZeroPageVersion && i.Value <= 0xff {
-//			// this would be recompiled as a zero-page instruction - must be data
-//			p.appendDataByte(opCode)
-//			p.appendDataByte(valuePart[0])
-//			p.appendDataByte(valuePart[1])
-//			break
-//		}
-//		i.RegisterName = "Y"
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case immedAddr:
-//		i := new(ImmediateInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Value = int(v)
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case impliedAddr:
-//		i := new(ImpliedInstruction)
-//		i.OpName = opCodeInfo.opName
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case indirectAddr:
-//		// note: only JMP uses this
-//		i := new(IndirectInstruction)
-//		i.OpName = opCodeInfo.opName
-//		i.Payload = []byte{opCode, 0, 0}
-//		valuePart := i.Payload[1:]
-//		nn, err := io.ReadAtLeast(r, valuePart, 2)
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			if nn > 0 { p.appendDataByte(valuePart[0]) }
-//			if nn > 1 { p.appendDataByte(valuePart[1]) }
-//			continue
-//		}
-//		if err != nil { return nil, err }
-//		i.Value = int(binary.LittleEndian.Uint16(valuePart))
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case xIndexIndirectAddr:
-//		i := new(IndirectXInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case indirectYIndexAddr:
-//		i := new(IndirectYInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case relativeAddr:
-//		i := new(DirectInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case zeroPageAddr:
-//		i := new(DirectInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case zeroXIndexAddr:
-//		i := new(DirectIndexedInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		i.RegisterName = "X"
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	case zeroYIndexAddr:
-//		i := new(DirectIndexedInstruction)
-//		i.OpName = opCodeInfo.opName
-//		v, err := r.ReadByte()
-//		if err == io.EOF {
-//			// oops, this must be data.
-//			p.appendDataByte(opCode)
-//			break
-//		}
-//		if err != nil { return nil, err }
-//		i.Payload = []byte{opCode, v}
-//		i.Value = int(v)
-//		i.RegisterName = "Y"
-//		p.Ast.statements = append(p.Ast.statements, i)
-//	}
-//}
+func (d *Disassembly) elemAsByte(elem *list.Element) (byte, error) {
+	if elem == nil {
+		return 0, errors.New("not enough bytes for byte")
+	}
+	stmt, ok := elem.Value.(*DataStatement)
+	if !ok {
+		return 0, errors.New("already marked as instruction")
+	}
+	if len(stmt.dataList) != 1 {
+		return 0, errors.New("expected DataStatement of size 1")
+	}
+	intDataItem, ok := stmt.dataList[0].(*IntegerDataItem)
+	if !ok {
+		return 0, errors.New("expected integer data item")
+	}
+	b := byte(*intDataItem)
+	return b, nil
+}
+
+func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
+	if elem == nil { return 0, errors.New("not enough bytes for word") }
+	next := elem.Next()
+	if next == nil { return 0, errors.New("not enough bytes for word") }
+
+	b1, err := d.elemAsByte(elem)
+	if err != nil { return 0, err }
+	b2, err := d.elemAsByte(next)
+	if err != nil { return 0, err }
+
+	return binary.LittleEndian.Uint16([]byte{b1, b2}), nil
+}
+
+func (d *Disassembly) markAsInstruction(addr int) error {
+	elem := d.offsets[addr]
+	opCode, err := d.elemAsByte(elem)
+	if err != nil { return err }
+	opCodeInfo := opCodeDataMap[opCode]
+	switch opCodeInfo.addrMode {
+	case nilAddr:
+		panic("can't disassemble as instruction: bad op code")
+	case absAddr:
+		w, err := d.elemAsWord(elem.Next())
+		if err != nil { return err }
+		i := new(DirectInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, 0, 0}
+		i.Value = int(w)
+		binary.LittleEndian.PutUint16(i.Payload[1:], w)
+		elem.Value = i
+		d.list.Remove(elem.Next())
+		d.list.Remove(elem.Next())
+	case absXAddr:
+		//i := new(DirectIndexedInstruction)
+		//i.OpName = opCodeInfo.opName
+		//i.Payload = []byte{opCode, 0, 0}
+		//valuePart := i.Payload[1:]
+		//nn, err := io.ReadAtLeast(r, valuePart, 2)
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	if nn > 0 { p.appendDataByte(valuePart[0]) }
+		//	if nn > 1 { p.appendDataByte(valuePart[1]) }
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Value = int(binary.LittleEndian.Uint16(valuePart))
+		//_, hasZeroPageVersion := zeroPageXOpcode[i.OpName]
+		//if hasZeroPageVersion && i.Value <= 0xff {
+		//	// this would be recompiled as a zero-page instruction - must be data
+		//	p.appendDataByte(opCode)
+		//	p.appendDataByte(valuePart[0])
+		//	p.appendDataByte(valuePart[1])
+		//	break
+		//}
+		//i.RegisterName = "X"
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case absYAddr:
+		//i := new(DirectIndexedInstruction)
+		//i.OpName = opCodeInfo.opName
+		//i.Payload = []byte{opCode, 0, 0}
+		//valuePart := i.Payload[1:]
+		//nn, err := io.ReadAtLeast(r, valuePart, 2)
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	if nn > 0 { p.appendDataByte(valuePart[0]) }
+		//	if nn > 1 { p.appendDataByte(valuePart[1]) }
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Value = int(binary.LittleEndian.Uint16(valuePart))
+		//_, hasZeroPageVersion := zeroPageYOpCode[i.OpName]
+		//if hasZeroPageVersion && i.Value <= 0xff {
+		//	// this would be recompiled as a zero-page instruction - must be data
+		//	p.appendDataByte(opCode)
+		//	p.appendDataByte(valuePart[0])
+		//	p.appendDataByte(valuePart[1])
+		//	break
+		//}
+		//i.RegisterName = "Y"
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case immedAddr:
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(ImmediateInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Value = int(v)
+		elem.Value = i
+		d.list.Remove(elem.Next())
+	case impliedAddr:
+		//i := new(ImpliedInstruction)
+		//i.OpName = opCodeInfo.opName
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case indirectAddr:
+		//// note: only JMP uses this
+		//i := new(IndirectInstruction)
+		//i.OpName = opCodeInfo.opName
+		//i.Payload = []byte{opCode, 0, 0}
+		//valuePart := i.Payload[1:]
+		//nn, err := io.ReadAtLeast(r, valuePart, 2)
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	if nn > 0 { p.appendDataByte(valuePart[0]) }
+		//	if nn > 1 { p.appendDataByte(valuePart[1]) }
+		//	continue
+		//}
+		//if err != nil { return nil, err }
+		//i.Value = int(binary.LittleEndian.Uint16(valuePart))
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case xIndexIndirectAddr:
+		//i := new(IndirectXInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case indirectYIndexAddr:
+		//i := new(IndirectYInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case relativeAddr:
+		//i := new(DirectInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case zeroPageAddr:
+		//i := new(DirectInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case zeroXIndexAddr:
+		//i := new(DirectIndexedInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//i.RegisterName = "X"
+		//p.Ast.statements = append(p.Ast.statements, i)
+	case zeroYIndexAddr:
+		//i := new(DirectIndexedInstruction)
+		//i.OpName = opCodeInfo.opName
+		//v, err := r.ReadByte()
+		//if err == io.EOF {
+		//	// oops, this must be data.
+		//	p.appendDataByte(opCode)
+		//	break
+		//}
+		//if err != nil { return nil, err }
+		//i.Payload = []byte{opCode, v}
+		//i.Value = int(v)
+		//i.RegisterName = "Y"
+		//p.Ast.statements = append(p.Ast.statements, i)
+	}
+	return nil
+}
 
 type Disassembly struct {
 	reader *bufio.Reader
 	list *list.List
 	// maps memory offset to node
 	offsets map[int]*list.Element
+	Errors []string
+}
+
+func (d *Disassembly) Error() string {
+	return strings.Join(d.Errors, "\n")
 }
 
 func (d *Disassembly) toProgram() *Program {
@@ -292,6 +311,11 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	d.offsets[addr] = newElem
 	d.list.Remove(newElem.Next())
 	d.list.Remove(newElem.Next())
+
+	err := d.markAsInstruction(int(targetAddr))
+	if err != nil {
+		d.Errors = append(d.Errors, err.Error())
+	}
 }
 
 func (d *Disassembly) collapseDataStatements() {
@@ -450,6 +474,7 @@ func Disassemble(reader io.Reader) (*Program, error) {
 	dis.reader = bufio.NewReader(reader)
 	dis.list = new(list.List)
 	dis.offsets = make(map[int]*list.Element)
+	dis.Errors = make([]string, 0)
 
 	err := dis.readAllAsData()
 	if err != nil { return nil, err }
@@ -465,6 +490,7 @@ func Disassemble(reader io.Reader) (*Program, error) {
 
 	p := dis.toProgram()
 
+	if len(dis.Errors) > 0 { return p, dis }
 	return p, nil
 }
 
