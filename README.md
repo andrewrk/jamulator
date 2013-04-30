@@ -24,7 +24,7 @@
 2. Install the lexer:
 
     ```
-    go get github.com/superjoe30/nex
+    go get github.com/blynn/nex
     ```
 
 3. Install llvm-3.1 or llvm-3.2 from your package manager.
