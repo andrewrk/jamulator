@@ -295,6 +295,7 @@ func (d *Disassembly) toProgram() *Program {
 	p.Ast.statements = make(StatementList, 0, d.list.Len())
 
 	orgStatement := new(OrgPseudoOp)
+	orgStatement.Fill = 0xff // this is the default; causes it to be left off when rendered
 	orgStatement.Value = 0xc000
 	p.Ast.statements = append(p.Ast.statements, orgStatement)
 
@@ -608,7 +609,7 @@ func (i *IndirectYInstruction) Render(sw SourceWriter) error {
 
 func (i *OrgPseudoOp) Render(sw SourceWriter) error {
 	var err error
-	if i.Fill == 0 {
+	if i.Fill == 0xff {
 		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x\n", i.Value))
 	} else {
 		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x, $%02x\n", i.Value, i.Fill))

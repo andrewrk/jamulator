@@ -482,7 +482,7 @@ assignStatement : tokIdentifier tokEqual tokInteger {
 }
 
 orgPsuedoOp : tokOrg tokInteger {
-	$$ = &OrgPseudoOp{$2, 0, parseLineNumber}
+	$$ = &OrgPseudoOp{$2, 0xff, parseLineNumber}
 } | tokOrg tokInteger tokComma tokInteger {
 	if $4 > 0xff {
 		yylex.Error("ORG directive fill parameter must be a single byte.")
