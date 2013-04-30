@@ -121,85 +121,61 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 	case xIndexIndirectAddr:
-		//i := new(IndirectXInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(IndirectXInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	case indirectYIndexAddr:
-		//i := new(IndirectYInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(IndirectYInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	case relativeAddr:
-		//i := new(DirectInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(DirectInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	case zeroPageAddr:
-		//i := new(DirectInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(DirectInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	case zeroXIndexAddr:
-		//i := new(DirectIndexedInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//i.RegisterName = "X"
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(DirectIndexedInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		i.RegisterName = "X"
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	case zeroYIndexAddr:
-		//i := new(DirectIndexedInstruction)
-		//i.OpName = opCodeInfo.opName
-		//v, err := r.ReadByte()
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Payload = []byte{opCode, v}
-		//i.Value = int(v)
-		//i.RegisterName = "Y"
-		//p.Ast.statements = append(p.Ast.statements, i)
+		v, err := d.elemAsByte(elem.Next())
+		if err != nil { return err }
+		i := new(DirectIndexedInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, v}
+		i.Value = int(v)
+		i.RegisterName = "Y"
+		elem.Value = i
+		d.list.Remove(elem.Next())
 	}
 	return nil
 }
