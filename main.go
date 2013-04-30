@@ -61,13 +61,15 @@ func main() {
 			err := program.Compile(outfile)
 			if err != nil { panic(err) }
 		}
-		outfile := removeExtension(filename) + ".bin"
-		if flag.NArg() == 2 {
-			outfile = flag.Arg(1)
+		if assembleFlag {
+			outfile := removeExtension(filename) + ".bin"
+			if flag.NArg() == 2 {
+				outfile = flag.Arg(1)
+			}
+			fmt.Printf("Writing to %s\n", outfile)
+			err = program.AssembleToFile(outfile)
+			if err != nil { panic(err) }
 		}
-		fmt.Printf("Writing to %s\n", outfile)
-		err = program.AssembleToFile(outfile)
-		if err != nil { panic(err) }
 		return
 	} else if unRomFlag {
 		fmt.Printf("loading %s\n", filename)
