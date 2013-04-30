@@ -82,7 +82,6 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
 		targetAddr := int(w)
-		var n Node
 		if targetAddr >= 0xc000 {
 			i := new(DirectWithLabelInstruction)
 			i.OpName = opCodeInfo.opName
@@ -90,17 +89,16 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i.Size = 3
 			i.OpCode = opCode
 			i.LabelName = d.getLabelAt(targetAddr)
-			n = i
+			elem.Value = i
 		} else {
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Payload = []byte{opCode, 0, 0}
 			i.Value = targetAddr
 			binary.LittleEndian.PutUint16(i.Payload[1:], w)
-			n = i
+			elem.Value = i
 		}
 
-		elem.Value = n
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 
@@ -113,13 +111,24 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	case absXAddr:
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
-		i := new(DirectIndexedInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Payload = []byte{opCode, 0, 0}
-		i.Value = int(w)
-		i.RegisterName = "X"
-		binary.LittleEndian.PutUint16(i.Payload[1:], w)
-		elem.Value = i
+		targetAddr := int(w)
+		if targetAddr >= 0xc000 {
+			i := new(DirectWithLabelIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			i.LabelName = d.getLabelAt(targetAddr)
+			i.RegisterName = "X"
+			i.Offset = addr
+			i.Size = 3
+			elem.Value = i
+		} else {
+			i := new(DirectIndexedInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			i.Value = int(w)
+			i.RegisterName = "X"
+			binary.LittleEndian.PutUint16(i.Payload[1:], w)
+			elem.Value = i
+		}
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 
@@ -576,6 +585,11 @@ func (i *DirectIndexedInstruction) Render(sw SourceWriter) error {
 	return err
 }
 
+func (i *DirectWithLabelIndexedInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s %s, %s\n", i.OpName, i.LabelName, i.RegisterName))
+	return err
+}
+
 func (i *IndirectInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x)\n", i.OpName, i.Value))
 	return err
@@ -660,6 +674,7 @@ func (s *LabeledStatement) Render(sw SourceWriter) error {
 	n := s.Stmt.(Renderer)
 	return n.Render(sw)
 }
+
 
 func (p *Program) WriteSource(writer io.Writer) error {
 	w := bufio.NewWriter(writer)
