@@ -7,13 +7,13 @@
 
 ## Roadmap
 
- * More intelligent disassembling
+ * Use LLVM to recompile 6502 assembly with a custom ABI into
+   native executables.
+ * More robust disassembling capabilities (mappers?)
  * Unpack CHR ROM into PCX files and vice versa
  * Ability to emulate an NES ROM
  * When emulating, capture how memory addresses are used to figure
    out what is data and what is code
- * Use LLVM to recompile 6502 assembly with a custom ABI into
-   native executables.
  * Use LLVM to recompile NES games into native executables.
 
 

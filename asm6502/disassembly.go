@@ -2,6 +2,7 @@ package asm6502
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"fmt"
 	"bufio"
@@ -82,7 +83,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
 		targetAddr := int(w)
-		if targetAddr >= 0xc000 {
+		if targetAddr >= d.offset {
 			i := new(DirectWithLabelInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
@@ -113,7 +114,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
 		targetAddr := int(w)
-		if targetAddr >= 0xc000 {
+		if targetAddr >= d.offset {
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			i.LabelName = d.getLabelAt(targetAddr)
@@ -283,6 +284,7 @@ type Disassembly struct {
 	// maps memory offset to node
 	offsets map[int]*list.Element
 	Errors []string
+	offset int
 }
 
 func (d *Disassembly) Error() string {
@@ -296,7 +298,7 @@ func (d *Disassembly) toProgram() *Program {
 
 	orgStatement := new(OrgPseudoOp)
 	orgStatement.Fill = 0xff // this is the default; causes it to be left off when rendered
-	orgStatement.Value = 0xc000
+	orgStatement.Value = d.offset
 	p.Ast.statements = append(p.Ast.statements, orgStatement)
 
 	for e := d.list.Front(); e != nil; e = e.Next() {
@@ -306,22 +308,19 @@ func (d *Disassembly) toProgram() *Program {
 }
 
 func (d *Disassembly) readAllAsData() error {
-	offset := 0xc000
-	for {
-		b, err := d.reader.ReadByte()
-		if err == io.EOF { break }
-		if err != nil { return err }
-		i := new(DataStatement)
-		i.dataList = make(DataList, 1)
+	data, err := ioutil.ReadAll(d.reader)
+	if err != nil { return err }
+
+	d.offset = 0x10000 - len(data)
+
+	for i, b := range(data) {
+		stmt := new(DataStatement)
+		stmt.dataList = make(DataList, 1)
 		item := IntegerDataItem(b)
-		i.dataList[0] = &item
-		i.Offset = offset
-		i.Size = 1
-		d.offsets[offset] = d.list.PushBack(i)
-		offset += 1
-	}
-	if offset != 0x10000 {
-		return errors.New("Program is not the correct size.")
+		stmt.dataList[0] = &item
+		stmt.Offset = d.offset + i
+		stmt.Size = 1
+		d.offsets[stmt.Offset] = d.list.PushBack(stmt)
 	}
 	return nil
 }
@@ -344,18 +343,23 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	n2 := s2.dataList[0].(*IntegerDataItem)
 
 	targetAddr := binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)})
-	d.insertLabelAt(int(targetAddr), name)
 
 	newStmt := new(DataWordStatement)
 	newStmt.Offset = addr
 	newStmt.Size = 2
-	newStmt.dataList = WordList{&LabelCall{name}}
-	newElem := d.list.InsertBefore(newStmt, elem1)
-	d.offsets[addr] = newElem
-	d.list.Remove(newElem.Next())
-	d.list.Remove(newElem.Next())
+	if targetAddr >= uint16(d.offset) {
+		newStmt.dataList = WordList{&LabelCall{name}}
+	} else {
+		tmp := IntegerDataItem(targetAddr)
+		newStmt.dataList = WordList{&tmp}
+	}
+	elem1.Value = newStmt
+	d.list.Remove(elem2)
 
-	d.markAsInstruction(int(targetAddr))
+	if targetAddr >= uint16(d.offset) {
+		d.insertLabelAt(int(targetAddr), name)
+		d.markAsInstruction(int(targetAddr))
+	}
 }
 
 func (d *Disassembly) collapseDataStatements() {
