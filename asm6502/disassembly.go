@@ -81,17 +81,32 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		// convert data statements into instruction statement
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
-		i := new(DirectInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Payload = []byte{opCode, 0, 0}
-		i.Value = int(w)
-		binary.LittleEndian.PutUint16(i.Payload[1:], w)
-		elem.Value = i
+		targetAddr := int(w)
+		var n Node
+		if targetAddr >= 0xc000 {
+			i := new(DirectWithLabelInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Offset = addr
+			i.Size = 3
+			i.OpCode = opCode
+			i.LabelName = d.getLabelAt(targetAddr)
+			n = i
+		} else {
+			i := new(DirectInstruction)
+			i.OpName = opCodeInfo.opName
+			i.Payload = []byte{opCode, 0, 0}
+			i.Value = targetAddr
+			binary.LittleEndian.PutUint16(i.Payload[1:], w)
+			n = i
+		}
+
+		elem.Value = n
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 
 		if opCode == 0x4c {
 			// jmp absolute
+			d.markAsInstruction(targetAddr)
 		} else {
 			d.markAsInstruction(addr + 3)
 		}
@@ -202,12 +217,14 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Offset = addr
 		i.Size = 2
 		i.OpCode = opCode
-		i.LabelName = d.getLabelAt(addr + 2 + int(int8(v)))
+		targetAddr := addr + 2 + int(int8(v))
+		i.LabelName = d.getLabelAt(targetAddr)
 		elem.Value = i
 		d.list.Remove(elem.Next())
 
-		// all branch ops could possibly go to the next
+		// mark both targets of the branch as instructions
 		d.markAsInstruction(addr + 2)
+		d.markAsInstruction(targetAddr)
 	case zeroPageAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -327,10 +344,7 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	d.list.Remove(newElem.Next())
 	d.list.Remove(newElem.Next())
 
-	err := d.markAsInstruction(int(targetAddr))
-	if err != nil {
-		d.Errors = append(d.Errors, err.Error())
-	}
+	d.markAsInstruction(int(targetAddr))
 }
 
 func (d *Disassembly) collapseDataStatements() {
