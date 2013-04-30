@@ -73,30 +73,17 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 	case absXAddr:
-		//i := new(DirectIndexedInstruction)
-		//i.OpName = opCodeInfo.opName
-		//i.Payload = []byte{opCode, 0, 0}
-		//valuePart := i.Payload[1:]
-		//nn, err := io.ReadAtLeast(r, valuePart, 2)
-		//if err == io.EOF {
-		//	// oops, this must be data.
-		//	p.appendDataByte(opCode)
-		//	if nn > 0 { p.appendDataByte(valuePart[0]) }
-		//	if nn > 1 { p.appendDataByte(valuePart[1]) }
-		//	break
-		//}
-		//if err != nil { return nil, err }
-		//i.Value = int(binary.LittleEndian.Uint16(valuePart))
-		//_, hasZeroPageVersion := zeroPageXOpcode[i.OpName]
-		//if hasZeroPageVersion && i.Value <= 0xff {
-		//	// this would be recompiled as a zero-page instruction - must be data
-		//	p.appendDataByte(opCode)
-		//	p.appendDataByte(valuePart[0])
-		//	p.appendDataByte(valuePart[1])
-		//	break
-		//}
-		//i.RegisterName = "X"
-		//p.Ast.statements = append(p.Ast.statements, i)
+		w, err := d.elemAsWord(elem.Next())
+		if err != nil { return err }
+		i := new(DirectIndexedInstruction)
+		i.OpName = opCodeInfo.opName
+		i.Payload = []byte{opCode, 0, 0}
+		i.Value = int(w)
+		i.RegisterName = "X"
+		binary.LittleEndian.PutUint16(i.Payload[1:], w)
+		elem.Value = i
+		d.list.Remove(elem.Next())
+		d.list.Remove(elem.Next())
 	case absYAddr:
 		//i := new(DirectIndexedInstruction)
 		//i.OpName = opCodeInfo.opName
