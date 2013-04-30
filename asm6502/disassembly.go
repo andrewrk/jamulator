@@ -60,8 +60,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	opCodeInfo := opCodeDataMap[opCode]
 	switch opCodeInfo.addrMode {
 	case nilAddr:
-		panic("can't disassemble as instruction: bad op code")
+		return errors.New("cannot disassemble as instruction: bad op code")
 	case absAddr:
+		// convert data statements into instruction statement
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
 		i := new(DirectInstruction)
@@ -176,6 +177,31 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.RegisterName = "Y"
 		elem.Value = i
 		d.list.Remove(elem.Next())
+	}
+
+	// we may be able to mark the next thing as an instruction
+	nextElem := elem.Next()
+	if nextElem == nil { return nil }
+	stmt, ok := nextElem.Value.(*DataStatement)
+	if !ok { return nil }
+	nextAddr := stmt.Offset
+	switch opCodeInfo.opName {
+	case "bcc":
+	case "bcs":
+	case "beq":
+	case "bmi":
+	case "bne":
+	case "bpl":
+	case "brk":
+	case "bvc":
+	case "bvs":
+	case "jmp":
+	case "rti":
+	case "rts":
+	default:
+		// instruction does not branch. we can safely mark the next
+		// one as an instruction
+		d.markAsInstruction(nextAddr)
 	}
 	return nil
 }
