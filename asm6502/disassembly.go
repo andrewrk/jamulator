@@ -382,7 +382,7 @@ func allAscii(dl DataList) bool {
 	for _, v := range(dl) {
 		switch t := v.(type) {
 		case *IntegerDataItem:
-			if *t < 32 || *t > 126 {
+			if *t < 32 || *t > 126 || *t == '"' {
 				return false
 			}
 		case *StringDataItem:

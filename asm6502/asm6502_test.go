@@ -30,6 +30,7 @@ var testAsmList = []testAsm{
 var testDisAsmList = []string {
 	"test/suite6502.bin.ref",
 	"test/zelda.bin.ref",
+	"test/hello.bin.ref",
 }
 
 func TestAsm(t *testing.T) {
