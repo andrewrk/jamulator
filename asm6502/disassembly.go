@@ -53,6 +53,22 @@ func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
 	return binary.LittleEndian.Uint16([]byte{b1, b2}), nil
 }
 
+func (d *Disassembly) getLabelAt(addr int) string {
+	elem := d.offsets[addr]
+	stmt, ok := elem.Value.(*LabeledStatement)
+	if ok { return stmt.LabelName }
+	prev := elem.Prev()
+	if prev != nil {
+		stmt, ok = prev.Value.(*LabeledStatement)
+		if ok { return stmt.LabelName }
+	}
+	// put one there
+	i := new(LabeledStatement)
+	i.LabelName = fmt.Sprintf("Label_%d", addr)
+	d.list.InsertBefore(i, elem)
+	return i.LabelName
+}
+
 func (d *Disassembly) markAsInstruction(addr int) error {
 	elem := d.offsets[addr]
 	opCode, err := d.elemAsByte(elem)
@@ -73,6 +89,12 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		elem.Value = i
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
+
+		if opCode == 0x4c {
+			// jmp absolute
+		} else {
+			d.markAsInstruction(addr + 3)
+		}
 	case absXAddr:
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
@@ -85,6 +107,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		elem.Value = i
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 3)
 	case absYAddr:
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil { return err }
@@ -97,6 +122,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		elem.Value = i
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 3)
 	case immedAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -105,10 +133,24 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(v)
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	case impliedAddr:
 		i := new(ImpliedInstruction)
 		i.OpName = opCodeInfo.opName
 		elem.Value = i
+
+		if opCode == 0x40 {
+			// RTI
+		} else if opCode == 0x60 {
+			// RTS
+		} else if opCode == 0x00 {
+			// BRK
+		} else {
+			// next thing is definitely an instruction
+			d.markAsInstruction(addr + 1)
+		}
 	case indirectAddr:
 		// note: only JMP uses this
 		w, err := d.elemAsWord(elem.Next())
@@ -121,6 +163,13 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		elem.Value = i
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
+
+		if opCode == 0x6c {
+			// JMP
+		} else {
+			// next thing is definitely an instruction
+			d.markAsInstruction(addr + 3)
+		}
 	case xIndexIndirectAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -130,6 +179,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(v)
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	case indirectYIndexAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -139,15 +191,23 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(v)
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	case relativeAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
-		i := new(DirectInstruction)
+		i := new(DirectWithLabelInstruction)
 		i.OpName = opCodeInfo.opName
-		i.Payload = []byte{opCode, v}
-		i.Value = int(v)
+		i.Offset = addr
+		i.Size = 2
+		i.OpCode = opCode
+		i.LabelName = d.getLabelAt(addr + 2 + int(int8(v)))
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// all branch ops could possibly go to the next
+		d.markAsInstruction(addr + 2)
 	case zeroPageAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -157,6 +217,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(v)
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	case zeroXIndexAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -167,6 +230,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.RegisterName = "X"
 		elem.Value = i
 		d.list.Remove(elem.Next())
+
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	case zeroYIndexAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil { return err }
@@ -177,31 +243,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.RegisterName = "Y"
 		elem.Value = i
 		d.list.Remove(elem.Next())
-	}
 
-	// we may be able to mark the next thing as an instruction
-	nextElem := elem.Next()
-	if nextElem == nil { return nil }
-	stmt, ok := nextElem.Value.(*DataStatement)
-	if !ok { return nil }
-	nextAddr := stmt.Offset
-	switch opCodeInfo.opName {
-	case "bcc":
-	case "bcs":
-	case "beq":
-	case "bmi":
-	case "bne":
-	case "bpl":
-	case "brk":
-	case "bvc":
-	case "bvs":
-	case "jmp":
-	case "rti":
-	case "rts":
-	default:
-		// instruction does not branch. we can safely mark the next
-		// one as an instruction
-		d.markAsInstruction(nextAddr)
+		// next thing is definitely an instruction
+		d.markAsInstruction(addr + 2)
 	}
 	return nil
 }
@@ -505,6 +549,11 @@ func (i *ImpliedInstruction) Render(sw SourceWriter) error {
 
 func (i *DirectInstruction) Render(sw SourceWriter) error {
 	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x\n", i.OpName, i.Value))
+	return err
+}
+
+func (i *DirectWithLabelInstruction) Render(sw SourceWriter) error {
+	_, err := sw.writer.WriteString(fmt.Sprintf("%s %s\n", i.OpName, i.LabelName))
 	return err
 }
 
