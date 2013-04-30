@@ -104,9 +104,11 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		d.list.Remove(elem.Next())
 
 		switch opCode {
-		case 0x4c: fallthrough // jmp
+		case 0x4c: // jmp
+			d.markAsInstruction(targetAddr)
 		case 0x20: // jsr
 			d.markAsInstruction(targetAddr)
+			d.markAsInstruction(addr + 3)
 		default:
 			d.markAsInstruction(addr + 3)
 		}
