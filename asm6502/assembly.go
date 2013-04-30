@@ -50,6 +50,7 @@ type machineCode struct {
 	offset int
 	expectedOffset int
 	firstOrg bool
+	orgFillValue byte
 }
 
 func (m machineCode) Error() string {
@@ -658,6 +659,7 @@ func (bin *machineCode) Visit(n Node) {
 	switch nn := n.(type) {
 	case *OrgPseudoOp:
 		bin.offset = nn.Value
+		bin.orgFillValue = nn.Fill
 		if bin.firstOrg {
 			bin.firstOrg = false
 			bin.expectedOffset = bin.offset
@@ -665,7 +667,7 @@ func (bin *machineCode) Visit(n Node) {
 	case Assembler:
 		for bin.offset > bin.expectedOffset {
 			// org fill
-			bin.writer.WriteByte(0)
+			bin.writer.WriteByte(bin.orgFillValue)
 			bin.expectedOffset += 1
 		}
 		err := nn.Assemble(bin)
@@ -688,6 +690,7 @@ func (p *Program) Assemble(w io.Writer) error {
 		0,
 		0,
 		true,
+		0,
 	}
 	p.Ast.Ast(&bin)
 	writer.Flush()

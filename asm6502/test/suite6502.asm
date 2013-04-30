@@ -3,7 +3,9 @@
 
 	processor   6502
 
-	org	0
+	org	$c000
+
+Reset_Routine
 
 	adc	#1
 	adc	1
@@ -40,6 +42,7 @@
 	bne	.
 	bpl	.
 	brk
+NMI_Routine
 	bvc	.
 	bvs	.
 	clc
@@ -91,14 +94,26 @@
 	inx
 	iny
 
+	bne     jump_2
 	jmp	1	    ;absolute
+jump_2
+	bne     jump_3
 	jmp	1000
+jump_3
+	bne     jump_4
 	jmp	(1)         ;absolute
+jump_4
+	bne     jump_5
 	jmp	(1000)
 
+jump_5
+	bne     jump_6
 	jsr	1	    ;absolute
+jump_6
+	bne     jump_7
 	jsr	1000
 
+jump_7
 	lda	#1
 	lda	1
 	lda	1,x
@@ -157,8 +172,11 @@
 	ror	1000,x
 
 	rti
+IRQ_Routine
+	bne     after_rts
 	rts
 
+after_rts
 	sbc	#1
 	sbc	1
 	sbc	1,x
@@ -197,5 +215,8 @@
 	txs
 	tya
 
-
-
+	
+	ORG   $FFFA
+	dc.w  NMI_Routine
+	dc.w  Reset_Routine
+	dc.w  IRQ_Routine    ;Not used, just points to RTI

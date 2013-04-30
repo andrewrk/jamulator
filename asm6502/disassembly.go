@@ -102,10 +102,11 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 
-		if opCode == 0x4c {
-			// jmp absolute
+		switch opCode {
+		case 0x4c: fallthrough // jmp
+		case 0x20: // jsr
 			d.markAsInstruction(targetAddr)
-		} else {
+		default:
 			d.markAsInstruction(addr + 3)
 		}
 	case absXAddr:
@@ -610,7 +611,7 @@ func (i *OrgPseudoOp) Render(sw SourceWriter) error {
 	if i.Fill == 0 {
 		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x\n", i.Value))
 	} else {
-		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x, %02x\n", i.Value, i.Fill))
+		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x, $%02x\n", i.Value, i.Fill))
 	}
 	return err
 }
