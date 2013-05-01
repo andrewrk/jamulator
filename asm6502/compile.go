@@ -15,6 +15,12 @@ type Compilation struct {
 	mod llvm.Module
 	builder llvm.Builder
 	mainFn llvm.Value
+	rX llvm.Value
+	rY llvm.Value
+	rA llvm.Value
+	rSNeg llvm.Value
+	rSZero llvm.Value
+
 	labeledData map[string] llvm.Value
 	currentValue *bytes.Buffer
 	currentLabel string
@@ -111,8 +117,64 @@ func (c *Compilation) visitForDataStmts(n Node) {
 
 func (c *Compilation) VisitEnd(n Node) {}
 
+func (c *Compilation) testAndSetZero(v int) {
+	if v == 0 {
+		c.setZero()
+		return
+	}
+	c.clearZero()
+}
+
+func (c *Compilation) setZero() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 1, false), c.rSZero)
+}
+
+func (c *Compilation) clearZero() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSZero)
+}
+
+func (c *Compilation) testAndSetNeg(v int) {
+	if v & 0x80 == 0x80 {
+		c.setNeg()
+		return
+	}
+	c.clearNeg()
+}
+
+func (c *Compilation) setNeg() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 1, false), c.rSNeg)
+}
+
+func (c *Compilation) clearNeg() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSNeg)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "ImmediateInstruction lacks Compile() implementation")
+	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
+	switch i.OpCode {
+	case 0xa2: // ldx
+		c.builder.CreateStore(v, c.rX)
+		c.testAndSetZero(i.Value)
+		c.testAndSetNeg(i.Value)
+	case 0xa0: // ldy
+		c.builder.CreateStore(v, c.rY)
+		c.testAndSetZero(i.Value)
+		c.testAndSetNeg(i.Value)
+	case 0xa9: // lda
+		c.builder.CreateStore(v, c.rA)
+		c.testAndSetZero(i.Value)
+		c.testAndSetNeg(i.Value)
+	//case 0x69: // adc
+	//case 0x29: // and
+	//case 0xc9: // cmp
+	//case 0xe0: // cpx
+	//case 0xc0: // cpy
+	//case 0x49: // eor
+	//case 0x09: // ora
+	//case 0xe9: // sbc
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
+	}
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
@@ -154,10 +216,10 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 
 	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
 	if c.currentBlock != nil {
-		c.builder.SetInsertPointAtEnd(*c.currentBlock)
 		c.builder.CreateBr(bb)
 	}
 	c.currentBlock = &bb
+	c.builder.SetInsertPointAtEnd(bb)
 
 	switch s.LabelName {
 	case c.nmiLabelName:
@@ -227,11 +289,11 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.mainFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(c.mainFn, "Entry")
 	c.builder.SetInsertPointAtEnd(entry)
-	c.builder.CreateAlloca(llvm.Int8Type(), "X")
-	c.builder.CreateAlloca(llvm.Int8Type(), "Y")
-	c.builder.CreateAlloca(llvm.Int8Type(), "A")
-	c.builder.CreateAlloca(llvm.Int1Type(), "S_neg")
-	c.builder.CreateAlloca(llvm.Int1Type(), "S_zero")
+	c.rX = c.builder.CreateAlloca(llvm.Int8Type(), "X")
+	c.rY = c.builder.CreateAlloca(llvm.Int8Type(), "Y")
+	c.rA = c.builder.CreateAlloca(llvm.Int8Type(), "A")
+	c.rSNeg = c.builder.CreateAlloca(llvm.Int1Type(), "S_neg")
+	c.rSZero = c.builder.CreateAlloca(llvm.Int1Type(), "S_zero")
 
 	// set up entry points
 	c.setUpEntryPoint(p, 0xfffa, &c.nmiLabelName)
