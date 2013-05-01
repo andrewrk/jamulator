@@ -22,6 +22,7 @@ type Compilation struct {
 	rSZero llvm.Value
 
 	labeledData map[string] llvm.Value
+	labeledBlocks map[string] llvm.BasicBlock
 	currentValue *bytes.Buffer
 	currentLabel string
 	mode int
@@ -43,6 +44,7 @@ type Compiler interface {
 
 const (
 	dataStmtMode = iota
+	basicBlocksMode
 	compileMode
 )
 
@@ -91,8 +93,17 @@ func (c *Compilation) Visit(n Node) {
 	switch c.mode {
 	case dataStmtMode:
 		c.visitForDataStmts(n)
+	case basicBlocksMode:
+		c.visitForBasicBlocks(n)
 	case compileMode:
 		c.visitForCompile(n)
+	}
+}
+
+func (c *Compilation) visitForBasicBlocks(n Node) {
+	switch t := n.(type) {
+	case *LabeledStatement:
+		t.CompileLabels(c)
 	}
 }
 
@@ -300,9 +311,16 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x8e: // stx
 	//case 0x8c: // sty
 
+	case 0xf0: // beq
+		thenBlock := c.labeledBlocks[i.LabelName]
+		elseBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		isZero := c.builder.CreateLoad(c.rSZero, "")
+		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
+		c.builder.SetInsertPointAtEnd(elseBlock)
+		elseBlock.MoveAfter(*c.currentBlock)
+		c.currentBlock = &elseBlock
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
-	//case 0xf0: // beq
 	//case 0x30: // bmi
 	//case 0xd0: // bne
 	//case 0x10: // bpl
@@ -334,7 +352,7 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 	_, ok := c.labeledData[s.LabelName]
 	if ok { return }
 
-	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
+	bb := c.labeledBlocks[s.LabelName]
 	if c.currentBlock != nil {
 		c.builder.CreateBr(bb)
 	}
@@ -343,17 +361,29 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 
 	switch s.LabelName {
 	case c.nmiLabelName:
-		c.nmiBlock = &bb
-		c.builder.SetInsertPointAtEnd(bb)
 		c.builder.CreateUnreachable()
 		c.currentBlock = nil
+	case c.irqLabelName:
+		c.builder.CreateUnreachable()
+		c.currentBlock = nil
+	}
+}
+
+func (s *LabeledStatement) CompileLabels(c *Compilation) {
+	// if we've already processed it as data, move on
+	_, ok := c.labeledData[s.LabelName]
+	if ok { return }
+
+	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
+	c.labeledBlocks[s.LabelName] = bb
+
+	switch s.LabelName {
+	case c.nmiLabelName:
+		c.nmiBlock = &bb
 	case c.resetLabelName:
 		c.resetBlock = &bb
 	case c.irqLabelName:
 		c.irqBlock = &bb
-		c.builder.SetInsertPointAtEnd(bb)
-		c.builder.CreateUnreachable()
-		c.currentBlock = nil
 	}
 }
 
@@ -387,6 +417,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.builder = llvm.NewBuilder()
 	defer c.builder.Dispose()
 	c.labeledData = map[string] llvm.Value{}
+	c.labeledBlocks = map[string] llvm.BasicBlock{}
 
 	// first pass to generate data declarations
 	c.mode = dataStmtMode
@@ -420,15 +451,13 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.setUpEntryPoint(p, 0xfffc, &c.resetLabelName)
 	c.setUpEntryPoint(p, 0xfffe, &c.irqLabelName)
 
-	// second pass codegen
-	c.mode = compileMode
+	// second pass to build basic blocks
+	c.mode = basicBlocksMode
 	p.Ast.Ast(c)
 
-	// close off the final unterminated basic block
-	if c.currentBlock != nil {
-		c.builder.SetInsertPointAtEnd(*c.currentBlock)
-		c.builder.CreateUnreachable()
-	}
+	// finally, one last pass for codegen
+	c.mode = compileMode
+	p.Ast.Ast(c)
 
 	// hook up entry points
 	if c.nmiBlock == nil {
