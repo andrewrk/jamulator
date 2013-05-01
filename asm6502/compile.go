@@ -15,6 +15,8 @@ type Compilation struct {
 	mod llvm.Module
 	builder llvm.Builder
 	mainFn llvm.Value
+	putCharFn llvm.Value
+	exitFn llvm.Value
 	rX llvm.Value
 	rY llvm.Value
 	rA llvm.Value
@@ -332,7 +334,74 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "DirectInstruction lacks Compile() implementation")
+	switch i.Payload[0] {
+	//case 0x90: // bcc rel
+	//case 0xb0: // bcs rel
+	//case 0xf0: // beq rel
+	//case 0x30: // bmi rel
+	//case 0xd0: // bne rel
+	//case 0x10: // bpl rel
+	//case 0x50: // bvc rel
+	//case 0x70: // bvs rel
+
+	//case 0x65: // adc zpg
+	//case 0x25: // and zpg
+	//case 0x06: // asl zpg
+	//case 0x24: // bit zpg
+	//case 0xc5: // cmp zpg
+	//case 0xe4: // cpx zpg
+	//case 0xc4: // cpy zpg
+	//case 0xc6: // dec zpg
+	//case 0x45: // eor zpg
+	//case 0xe6: // inc zpg
+	//case 0xa5: // lda zpg
+	//case 0xa6: // ldx zpg
+	//case 0xa4: // ldy zpg
+	//case 0x46: // lsr zpg
+	//case 0x05: // ora zpg
+	//case 0x26: // rol zpg
+	//case 0x66: // ror zpg
+	//case 0xe5: // sbc zpg
+	//case 0x85: // sta zpg
+	//case 0x86: // stx zpg
+	//case 0x84: // sty zpg
+
+	//case 0x6d: // adc abs
+	//case 0x2d: // and abs
+	//case 0x0e: // asl abs
+	//case 0x2c: // bit abs
+	//case 0xcd: // cmp abs
+	//case 0xec: // cpx abs
+	//case 0xcc: // cpy abs
+	//case 0xce: // dec abs
+	//case 0x4d: // eor abs
+	//case 0xee: // inc abs
+	//case 0x4c: // jmp abs
+	//case 0x20: // jsr abs
+	//case 0xad: // lda abs
+	//case 0xae: // ldx abs
+	//case 0xac: // ldy abs
+	//case 0x4e: // lsr abs
+	//case 0x0d: // ora abs
+	//case 0x2e: // rol abs
+	//case 0x6e: // ror abs
+	//case 0xed: // sbc abs
+	case 0x8d: // sta abs
+		v8 := c.builder.CreateLoad(c.rA, "")
+		v := c.builder.CreateZExt(v8, llvm.Int32Type(), "")
+		switch i.Value {
+		case 0x2008: // putchar
+			c.builder.CreateCall(c.putCharFn, []llvm.Value{v}, "")
+		case 0x2009: // exit
+			c.builder.CreateCall(c.exitFn, []llvm.Value{v}, "")
+		default:
+			c.Errors = append(c.Errors, fmt.Sprintf("only writing memory to 0x2008 or 0x2009 is supported"))
+		}
+	//case 0x8e: // stx abs
+	//case 0x8c: // sty abs
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
+	}
 }
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
@@ -425,14 +494,14 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 
 	// declare i32 @putchar(i32)
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
-	putCharFn := llvm.AddFunction(c.mod, "putChar", putCharType)
-	putCharFn.SetLinkage(llvm.ExternalLinkage)
+	c.putCharFn = llvm.AddFunction(c.mod, "putChar", putCharType)
+	c.putCharFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @exit(i32) noreturn nounwind
 	exitType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
-	exitFn := llvm.AddFunction(c.mod, "exit", exitType)
-	exitFn.AddFunctionAttr(llvm.NoReturnAttribute|llvm.NoUnwindAttribute)
-	exitFn.SetLinkage(llvm.ExternalLinkage)
+	c.exitFn = llvm.AddFunction(c.mod, "exit", exitType)
+	c.exitFn.AddFunctionAttr(llvm.NoReturnAttribute|llvm.NoUnwindAttribute)
+	c.exitFn.SetLinkage(llvm.ExternalLinkage)
 
 	// main function / entry point
 	mainType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{}, false)

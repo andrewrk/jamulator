@@ -44,13 +44,13 @@ Label_loop:
 
 AutoLabel_0:
       ; STA out
-      %a.0 = icmp eq i16 8200, 8200
-      br i1 %a.0, label %AutoLabel_1, label %AutoLabel_2
+      %7 = icmp eq i16 8200, 8200
+      br i1 %7, label %AutoLabel_1, label %AutoLabel_2
 AutoLabel_1:
       ; stdout
-      %b.0 = load i8* %A
-      %b.1 = zext i8 %b.0 to i32
-      call i32 @putchar(i32 %b.1)
+      %8 = load i8* %A
+      %9 = zext i8 %8 to i32
+      call i32 @putchar(i32 %9)
       br label %AutoLabel_4
 AutoLabel_2:
       %c.0 = icmp eq i16 8200, 8201
