@@ -50,6 +50,7 @@ func (c *Compilation) Stop() {
 	strGlobal := llvm.AddGlobal(c.mod, text.Type(), c.currentLabel)
 	strGlobal.SetLinkage(llvm.PrivateLinkage)
 	strGlobal.SetInitializer(text)
+	c.labeledData[c.currentLabel] = strGlobal
 	c.currentLabel = ""
 }
 

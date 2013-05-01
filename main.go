@@ -7,6 +7,7 @@ import (
 	"os"
 	"flag"
 	"path"
+	"strings"
 )
 
 var astFlag bool
@@ -58,8 +59,15 @@ func main() {
 				outfile = flag.Arg(1)
 			}
 			fmt.Printf("Compiling to %s\n", outfile)
-			err := program.Compile(outfile)
-			if err != nil { panic(err) }
+			c := program.Compile(outfile)
+			if len(c.Errors) != 0 {
+				fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
+				return
+			}
+			if len(c.Warnings) != 0 {
+				fmt.Fprintf(os.Stderr, "Warnings:\n%s\n", strings.Join(c.Warnings, "\n"))
+			}
+			return
 		}
 		if assembleFlag {
 			outfile := removeExtension(filename) + ".bin"
