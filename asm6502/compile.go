@@ -579,7 +579,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	pass.AddCFGSimplificationPass()
 	pass.Run(c.mod)
 
-	//c.mod.Dump()
+	c.mod.Dump()
 
 	fd, err := os.Create(filename)
 	if err != nil {

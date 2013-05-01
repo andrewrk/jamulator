@@ -235,16 +235,6 @@ func (n *OrgPseudoOp) Ast(v Visitor) {
 	v.VisitEnd(n)
 }
 
-type SubroutineDecl struct {
-	Name string
-	Line int
-}
-
-func (n *SubroutineDecl) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
 type DataStatement struct {
 	dataList DataList
 	Line int
@@ -339,7 +329,6 @@ var programAst *ProgramAST
 	wordList WordList
 	programAst ProgramAST
 	orgPsuedoOp *OrgPseudoOp
-	subroutineDecl *SubroutineDecl
 	node Node
 }
 
@@ -355,7 +344,7 @@ var programAst *ProgramAST
 %type <str> processorDecl
 %type <str> labelName
 %type <orgPsuedoOp> orgPsuedoOp
-%type <subroutineDecl> subroutineDecl
+%type <node> subroutineDecl
 %type <node> numberExpr
 %type <node> numberExprOptionalPound
 
@@ -491,7 +480,7 @@ orgPsuedoOp : tokOrg tokInteger {
 }
 
 subroutineDecl : tokIdentifier tokSubroutine {
-	$$ = &SubroutineDecl{$1, parseLineNumber}
+	$$ = &LabeledStatement{$1, nil, parseLineNumber}
 }
 
 instructionStatement : tokInstruction tokPound tokInteger {

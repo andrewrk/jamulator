@@ -639,19 +639,6 @@ func (p *Program) Visit(n Node) {
 				p.Labels[ss.LabelName] = p.offset
 			}
 		}
-	case *SubroutineDecl:
-		if p.offset >= 0xffff {
-			err := errors.New(fmt.Sprintf("Line %d: Subroutine memory address must fit in 2 bytes.", ss.Line))
-			p.Errors = append(p.Errors, err)
-		} else {
-			_, exists := p.Labels[ss.Name]
-			if exists {
-				err := errors.New(fmt.Sprintf("Line %d: Subroutine %s already defined.", ss.Line, ss.Name))
-				p.Errors = append(p.Errors, err)
-			} else {
-				p.Labels[ss.Name] = p.offset
-			}
-		}
 	}
 }
 
