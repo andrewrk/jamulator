@@ -191,7 +191,40 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "ImpliedInstruction lacks Compile() implementation")
+	switch i.OpCode {
+	case 0x40: // rti
+		c.Warnings = append(c.Warnings, "ignoring RTI instruction")
+	//case 0x0a: // asl
+	//case 0x00: // brk
+	//case 0x18: // clc
+	//case 0xd8: // cld
+	//case 0x58: // cli
+	//case 0xb8: // clv
+	//case 0xca: // dex
+	//case 0x88: // dey
+	//case 0xe8: // inx
+	//case 0xc8: // iny
+	//case 0x4a: // lsr
+	//case 0xea: // nop
+	//case 0x48: // pha
+	//case 0x08: // php
+	//case 0x68: // pla
+	//case 0x28: // plp
+	//case 0x2a: // rol
+	//case 0x6a: // ror
+	//case 0x60: // rts
+	//case 0x38: // sec
+	//case 0xf8: // sed
+	//case 0x78: // sei
+	//case 0xaa: // tax
+	//case 0xa8: // tay
+	//case 0xba: // tsx
+	//case 0x8a: // txa
+	//case 0x9a: // txs
+	//case 0x98: // tya
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
+	}
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
@@ -233,7 +266,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0xf9: // sbc l, Y
 	//case 0x99: // sta l, Y
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s label, %s lacks Compile() implementation", i.OpName, i.RegisterName))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s <label>, %s lacks Compile() implementation", i.OpName, i.RegisterName))
 	}
 }
 
@@ -242,7 +275,42 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "DirectWithLabelInstruction lacks Compile() implementation")
+	switch i.OpCode {
+	//case 0x6d: // adc
+	//case 0x2d: // and
+	//case 0x0e: // asl
+	//case 0x2c: // bit
+	//case 0xcd: // cmp
+	//case 0xec: // cpx
+	//case 0xcc: // cpy
+	//case 0xce: // dec
+	//case 0x4d: // eor
+	//case 0xee: // inc
+	//case 0x4c: // jmp
+	//case 0x20: // jsr
+	//case 0xad: // lda
+	//case 0xae: // ldx
+	//case 0xac: // ldy
+	//case 0x4e: // lsr
+	//case 0x0d: // ora
+	//case 0x2e: // rol
+	//case 0x6e: // ror
+	//case 0xed: // sbc
+	//case 0x8d: // sta
+	//case 0x8e: // stx
+	//case 0x8c: // sty
+
+	//case 0x90: // bcc
+	//case 0xb0: // bcs
+	//case 0xf0: // beq
+	//case 0x30: // bmi
+	//case 0xd0: // bne
+	//case 0x10: // bpl
+	//case 0x50: // bvc
+	//case 0x70: // bvs
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s <label> lacks Compile() implementation", i.OpName))
+	}
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
