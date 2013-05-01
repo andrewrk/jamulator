@@ -35,6 +35,22 @@ func removeExtension(filename string) string {
 	return filename[0:len(filename)-len(path.Ext(filename))]
 }
 
+func compile(filename string, program *asm6502.Program) {
+	outfile := removeExtension(filename) + ".bc"
+	if flag.NArg() == 2 {
+		outfile = flag.Arg(1)
+	}
+	fmt.Printf("Compiling to %s\n", outfile)
+	c := program.Compile(outfile)
+	if len(c.Errors) != 0 {
+		fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
+		return
+	}
+	if len(c.Warnings) != 0 {
+		fmt.Fprintf(os.Stderr, "Warnings:\n%s\n", strings.Join(c.Warnings, "\n"))
+	}
+}
+
 func main() {
 	flag.Parse()
 	if flag.NArg() != 1 && flag.NArg() != 2 { usageAndQuit() }
@@ -54,20 +70,7 @@ func main() {
 			os.Exit(1)
 		}
 		if compileFlag {
-			outfile := removeExtension(filename) + ".bc"
-			if flag.NArg() == 2 {
-				outfile = flag.Arg(1)
-			}
-			fmt.Printf("Compiling to %s\n", outfile)
-			c := program.Compile(outfile)
-			if len(c.Errors) != 0 {
-				fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
-				return
-			}
-			if len(c.Warnings) != 0 {
-				fmt.Fprintf(os.Stderr, "Warnings:\n%s\n", strings.Join(c.Warnings, "\n"))
-			}
-			return
+			compile(filename, program)
 		}
 		if assembleFlag {
 			outfile := removeExtension(filename) + ".bin"
@@ -91,17 +94,22 @@ func main() {
 		err = rom.DisassembleToDir(outdir)
 		if err != nil { panic(err) }
 		return
-	} else if disassembleFlag {
+	} else if disassembleFlag || compileFlag {
 		fmt.Printf("disassembling %s\n", filename)
 		p, err := asm6502.DisassembleFile(filename)
 		if err != nil { panic(err) }
-		outfile := removeExtension(filename) + ".asm"
-		if flag.NArg() == 2 {
-			outfile = flag.Arg(1)
+		if compileFlag {
+			compile(filename, p)
 		}
-		fmt.Printf("writing source %s\n", outfile)
-		err = p.WriteSourceFile(outfile)
-		if err != nil { panic(err) }
+		if disassembleFlag {
+			outfile := removeExtension(filename) + ".asm"
+			if flag.NArg() == 2 {
+				outfile = flag.Arg(1)
+			}
+			fmt.Printf("writing source %s\n", outfile)
+			err = p.WriteSourceFile(outfile)
+			if err != nil { panic(err) }
+		}
 		return
 	} else if romFlag {
 		fmt.Printf("building rom from %s\n", filename)

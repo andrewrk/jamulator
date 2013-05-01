@@ -21,6 +21,7 @@ type Program struct {
 	Errors []error
 
 	offset int
+	offsets map[int] Node
 }
 
 func (p *Program) Error() string {
@@ -619,6 +620,7 @@ func (p *Program) Visit(n Node) {
 	case *OrgPseudoOp:
 		p.offset = ss.Value
 	case Measurer:
+		p.offsets[p.offset] = n
 		err := ss.Measure(p)
 		if err != nil {
 			p.Errors = append(p.Errors, err)
@@ -721,6 +723,7 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 		map[string]int {},
 		[]error{},
 		0,
+		map[int]Node{},
 	}
 	ast.Ast(&p)
 	return &p

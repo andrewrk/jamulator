@@ -5,7 +5,7 @@ org $C000
 
 msg: .data "Hello, world!", 10, 0
 
-Reset_Routine SUBROUTINE
+Reset_Routine:
 
 LDX #$00       ; starting index in X register
 

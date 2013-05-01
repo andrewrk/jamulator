@@ -22,6 +22,15 @@ type Renderer interface {
 	Render(SourceWriter) error
 }
 
+type Disassembly struct {
+	reader *bufio.Reader
+	list *list.List
+	// maps memory offset to node
+	offsets map[int]*list.Element
+	Errors []string
+	offset int
+}
+
 func (d *Disassembly) elemAsByte(elem *list.Element) (byte, error) {
 	if elem == nil {
 		return 0, errors.New("not enough bytes for byte")
@@ -280,23 +289,15 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	return nil
 }
 
-type Disassembly struct {
-	reader *bufio.Reader
-	list *list.List
-	// maps memory offset to node
-	offsets map[int]*list.Element
-	Errors []string
-	offset int
-}
-
 func (d *Disassembly) Error() string {
 	return strings.Join(d.Errors, "\n")
 }
 
-func (d *Disassembly) toProgram() *Program {
+func (d *Disassembly) ToProgram() *Program {
 	p := new(Program)
 	p.Ast = new(ProgramAST)
 	p.Ast.statements = make(StatementList, 0, d.list.Len())
+	p.offsets = map[int]Node{}
 
 	orgStatement := new(OrgPseudoOp)
 	orgStatement.Fill = 0xff // this is the default; causes it to be left off when rendered
@@ -305,6 +306,9 @@ func (d *Disassembly) toProgram() *Program {
 
 	for e := d.list.Front(); e != nil; e = e.Next() {
 		p.Ast.statements = append(p.Ast.statements, e.Value.(Node))
+	}
+	for k, v := range(d.offsets) {
+		p.offsets[k] = v.Value.(Node)
 	}
 	return p
 }
@@ -534,7 +538,7 @@ func Disassemble(reader io.Reader) (*Program, error) {
 	dis.groupAsciiStrings()
 	dis.collapseDataStatements()
 
-	p := dis.toProgram()
+	p := dis.ToProgram()
 
 	if len(dis.Errors) > 0 { return p, dis }
 	return p, nil
