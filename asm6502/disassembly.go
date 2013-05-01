@@ -132,6 +132,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i.RegisterName = "X"
 			i.Offset = addr
 			i.Size = 3
+			i.OpCode = opCode
 			elem.Value = i
 		} else {
 			i := new(DirectIndexedInstruction)
@@ -167,6 +168,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil { return err }
 		i := new(ImmediateInstruction)
 		i.OpName = opCodeInfo.opName
+		i.OpCode = opCode
 		i.Value = int(v)
 		elem.Value = i
 		d.list.Remove(elem.Next())
@@ -176,6 +178,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	case impliedAddr:
 		i := new(ImpliedInstruction)
 		i.OpName = opCodeInfo.opName
+		i.OpCode = opCode
 		elem.Value = i
 
 		if opCode == 0x40 {

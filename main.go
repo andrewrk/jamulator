@@ -22,7 +22,7 @@ func init() {
 	flag.BoolVar(&disassembleFlag, "dis", false, "Disassemble 6502 machine code")
 	flag.BoolVar(&romFlag, "rom", false, "Assemble a jam package into an NES ROM")
 	flag.BoolVar(&unRomFlag, "unrom", false, "Disassemble an NES ROM into a jam package")
-	flag.BoolVar(&compileFlag, "c", false, "Compile a jam package into a native executable")
+	flag.BoolVar(&compileFlag, "c", false, "Compile into a native executable")
 }
 
 func usageAndQuit() {
@@ -55,7 +55,7 @@ func main() {
 	flag.Parse()
 	if flag.NArg() != 1 && flag.NArg() != 2 { usageAndQuit() }
 	filename := flag.Arg(0)
-	if astFlag || assembleFlag || compileFlag {
+	if astFlag || assembleFlag {
 		fmt.Printf("Parsing %s\n", filename)
 		programAst, err := asm6502.ParseFile(filename)
 		if err != nil { panic(err) }
@@ -94,7 +94,7 @@ func main() {
 		err = rom.DisassembleToDir(outdir)
 		if err != nil { panic(err) }
 		return
-	} else if disassembleFlag || compileFlag {
+	} else if disassembleFlag {
 		fmt.Printf("disassembling %s\n", filename)
 		p, err := asm6502.DisassembleFile(filename)
 		if err != nil { panic(err) }
