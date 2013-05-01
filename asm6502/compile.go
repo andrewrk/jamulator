@@ -200,6 +200,18 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 	c.builder.CreateStore(isZero, c.rSZero)
 }
 
+func (c *Compilation) store(addr int, i8 llvm.Value) {
+	i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
+	switch addr {
+	case 0x2008: // putchar
+		c.builder.CreateCall(c.putCharFn, []llvm.Value{i32}, "")
+	case 0x2009: // exit
+		c.builder.CreateCall(c.exitFn, []llvm.Value{i32}, "")
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
+	}
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
@@ -380,7 +392,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		thenBlock.MoveAfter(*c.currentBlock)
 		c.currentBlock = &thenBlock
 	case 0x10: // bpl
-		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "then")
 		elseBlock := c.labeledBlocks[i.LabelName]
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
@@ -432,9 +444,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x26: // rol zpg
 	//case 0x66: // ror zpg
 	//case 0xe5: // sbc zpg
-	//case 0x85: // sta zpg
-	//case 0x86: // stx zpg
-	//case 0x84: // sty zpg
 
 	//case 0x6d: // adc abs
 	//case 0x2d: // and abs
@@ -455,19 +464,15 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
 	//case 0xed: // sbc abs
+	case 0x85: fallthrough // sta zpg
 	case 0x8d: // sta abs
-		v8 := c.builder.CreateLoad(c.rA, "")
-		v := c.builder.CreateZExt(v8, llvm.Int32Type(), "")
-		switch i.Value {
-		case 0x2008: // putchar
-			c.builder.CreateCall(c.putCharFn, []llvm.Value{v}, "")
-		case 0x2009: // exit
-			c.builder.CreateCall(c.exitFn, []llvm.Value{v}, "")
-		default:
-			c.Errors = append(c.Errors, fmt.Sprintf("only writing memory to 0x2008 or 0x2009 is supported"))
-		}
-	//case 0x8e: // stx abs
-	//case 0x8c: // sty abs
+		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
+	case 0x86: fallthrough // stx zpg
+	case 0x8e: // stx abs
+		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
+	case 0x84: fallthrough // sty zpg
+	case 0x8c: // sty abs
+		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
 	}
