@@ -50,30 +50,6 @@ const (
 	compileMode
 )
 
-func (c *Compilation) dataAddStmt(stmt *DataStatement) {
-	if len(c.currentLabel) == 0 {
-		// trash the data
-		c.Warnings = append(c.Warnings, fmt.Sprintf("trashing data at 0x%04x", stmt.Offset))
-		return
-	}
-	for _, item := range(stmt.dataList) {
-		var err error
-		switch v := item.(type) {
-			case *IntegerDataItem:
-				err = c.currentValue.WriteByte(byte(*v))
-				if err != nil {
-					c.Errors = append(c.Errors, err.Error())
-					return
-				}
-			case *StringDataItem:
-				_, err = c.currentValue.WriteString(string(*v))
-				if err != nil {
-					c.Errors = append(c.Errors, err.Error())
-					return
-				}
-		}
-	}
-}
 
 func (c *Compilation) dataStop() {
 	if len(c.currentLabel) == 0 { return }
@@ -118,8 +94,28 @@ func (c *Compilation) visitForCompile(n Node) {
 
 func (c *Compilation) visitForDataStmts(n Node) {
 	switch t := n.(type) {
+	case DataList:
+	case *IntegerDataItem:
+		// trash the data
+		if len(c.currentLabel) == 0 { return }
+		err := c.currentValue.WriteByte(byte(*t))
+		if err != nil {
+			c.Errors = append(c.Errors, err.Error())
+			return
+		}
+	case *StringDataItem:
+		// trash the data
+		if len(c.currentLabel) == 0 { return }
+		_, err := c.currentValue.WriteString(string(*t))
+		if err != nil {
+			c.Errors = append(c.Errors, err.Error())
+			return
+		}
 	case *DataStatement:
-		c.dataAddStmt(t)
+		if len(c.currentLabel) == 0 {
+			c.Warnings = append(c.Warnings, fmt.Sprintf("trashing data at 0x%04x", t.Offset))
+			return
+		}
 	case *LabeledStatement:
 		c.dataStop()
 		c.dataStart(t)
@@ -579,6 +575,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	pass.AddGVNPass()
 	pass.AddCFGSimplificationPass()
 	pass.AddDeadStoreEliminationPass()
+	pass.AddGlobalDCEPass()
 	pass.Run(c.mod)
 
 	c.mod.Dump()
