@@ -149,6 +149,19 @@ func (c *Compilation) clearNeg() {
 	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSNeg)
 }
 
+func (c *Compilation) dynTestAndSetNeg(v llvm.Value) {
+	x80 := llvm.ConstInt(llvm.Int8Type(), uint64(0x80), false)
+	masked := c.builder.CreateAnd(v, x80, "")
+	isNeg := c.builder.CreateICmp(llvm.IntEQ, masked, x80, "")
+	c.builder.CreateStore(isNeg, c.rSNeg)
+}
+
+func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
+	zeroConst := llvm.ConstInt(llvm.Int8Type(), uint64(0), false)
+	isZero := c.builder.CreateICmp(llvm.IntEQ, v, zeroConst, "")
+	c.builder.CreateStore(isZero, c.rSZero)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
@@ -182,7 +195,46 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "DirectWithLabelIndexedInstruction lacks Compile() implementation")
+	switch i.OpCode {
+	case 0xbd: // lda l, X
+		dataPtr := c.labeledData[i.LabelName]
+		index := c.builder.CreateLoad(c.rX, "")
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			index,
+		}
+		ptr := c.builder.CreateGEP(dataPtr, indexes, "")
+		v := c.builder.CreateLoad(ptr, "")
+		c.builder.CreateStore(v, c.rA)
+		c.dynTestAndSetNeg(v)
+		c.dynTestAndSetZero(v)
+	//case 0x7d: // adc l, X
+	//case 0x3d: // and l, X
+	//case 0x1e: // asl l, X
+	//case 0xdd: // cmp l, X
+	//case 0xde: // dec l, X
+	//case 0x5d: // eor l, X
+	//case 0xfe: // inc l, X
+	//case 0xbc: // ldy l, X
+	//case 0x5e: // lsr l, X
+	//case 0x1d: // ora l, X
+	//case 0x3e: // rol l, X
+	//case 0x7e: // ror l, X
+	//case 0xfd: // sbc l, X
+	//case 0x9d: // sta l, X
+
+	//case 0x79: // adc l, Y
+	//case 0x39: // and l, Y
+	//case 0xd9: // cmp l, Y
+	//case 0x59: // eor l, Y
+	//case 0xb9: // lda l, Y
+	//case 0xbe: // ldx l, Y
+	//case 0x19: // ora l, Y
+	//case 0xf9: // sbc l, Y
+	//case 0x99: // sta l, Y
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s label, %s lacks Compile() implementation", i.OpName, i.RegisterName))
+	}
 }
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {
