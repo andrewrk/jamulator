@@ -363,9 +363,30 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		c.currentBlock = &elseBlock
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
-	//case 0x30: // bmi
-	//case 0xd0: // bne
-	//case 0x10: // bpl
+	case 0x30: // bmi
+		thenBlock := c.labeledBlocks[i.LabelName]
+		elseBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		isNeg := c.builder.CreateLoad(c.rSNeg, "")
+		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
+		c.builder.SetInsertPointAtEnd(elseBlock)
+		elseBlock.MoveAfter(*c.currentBlock)
+		c.currentBlock = &elseBlock
+	case 0xd0: // bne
+		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "then")
+		elseBlock := c.labeledBlocks[i.LabelName]
+		isZero := c.builder.CreateLoad(c.rSZero, "")
+		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
+		c.builder.SetInsertPointAtEnd(thenBlock)
+		thenBlock.MoveAfter(*c.currentBlock)
+		c.currentBlock = &thenBlock
+	case 0x10: // bpl
+		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		elseBlock := c.labeledBlocks[i.LabelName]
+		isNeg := c.builder.CreateLoad(c.rSNeg, "")
+		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
+		c.builder.SetInsertPointAtEnd(thenBlock)
+		thenBlock.MoveAfter(*c.currentBlock)
+		c.currentBlock = &thenBlock
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
@@ -382,6 +403,8 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
 			c.dynTestAndSetZero(v)
 			c.dynTestAndSetNeg(v)
+		default:
+			c.Errors = append(c.Errors, "only LDA $2002 is supported")
 		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
