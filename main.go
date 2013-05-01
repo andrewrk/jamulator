@@ -16,6 +16,7 @@ var disassembleFlag bool
 var unRomFlag bool
 var compileFlag bool
 var romFlag bool
+var disableOptFlag, dumpFlag, dumpPreFlag bool
 func init() {
 	flag.BoolVar(&astFlag, "ast", false, "Print the abstract syntax tree and quit")
 	flag.BoolVar(&assembleFlag, "asm", false, "Assemble into 6502 machine code")
@@ -23,6 +24,9 @@ func init() {
 	flag.BoolVar(&romFlag, "rom", false, "Assemble a jam package into an NES ROM")
 	flag.BoolVar(&unRomFlag, "unrom", false, "Disassemble an NES ROM into a jam package")
 	flag.BoolVar(&compileFlag, "c", false, "Compile into a native executable")
+	flag.BoolVar(&disableOptFlag, "O0", false, "Disable optimizations")
+	flag.BoolVar(&dumpFlag, "d", false, "Dump LLVM IR code for generated code")
+	flag.BoolVar(&dumpPreFlag, "dd", false, "Dump LLVM IR code for generated code before verifying module")
 }
 
 func usageAndQuit() {
@@ -41,7 +45,11 @@ func compile(filename string, program *asm6502.Program) {
 		outfile = flag.Arg(1)
 	}
 	fmt.Printf("Compiling to %s\n", outfile)
-	c := program.Compile(outfile)
+	var flags asm6502.CompileFlags
+	if disableOptFlag { flags |= asm6502.DisableOptFlag }
+	if dumpFlag { flags |= asm6502.DumpModuleFlag }
+	if dumpPreFlag { flags |= asm6502.DumpModulePreFlag }
+	c := program.Compile(outfile, flags)
 	if len(c.Errors) != 0 {
 		fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
 		return

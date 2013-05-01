@@ -14,14 +14,19 @@ type Compilation struct {
 	program *Program
 	mod llvm.Module
 	builder llvm.Builder
-	mainFn llvm.Value
-	putCharFn llvm.Value
-	exitFn llvm.Value
 	rX llvm.Value
 	rY llvm.Value
 	rA llvm.Value
-	rSNeg llvm.Value
-	rSZero llvm.Value
+	rSNeg llvm.Value // whether the last arithmetic result is negative
+	rSZero llvm.Value // whether the last arithmetic result is zero
+	rSDec llvm.Value // decimal
+	rSInt llvm.Value // interrupt disable
+
+	// ABI
+	mainFn llvm.Value
+	putCharFn llvm.Value
+	exitFn llvm.Value
+	ppuStatusFn llvm.Value
 
 	labeledData map[string] llvm.Value
 	labeledBlocks map[string] llvm.BasicBlock
@@ -48,6 +53,14 @@ const (
 	dataStmtMode = iota
 	basicBlocksMode
 	compileMode
+)
+
+
+type CompileFlags int
+const (
+	DisableOptFlag CompileFlags = 1 << iota
+	DumpModuleFlag
+	DumpModulePreFlag
 )
 
 
@@ -142,6 +155,22 @@ func (c *Compilation) clearZero() {
 	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSZero)
 }
 
+func (c *Compilation) setDec() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 1, false), c.rSDec)
+}
+
+func (c *Compilation) clearDec() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSDec)
+}
+
+func (c *Compilation) setInt() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 1, false), c.rSInt)
+}
+
+func (c *Compilation) clearInt() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSInt)
+}
+
 func (c *Compilation) testAndSetNeg(v int) {
 	if v & 0x80 == 0x80 {
 		c.setNeg()
@@ -204,8 +233,10 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x0a: // asl
 	//case 0x00: // brk
 	//case 0x18: // clc
-	//case 0xd8: // cld
-	//case 0x58: // cli
+	case 0xd8: // cld
+		c.clearDec()
+	case 0x58: // cli
+		c.clearInt()
 	//case 0xb8: // clv
 	//case 0xca: // dex
 	//case 0x88: // dey
@@ -231,8 +262,10 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.builder.CreateUnreachable()
 	//case 0x60: // rts
 	//case 0x38: // sec
-	//case 0xf8: // sed
-	//case 0x78: // sei
+	case 0xf8: // sed
+		c.setDec()
+	case 0x78: // sei
+		c.setInt()
 	//case 0xaa: // tax
 	//case 0xa8: // tay
 	//case 0xba: // tsx
@@ -342,6 +375,14 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 
 func (i *DirectInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
+	case 0xa5: fallthrough // lda zpg
+	case 0xad: // lda abs
+		switch i.Value {
+		case 0x2002:
+			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
+			c.dynTestAndSetZero(v)
+			c.dynTestAndSetNeg(v)
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -361,7 +402,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xc6: // dec zpg
 	//case 0x45: // eor zpg
 	//case 0xe6: // inc zpg
-	//case 0xa5: // lda zpg
 	//case 0xa6: // ldx zpg
 	//case 0xa4: // ldy zpg
 	//case 0x46: // lsr zpg
@@ -385,7 +425,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xee: // inc abs
 	//case 0x4c: // jmp abs
 	//case 0x20: // jsr abs
-	//case 0xad: // lda abs
 	//case 0xae: // ldx abs
 	//case 0xac: // ldy abs
 	//case 0x4e: // lsr abs
@@ -480,7 +519,7 @@ func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	*s = call.LabelName
 }
 
-func (p *Program) Compile(filename string) (c *Compilation) {
+func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) {
 	llvm.InitializeNativeTarget()
 
 	c = new(Compilation)
@@ -508,6 +547,10 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.exitFn.AddFunctionAttr(llvm.NoReturnAttribute|llvm.NoUnwindAttribute)
 	c.exitFn.SetLinkage(llvm.ExternalLinkage)
 
+	// declare i8 @ppustatus()
+	c.ppuStatusFn = llvm.AddFunction(c.mod, "ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
+	c.ppuStatusFn.SetLinkage(llvm.ExternalLinkage)
+
 	// main function / entry point
 	mainType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{}, false)
 	c.mainFn = llvm.AddFunction(c.mod, "main", mainType)
@@ -519,6 +562,8 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.rA = c.builder.CreateAlloca(llvm.Int8Type(), "A")
 	c.rSNeg = c.builder.CreateAlloca(llvm.Int1Type(), "S_neg")
 	c.rSZero = c.builder.CreateAlloca(llvm.Int1Type(), "S_zero")
+	c.rSDec = c.builder.CreateAlloca(llvm.Int1Type(), "S_dec")
+	c.rSInt = c.builder.CreateAlloca(llvm.Int1Type(), "S_int")
 
 	// set up entry points
 	c.setUpEntryPoint(p, 0xfffa, &c.nmiLabelName)
@@ -551,7 +596,9 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.builder.SetInsertPointAtEnd(entry)
 	c.builder.CreateBr(*c.resetBlock)
 
-	//c.mod.Dump()
+	if flags & DumpModulePreFlag != 0 {
+		c.mod.Dump()
+	}
 	err := llvm.VerifyModule(c.mod, llvm.ReturnStatusAction)
 	if err != nil {
 		c.Errors = append(c.Errors, err.Error())
@@ -565,20 +612,24 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	}
 	defer engine.Dispose()
 
-	pass := llvm.NewPassManager()
-	defer pass.Dispose()
+	if flags & DisableOptFlag == 0 {
+		pass := llvm.NewPassManager()
+		defer pass.Dispose()
 
-	pass.Add(engine.TargetData())
-	pass.AddConstantPropagationPass()
-	pass.AddInstructionCombiningPass()
-	pass.AddPromoteMemoryToRegisterPass()
-	pass.AddGVNPass()
-	pass.AddCFGSimplificationPass()
-	pass.AddDeadStoreEliminationPass()
-	pass.AddGlobalDCEPass()
-	pass.Run(c.mod)
+		pass.Add(engine.TargetData())
+		pass.AddConstantPropagationPass()
+		pass.AddInstructionCombiningPass()
+		pass.AddPromoteMemoryToRegisterPass()
+		pass.AddGVNPass()
+		pass.AddCFGSimplificationPass()
+		pass.AddDeadStoreEliminationPass()
+		pass.AddGlobalDCEPass()
+		pass.Run(c.mod)
+	}
 
-	c.mod.Dump()
+	if flags & DumpModuleFlag != 0 {
+		c.mod.Dump()
+	}
 
 	fd, err := os.Create(filename)
 	if err != nil {
