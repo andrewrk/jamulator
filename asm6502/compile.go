@@ -205,8 +205,6 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
 	switch i.OpCode {
-	case 0x40: // rti
-		c.Warnings = append(c.Warnings, "ignoring RTI instruction")
 	//case 0x0a: // asl
 	//case 0x00: // brk
 	//case 0x18: // clc
@@ -215,16 +213,24 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0xb8: // clv
 	//case 0xca: // dex
 	//case 0x88: // dey
-	//case 0xe8: // inx
+	case 0xe8: // inx
+		oldX := c.builder.CreateLoad(c.rX, "")
+		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(1), false)
+		newX := c.builder.CreateAdd(oldX, c1, "")
+		c.builder.CreateStore(newX, c.rX)
+		c.dynTestAndSetNeg(newX)
+		c.dynTestAndSetZero(newX)
 	//case 0xc8: // iny
 	//case 0x4a: // lsr
-	//case 0xea: // nop
+	case 0xea: // nop
+		// do nothing
 	//case 0x48: // pha
 	//case 0x08: // php
 	//case 0x68: // pla
 	//case 0x28: // plp
 	//case 0x2a: // rol
 	//case 0x6a: // ror
+	//case 0x40: // rti
 	//case 0x60: // rts
 	//case 0x38: // sec
 	//case 0xf8: // sed
@@ -299,7 +305,10 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0xce: // dec
 	//case 0x4d: // eor
 	//case 0xee: // inc
-	//case 0x4c: // jmp
+	case 0x4c: // jmp
+		destBlock := c.labeledBlocks[i.LabelName]
+		c.builder.CreateBr(destBlock)
+		c.currentBlock = nil
 	//case 0x20: // jsr
 	//case 0xad: // lda
 	//case 0xae: // ldx
@@ -494,7 +503,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 
 	// declare i32 @putchar(i32)
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
-	c.putCharFn = llvm.AddFunction(c.mod, "putChar", putCharType)
+	c.putCharFn = llvm.AddFunction(c.mod, "putchar", putCharType)
 	c.putCharFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @exit(i32) noreturn nounwind
@@ -562,12 +571,12 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	pass := llvm.NewPassManager()
 	defer pass.Dispose()
 
-	//pass.Add(engine.TargetData())
-	//pass.AddConstantPropagationPass()
-	//pass.AddInstructionCombiningPass()
-	//pass.AddPromoteMemoryToRegisterPass()
-	//pass.AddGVNPass()
-	//pass.AddCFGSimplificationPass()
+	pass.Add(engine.TargetData())
+	pass.AddConstantPropagationPass()
+	pass.AddInstructionCombiningPass()
+	pass.AddPromoteMemoryToRegisterPass()
+	pass.AddGVNPass()
+	pass.AddCFGSimplificationPass()
 	pass.Run(c.mod)
 
 	c.mod.Dump()
