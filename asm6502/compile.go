@@ -230,7 +230,9 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x28: // plp
 	//case 0x2a: // rol
 	//case 0x6a: // ror
-	//case 0x40: // rti
+	case 0x40: // rti
+		c.Warnings = append(c.Warnings, "interrupts not supported - ignoring RTI instruction")
+		c.builder.CreateUnreachable()
 	//case 0x60: // rts
 	//case 0x38: // sec
 	//case 0xf8: // sed
@@ -439,10 +441,8 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 
 	switch s.LabelName {
 	case c.nmiLabelName:
-		c.builder.CreateUnreachable()
 		c.currentBlock = nil
 	case c.irqLabelName:
-		c.builder.CreateUnreachable()
 		c.currentBlock = nil
 	}
 }
@@ -555,6 +555,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	c.builder.SetInsertPointAtEnd(entry)
 	c.builder.CreateBr(*c.resetBlock)
 
+	//c.mod.Dump()
 	err := llvm.VerifyModule(c.mod, llvm.ReturnStatusAction)
 	if err != nil {
 		c.Errors = append(c.Errors, err.Error())
@@ -577,6 +578,7 @@ func (p *Program) Compile(filename string) (c *Compilation) {
 	pass.AddPromoteMemoryToRegisterPass()
 	pass.AddGVNPass()
 	pass.AddCFGSimplificationPass()
+	pass.AddDeadStoreEliminationPass()
 	pass.Run(c.mod)
 
 	c.mod.Dump()
