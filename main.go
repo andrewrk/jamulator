@@ -79,6 +79,7 @@ func main() {
 		}
 		if compileFlag {
 			compile(filename, program)
+			return
 		}
 		if assembleFlag {
 			outfile := removeExtension(filename) + ".bin"
@@ -108,6 +109,7 @@ func main() {
 		if err != nil { panic(err) }
 		if compileFlag {
 			compile(filename, p)
+			return
 		}
 		if disassembleFlag {
 			outfile := removeExtension(filename) + ".asm"
