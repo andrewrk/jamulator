@@ -23,9 +23,11 @@ type Compilation struct {
 	rSZero llvm.Value // whether the last arithmetic result is zero
 	rSDec llvm.Value // decimal
 	rSInt llvm.Value // interrupt disable
+	runtimePanicMsg llvm.Value // we print this when a runtime error occurs
 
 	// ABI
 	mainFn llvm.Value
+	putsFn llvm.Value
 	putCharFn llvm.Value
 	exitFn llvm.Value
 	ppuStatusFn llvm.Value
@@ -35,7 +37,7 @@ type Compilation struct {
 	setPpuDataFn llvm.Value
 	oamAddrFn llvm.Value
 	setOamDataFn llvm.Value
-	setPpuScroll llvm.Value
+	setPpuScrollFn llvm.Value
 
 	labeledData map[string] llvm.Value
 	labeledBlocks map[string] llvm.BasicBlock
@@ -197,14 +199,14 @@ func (c *Compilation) clearNeg() {
 }
 
 func (c *Compilation) dynTestAndSetNeg(v llvm.Value) {
-	x80 := llvm.ConstInt(llvm.Int8Type(), uint64(0x80), false)
+	x80 := llvm.ConstInt(llvm.Int8Type(), 0x80, false)
 	masked := c.builder.CreateAnd(v, x80, "")
 	isNeg := c.builder.CreateICmp(llvm.IntEQ, masked, x80, "")
 	c.builder.CreateStore(isNeg, c.rSNeg)
 }
 
 func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
-	zeroConst := llvm.ConstInt(llvm.Int8Type(), uint64(0), false)
+	zeroConst := llvm.ConstInt(llvm.Int8Type(), 0, false)
 	isZero := c.builder.CreateICmp(llvm.IntEQ, v, zeroConst, "")
 	c.builder.CreateStore(isZero, c.rSZero)
 }
@@ -244,8 +246,8 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 			c.builder.CreateCall(c.oamAddrFn, []llvm.Value{i8}, "")
 		case 4: // oamdata
 			c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
-		case 5: // oamdata
-			c.builder.CreateCall(c.setPpuScroll, []llvm.Value{i8}, "")
+		case 5: // ppuscroll
+			c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{i8}, "")
 		case 6: // ppuaddr
 			c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{i8}, "")
 		case 7: // ppudata
@@ -304,6 +306,35 @@ func (c *Compilation) transfer(source llvm.Value, dest llvm.Value) {
 	c.builder.CreateStore(v, dest)
 	c.dynTestAndSetNeg(v)
 	c.dynTestAndSetZero(v)
+}
+
+func (c *Compilation) createBlock(name string) llvm.BasicBlock {
+	bb := llvm.InsertBasicBlock(*c.currentBlock, name)
+	bb.MoveAfter(*c.currentBlock)
+	return bb
+}
+
+func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
+	c.builder.SetInsertPointAtEnd(bb)
+	c.currentBlock = &bb
+}
+
+func (c *Compilation) createPanic() {
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	ptr := c.builder.CreatePointerCast(c.runtimePanicMsg, bytePointerType, "")
+	c.builder.CreateCall(c.putsFn, []llvm.Value{ptr}, "")
+	exitCode := llvm.ConstInt(llvm.Int32Type(), 1, false)
+	c.builder.CreateCall(c.exitFn, []llvm.Value{exitCode}, "")
+	c.builder.CreateUnreachable()
+}
+
+// returns the else block, sets the current block to the if block
+func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
+	elseBlock := c.createBlock("else")
+	thenBlock := c.createBlock("then")
+	c.builder.CreateCondBr(cond, thenBlock, elseBlock)
+	c.selectBlock(thenBlock)
+	return elseBlock
 }
 
 func (i *ImmediateInstruction) Compile(c *Compilation) {
@@ -465,38 +496,30 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 
 	case 0xf0: // beq
 		thenBlock := c.labeledBlocks[i.LabelName]
-		elseBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		elseBlock := c.createBlock("else")
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
-		c.builder.SetInsertPointAtEnd(elseBlock)
-		elseBlock.MoveAfter(*c.currentBlock)
-		c.currentBlock = &elseBlock
+		c.selectBlock(elseBlock)
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
 	case 0x30: // bmi
 		thenBlock := c.labeledBlocks[i.LabelName]
-		elseBlock := llvm.InsertBasicBlock(*c.currentBlock, "else")
+		elseBlock := c.createBlock("else")
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
-		c.builder.SetInsertPointAtEnd(elseBlock)
-		elseBlock.MoveAfter(*c.currentBlock)
-		c.currentBlock = &elseBlock
+		c.selectBlock(elseBlock)
 	case 0xd0: // bne
-		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "then")
+		thenBlock := c.createBlock("then")
 		elseBlock := c.labeledBlocks[i.LabelName]
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
-		c.builder.SetInsertPointAtEnd(thenBlock)
-		thenBlock.MoveAfter(*c.currentBlock)
-		c.currentBlock = &thenBlock
+		c.selectBlock(thenBlock)
 	case 0x10: // bpl
-		thenBlock := llvm.InsertBasicBlock(*c.currentBlock, "then")
+		thenBlock := c.createBlock("then")
 		elseBlock := c.labeledBlocks[i.LabelName]
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
-		c.builder.SetInsertPointAtEnd(thenBlock)
-		thenBlock.MoveAfter(*c.currentBlock)
-		c.currentBlock = &thenBlock
+		c.selectBlock(thenBlock)
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
@@ -593,19 +616,90 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 		ptrByte2 := c.load(i.Value + 1)
 		ptrByte1w := c.builder.CreateZExt(ptrByte1, llvm.Int16Type(), "")
 		ptrByte2w := c.builder.CreateZExt(ptrByte2, llvm.Int16Type(), "")
-		shiftAmt := llvm.ConstInt(llvm.Int16Type(), uint64(8), false)
+		shiftAmt := llvm.ConstInt(llvm.Int16Type(), 8, false)
 		word := c.builder.CreateShl(ptrByte2w, shiftAmt, "")
 		word = c.builder.CreateOr(word, ptrByte1w, "")
 		rY := c.builder.CreateLoad(c.rY, "")
 		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
 		word = c.builder.CreateAdd(word, rYw, "")
+		rA := c.builder.CreateLoad(c.rA, "")
+
+		// runtime memory check
+		staDoneBlock := c.createBlock("STA_done")
+		x2000 := llvm.ConstInt(llvm.Int16Type(), 0x2000, false)
+		inWRam := c.builder.CreateICmp(llvm.IntULT, word, x2000, "")
+		notInWRamBlock := c.createIf(inWRam)
+		// this generated code runs if the write is happening in the WRAM range
+		maskedAddr := c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x800 - 1, false), "")
 		indexes := []llvm.Value{
 			llvm.ConstInt(llvm.Int16Type(), 0, false),
-			word,
+			maskedAddr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
-		rA := c.builder.CreateLoad(c.rA, "")
 		c.builder.CreateStore(rA, ptr)
+		c.builder.CreateBr(staDoneBlock)
+		// this generated code runs if the write is > WRAM range
+		c.selectBlock(notInWRamBlock)
+		x4000 := llvm.ConstInt(llvm.Int16Type(), 0x4000, false)
+		inPpuRam := c.builder.CreateICmp(llvm.IntULT, word, x4000, "")
+		notInPpuRamBlock := c.createIf(inPpuRam)
+		// this generated code runs if the write is in the PPU RAM range
+		maskedAddr = c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x8 - 1, false), "")
+		badPpuAddrBlock := c.createBlock("BadPPUAddr")
+		sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 7)
+		// this generated code runs if the write is in a bad PPU RAM addr
+		c.selectBlock(badPpuAddrBlock)
+		c.createPanic()
+
+		ppuCtrlBlock := c.createBlock("ppuctrl")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0, false), ppuCtrlBlock)
+		c.selectBlock(ppuCtrlBlock)
+		c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		ppuMaskBlock := c.createBlock("ppumask")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 1, false), ppuMaskBlock)
+		c.selectBlock(ppuMaskBlock)
+		c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		oamAddrBlock := c.createBlock("oamaddr")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 3, false), oamAddrBlock)
+		c.selectBlock(oamAddrBlock)
+		c.builder.CreateCall(c.oamAddrFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		oamDataBlock := c.createBlock("oamdata")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), oamDataBlock)
+		c.selectBlock(oamDataBlock)
+		c.builder.CreateCall(c.setOamDataFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		ppuScrollBlock := c.createBlock("ppuscroll")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 5, false), ppuScrollBlock)
+		c.selectBlock(ppuScrollBlock)
+		c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		ppuAddrBlock := c.createBlock("ppuaddr")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 6, false), ppuAddrBlock)
+		c.selectBlock(ppuAddrBlock)
+		c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		ppuDataBlock := c.createBlock("ppudata")
+		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuDataBlock)
+		c.selectBlock(ppuDataBlock)
+		c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{rA}, "")
+		c.builder.CreateBr(staDoneBlock)
+
+		// this generated code runs if the write is > PPU RAM range
+		c.selectBlock(notInPpuRamBlock)
+		c.createPanic()
+
+		// done. X_X
+		c.selectBlock(staDoneBlock)
+
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
 	}
@@ -691,6 +785,12 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.wram.SetLinkage(llvm.PrivateLinkage)
 	c.wram.SetInitializer(llvm.ConstNull(memType))
 
+	// runtime panic msg
+	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)
+	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")
+	c.runtimePanicMsg.SetLinkage(llvm.PrivateLinkage)
+	c.runtimePanicMsg.SetInitializer(text)
+
 	// first pass to generate data declarations
 	c.mode = dataStmtMode
 	p.Ast.Ast(c)
@@ -699,6 +799,13 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
 	c.putCharFn = llvm.AddFunction(c.mod, "putchar", putCharType)
 	c.putCharFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare i32 @puts(i8*)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	putsType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{bytePointerType}, false)
+	c.putsFn = llvm.AddFunction(c.mod, "puts", putsType)
+	c.putsFn.SetFunctionCallConv(llvm.CCallConv)
+	c.putsFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @exit(i32) noreturn nounwind
 	exitType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
@@ -735,8 +842,8 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.setOamDataFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @setppuscroll(i8)
-	c.setPpuScroll = llvm.AddFunction(c.mod, "setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.setPpuScroll.SetLinkage(llvm.ExternalLinkage)
+	c.setPpuScrollFn = llvm.AddFunction(c.mod, "setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setPpuScrollFn.SetLinkage(llvm.ExternalLinkage)
 
 	// main function / entry point
 	mainType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{}, false)
