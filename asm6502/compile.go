@@ -814,40 +814,40 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.exitFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare i8 @ppustatus()
-	c.ppuStatusFn = llvm.AddFunction(c.mod, "ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
+	c.ppuStatusFn = llvm.AddFunction(c.mod, "rom_ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
 	c.ppuStatusFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @ppuctrl(i8)
-	c.ppuCtrlFn = llvm.AddFunction(c.mod, "ppuctrl", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.ppuCtrlFn = llvm.AddFunction(c.mod, "rom_ppuctrl", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuCtrlFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @ppumask(i8)
-	c.ppuMaskFn = llvm.AddFunction(c.mod, "ppumask", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.ppuMaskFn = llvm.AddFunction(c.mod, "rom_ppumask", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuMaskFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @ppumask(i8)
-	c.ppuAddrFn = llvm.AddFunction(c.mod, "ppuaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	// declare void @ppuaddr(i8)
+	c.ppuAddrFn = llvm.AddFunction(c.mod, "rom_ppuaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuAddrFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @setppudata(i8)
-	c.setPpuDataFn = llvm.AddFunction(c.mod, "setppudata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setPpuDataFn = llvm.AddFunction(c.mod, "rom_setppudata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setPpuDataFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @ppumask(i8)
-	c.oamAddrFn = llvm.AddFunction(c.mod, "oamaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	// declare void @oamaddr(i8)
+	c.oamAddrFn = llvm.AddFunction(c.mod, "rom_oamaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.oamAddrFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @setoamdata(i8)
-	c.setOamDataFn = llvm.AddFunction(c.mod, "setoamdata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setOamDataFn = llvm.AddFunction(c.mod, "rom_setoamdata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setOamDataFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @setppuscroll(i8)
-	c.setPpuScrollFn = llvm.AddFunction(c.mod, "setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setPpuScrollFn = llvm.AddFunction(c.mod, "rom_setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setPpuScrollFn.SetLinkage(llvm.ExternalLinkage)
 
 	// main function / entry point
-	mainType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{}, false)
-	c.mainFn = llvm.AddFunction(c.mod, "main", mainType)
+	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{}, false)
+	c.mainFn = llvm.AddFunction(c.mod, "rom_start", mainType)
 	c.mainFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(c.mainFn, "Entry")
 	c.builder.SetInsertPointAtEnd(entry)
