@@ -28,6 +28,13 @@ type Compilation struct {
 	putCharFn llvm.Value
 	exitFn llvm.Value
 	ppuStatusFn llvm.Value
+	ppuCtrlFn llvm.Value
+	ppuMaskFn llvm.Value
+	ppuAddrFn llvm.Value
+	setPpuDataFn llvm.Value
+	oamAddrFn llvm.Value
+	setOamDataFn llvm.Value
+	setPpuScroll llvm.Value
 
 	labeledData map[string] llvm.Value
 	labeledBlocks map[string] llvm.BasicBlock
@@ -202,12 +209,27 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 }
 
 func (c *Compilation) store(addr int, i8 llvm.Value) {
-	i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
 	switch addr {
 	case 0x2008: // putchar
+		i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
 		c.builder.CreateCall(c.putCharFn, []llvm.Value{i32}, "")
 	case 0x2009: // exit
+		i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
 		c.builder.CreateCall(c.exitFn, []llvm.Value{i32}, "")
+	case 0x2000: // ppuctrl
+		c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{i8}, "")
+	case 0x2001: // ppumask
+		c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{i8}, "")
+	case 0x2003: // oamaddr
+		c.builder.CreateCall(c.oamAddrFn, []llvm.Value{i8}, "")
+	case 0x2004: // oamdata
+		c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
+	case 0x2005: // oamdata
+		c.builder.CreateCall(c.setPpuScroll, []llvm.Value{i8}, "")
+	case 0x2006: // ppuaddr
+		c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{i8}, "")
+	case 0x2007: // ppudata
+		c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{i8}, "")
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
 	}
@@ -610,6 +632,34 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	// declare i8 @ppustatus()
 	c.ppuStatusFn = llvm.AddFunction(c.mod, "ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
 	c.ppuStatusFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @ppuctrl(i8)
+	c.ppuCtrlFn = llvm.AddFunction(c.mod, "ppuctrl", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.ppuCtrlFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @ppumask(i8)
+	c.ppuMaskFn = llvm.AddFunction(c.mod, "ppumask", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.ppuMaskFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @ppumask(i8)
+	c.ppuAddrFn = llvm.AddFunction(c.mod, "ppuaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.ppuAddrFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @setppudata(i8)
+	c.setPpuDataFn = llvm.AddFunction(c.mod, "setppudata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setPpuDataFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @ppumask(i8)
+	c.oamAddrFn = llvm.AddFunction(c.mod, "oamaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.oamAddrFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @setoamdata(i8)
+	c.setOamDataFn = llvm.AddFunction(c.mod, "setoamdata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setOamDataFn.SetLinkage(llvm.ExternalLinkage)
+
+	// declare void @setppuscroll(i8)
+	c.setPpuScroll = llvm.AddFunction(c.mod, "setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.setPpuScroll.SetLinkage(llvm.ExternalLinkage)
 
 	// main function / entry point
 	mainType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{}, false)
