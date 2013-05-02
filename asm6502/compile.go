@@ -14,6 +14,7 @@ type Compilation struct {
 	program *Program
 	mod llvm.Module
 	builder llvm.Builder
+	wram llvm.Value // 2KB WRAM
 	rX llvm.Value // X index register
 	rY llvm.Value // Y index register
 	rA llvm.Value // accumulator
@@ -209,30 +210,51 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 }
 
 func (c *Compilation) store(addr int, i8 llvm.Value) {
+	// homebrew ABI
 	switch addr {
 	case 0x2008: // putchar
 		i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
 		c.builder.CreateCall(c.putCharFn, []llvm.Value{i32}, "")
+		return
 	case 0x2009: // exit
 		i32 := c.builder.CreateZExt(i8, llvm.Int32Type(), "")
 		c.builder.CreateCall(c.exitFn, []llvm.Value{i32}, "")
-	case 0x2000: // ppuctrl
-		c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{i8}, "")
-	case 0x2001: // ppumask
-		c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{i8}, "")
-	case 0x2003: // oamaddr
-		c.builder.CreateCall(c.oamAddrFn, []llvm.Value{i8}, "")
-	case 0x2004: // oamdata
-		c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
-	case 0x2005: // oamdata
-		c.builder.CreateCall(c.setPpuScroll, []llvm.Value{i8}, "")
-	case 0x2006: // ppuaddr
-		c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{i8}, "")
-	case 0x2007: // ppudata
-		c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{i8}, "")
+		return
+	}
+	switch {
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
+	case 0x0000 <= addr && addr < 0x2000:
+		// 2KB working RAM. mask because mirrored
+		maskedAddr := addr & (0x800 - 1)
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		c.builder.CreateStore(i8, ptr)
+	case 0x2000 <= addr && addr < 0x4000:
+		// PPU registers. mask because mirrored
+		switch addr & (0x8 - 1) {
+		case 0: // ppuctrl
+			c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{i8}, "")
+		case 1: // ppumask
+			c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{i8}, "")
+		case 3: // oamaddr
+			c.builder.CreateCall(c.oamAddrFn, []llvm.Value{i8}, "")
+		case 4: // oamdata
+			c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
+		case 5: // oamdata
+			c.builder.CreateCall(c.setPpuScroll, []llvm.Value{i8}, "")
+		case 6: // ppuaddr
+			c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{i8}, "")
+		case 7: // ppudata
+			c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{i8}, "")
+		default:
+			panic("unreachable")
+		}
 	}
+
 }
 
 func (c *Compilation) increment(reg llvm.Value, delta int) {
@@ -451,8 +473,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 
 func (i *DirectInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
-	case 0xa5: fallthrough // lda zpg
-	case 0xad: // lda abs
+	case 0xa5, 0xad: // lda (zpg / abs)
 		switch i.Value {
 		case 0x2002:
 			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
@@ -507,14 +528,11 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
 	//case 0xed: // sbc abs
-	case 0x85: fallthrough // sta zpg
-	case 0x8d: // sta abs
+	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
-	case 0x86: fallthrough // stx zpg
-	case 0x8e: // stx abs
+	case 0x86, 0x8e: // stx (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
-	case 0x84: fallthrough // sty zpg
-	case 0x8c: // sty abs
+	case 0x84, 0x8c: // sty (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
@@ -613,6 +631,12 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	defer c.builder.Dispose()
 	c.labeledData = map[string] llvm.Value{}
 	c.labeledBlocks = map[string] llvm.BasicBlock{}
+
+	// 2KB memory
+	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
+	c.wram = llvm.AddGlobal(c.mod, memType, "wram")
+	c.wram.SetLinkage(llvm.PrivateLinkage)
+	c.wram.SetInitializer(llvm.ConstNull(memType))
 
 	// first pass to generate data declarations
 	c.mode = dataStmtMode
