@@ -14,9 +14,10 @@ type Compilation struct {
 	program *Program
 	mod llvm.Module
 	builder llvm.Builder
-	rX llvm.Value
-	rY llvm.Value
-	rA llvm.Value
+	rX llvm.Value // X index register
+	rY llvm.Value // Y index register
+	rA llvm.Value // accumulator
+	rSP llvm.Value // stack pointer
 	rSNeg llvm.Value // whether the last arithmetic result is negative
 	rSZero llvm.Value // whether the last arithmetic result is zero
 	rSDec llvm.Value // decimal
@@ -221,6 +222,13 @@ func (c *Compilation) increment(reg llvm.Value, delta int) {
 	c.dynTestAndSetZero(newValue)
 }
 
+func (c *Compilation) transfer(source llvm.Value, dest llvm.Value) {
+	v := c.builder.CreateLoad(source, "")
+	c.builder.CreateStore(v, dest)
+	c.dynTestAndSetNeg(v)
+	c.dynTestAndSetZero(v)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
@@ -285,12 +293,18 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.setDec()
 	case 0x78: // sei
 		c.setInt()
-	//case 0xaa: // tax
-	//case 0xa8: // tay
-	//case 0xba: // tsx
-	//case 0x8a: // txa
-	//case 0x9a: // txs
-	//case 0x98: // tya
+	case 0xaa: // tax
+		c.transfer(c.rA, c.rX)
+	case 0xa8: // tay
+		c.transfer(c.rA, c.rY)
+	case 0xba: // tsx
+		c.transfer(c.rSP, c.rX)
+	case 0x8a: // txa
+		c.transfer(c.rX, c.rA)
+	case 0x9a: // txs
+		c.transfer(c.rX, c.rSP)
+	case 0x98: // tya
+		c.transfer(c.rY, c.rA)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
 	}
@@ -595,6 +609,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.rX = c.builder.CreateAlloca(llvm.Int8Type(), "X")
 	c.rY = c.builder.CreateAlloca(llvm.Int8Type(), "Y")
 	c.rA = c.builder.CreateAlloca(llvm.Int8Type(), "A")
+	c.rSP = c.builder.CreateAlloca(llvm.Int8Type(), "SP")
 	c.rSNeg = c.builder.CreateAlloca(llvm.Int1Type(), "S_neg")
 	c.rSZero = c.builder.CreateAlloca(llvm.Int1Type(), "S_zero")
 	c.rSDec = c.builder.CreateAlloca(llvm.Int1Type(), "S_dec")
