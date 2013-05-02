@@ -17,7 +17,7 @@ const (
 )
 
 type opCodeData struct {
-	opName string
+	opName   string
 	addrMode int
 }
 

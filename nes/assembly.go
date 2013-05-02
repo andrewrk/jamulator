@@ -2,16 +2,16 @@ package nes
 
 import (
 	"../asm6502"
+	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"bufio"
-	"fmt"
-	"bytes"
 	"os"
 	"path"
-	"strings"
 	"strconv"
-	"errors"
+	"strings"
 )
 
 func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
@@ -33,23 +33,31 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 
 	// save the prg rom
 	jam.WriteString("# assembly code\n")
-	for i, bank := range(r.PrgRom) {
+	for i, bank := range r.PrgRom {
 		buf := bytes.NewBuffer(bank)
 		program, err := asm6502.Disassemble(buf)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		outpath := fmt.Sprintf("prg%d.asm", i)
 		err = program.WriteSourceFile(path.Join(dest, outpath))
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		_, err = jam.WriteString(fmt.Sprintf("prg=%s\n", outpath))
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 	}
 	// save the chr banks
 	jam.WriteString("# video data\n")
-	for i, bank := range(r.ChrRom) {
+	for i, bank := range r.ChrRom {
 		buf := bytes.NewBuffer(bank)
 		outpath := fmt.Sprintf("chr%d.chr", i)
 		chrFd, err := os.Create(path.Join(dest, outpath))
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		chr := bufio.NewWriter(chrFd)
 		_, err = io.Copy(chr, buf)
 		if err != nil {
@@ -63,7 +71,9 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 		}
 		chr.Flush()
 		err = chrFd.Close()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 	}
 
 	jam.Flush()
@@ -73,25 +83,33 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 func (r *Rom) DisassembleToDir(dest string) error {
 	// create the folder
 	err := os.Mkdir(dest, 0770)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	// put a .jam file which describes how to reassemble
 	baseJamFilename := removeExtension(r.Filename)
 	if len(baseJamFilename) == 0 {
 		baseJamFilename = "rom"
 	}
-	jamFilename := path.Join(dest, baseJamFilename + ".jam")
+	jamFilename := path.Join(dest, baseJamFilename+".jam")
 	jamFd, err := os.Create(jamFilename)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	err = r.disassembleToDirWithJam(dest, jamFd)
 	err2 := jamFd.Close()
-	if err != nil { return err }
-	if err2 != nil { return err2 }
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
+		return err2
+	}
 	return nil
 }
 
 func removeExtension(filename string) string {
-	return filename[0:len(filename)-len(path.Ext(filename))]
+	return filename[0 : len(filename)-len(path.Ext(filename))]
 }
 
 func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
@@ -104,10 +122,16 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 	for {
 		lineCount += 1
 		rawLine, err := reader.ReadString('\n')
-		if err == io.EOF { break }
-		if err != nil { return nil, err }
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
 		line := strings.TrimSpace(rawLine)
-		if line[0] == '#' { continue }
+		if line[0] == '#' {
+			continue
+		}
 		parts := strings.SplitN(line, "=", 2)
 		if parts == nil {
 			return nil, errors.New(fmt.Sprintf("Line %d: syntax error", lineCount))
@@ -164,13 +188,19 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 		case "prg":
 			prgfile := path.Join(dir, parts[1])
 			programAst, err := asm6502.ParseFile(prgfile)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			program := programAst.ToProgram()
-			if len(program.Errors) > 0 { return nil, program }
+			if len(program.Errors) > 0 {
+				return nil, program
+			}
 			bank := make([]byte, 0, 0x4000)
 			buf := bytes.NewBuffer(bank)
 			err = program.Assemble(buf)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			if buf.Len() != 0x4000 {
 				return nil, errors.New(fmt.Sprintf("%s: PRG ROM should be 0x4000 bytes; instead it is 0x%x", prgfile, buf.Len()))
 			}
@@ -178,11 +208,17 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 		case "chr":
 			chrfile := path.Join(dir, parts[1])
 			chrFd, err := os.Open(chrfile)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			bank, err := ioutil.ReadAll(chrFd)
 			err2 := chrFd.Close()
-			if err != nil { return nil, err }
-			if err2 != nil { return nil, err2 }
+			if err != nil {
+				return nil, err
+			}
+			if err2 != nil {
+				return nil, err2
+			}
 			r.ChrRom = append(r.ChrRom, bank)
 		default:
 			return nil, errors.New(fmt.Sprintf("Line %d: unrecognized property: %s", lineCount, parts[0]))
@@ -194,12 +230,18 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 
 func AssembleFile(filename string) (*Rom, error) {
 	fd, err := os.Open(filename)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	r, err := Assemble(path.Dir(filename), fd)
 	err2 := fd.Close()
-	if err != nil { return nil, err }
-	if err2 != nil { return nil, err2 }
+	if err != nil {
+		return nil, err
+	}
+	if err2 != nil {
+		return nil, err2
+	}
 
 	return r, nil
 }

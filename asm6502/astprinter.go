@@ -1,8 +1,8 @@
 package asm6502
 
 import (
-	"reflect"
 	"fmt"
+	"reflect"
 )
 
 type astPrinter struct {

@@ -4,60 +4,60 @@ package asm6502
 // TODO: load/save state
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/axw/gollvm/llvm"
 	"os"
-	"fmt"
-	"bytes"
 )
 
 type Compilation struct {
 	Warnings []string
-	Errors []string
+	Errors   []string
 
-	program *Program
-	mod llvm.Module
-	builder llvm.Builder
-	wram llvm.Value // 2KB WRAM
-	rX llvm.Value // X index register
-	rY llvm.Value // Y index register
-	rA llvm.Value // accumulator
-	rSP llvm.Value // stack pointer
-	rSNeg llvm.Value // whether the last arithmetic result is negative
-	rSZero llvm.Value // whether the last arithmetic result is zero
-	rSDec llvm.Value // decimal
-	rSInt llvm.Value // interrupt disable
+	program         *Program
+	mod             llvm.Module
+	builder         llvm.Builder
+	wram            llvm.Value // 2KB WRAM
+	rX              llvm.Value // X index register
+	rY              llvm.Value // Y index register
+	rA              llvm.Value // accumulator
+	rSP             llvm.Value // stack pointer
+	rSNeg           llvm.Value // whether the last arithmetic result is negative
+	rSZero          llvm.Value // whether the last arithmetic result is zero
+	rSDec           llvm.Value // decimal
+	rSInt           llvm.Value // interrupt disable
 	runtimePanicMsg llvm.Value // we print this when a runtime error occurs
 
 	// ABI
-	mainFn llvm.Value
-	putsFn llvm.Value
-	putCharFn llvm.Value
-	exitFn llvm.Value
-	cycleFn llvm.Value
-	ppuStatusFn llvm.Value
-	ppuCtrlFn llvm.Value
-	ppuMaskFn llvm.Value
-	ppuAddrFn llvm.Value
-	setPpuDataFn llvm.Value
-	oamAddrFn llvm.Value
-	setOamDataFn llvm.Value
+	mainFn         llvm.Value
+	putsFn         llvm.Value
+	putCharFn      llvm.Value
+	exitFn         llvm.Value
+	cycleFn        llvm.Value
+	ppuStatusFn    llvm.Value
+	ppuCtrlFn      llvm.Value
+	ppuMaskFn      llvm.Value
+	ppuAddrFn      llvm.Value
+	setPpuDataFn   llvm.Value
+	oamAddrFn      llvm.Value
+	setOamDataFn   llvm.Value
 	setPpuScrollFn llvm.Value
 
-	labeledData map[string] llvm.Value
-	labeledBlocks map[string] llvm.BasicBlock
-	currentValue *bytes.Buffer
-	currentLabel string
-	mode int
+	labeledData   map[string]llvm.Value
+	labeledBlocks map[string]llvm.BasicBlock
+	currentValue  *bytes.Buffer
+	currentLabel  string
+	mode          int
 	// map label name to basic block
-	basicBlocks map[string] llvm.BasicBlock
+	basicBlocks  map[string]llvm.BasicBlock
 	currentBlock *llvm.BasicBlock
 	// label names to look for
-	nmiLabelName string
+	nmiLabelName   string
 	resetLabelName string
-	irqLabelName string
-	nmiBlock *llvm.BasicBlock
-	resetBlock *llvm.BasicBlock
-	irqBlock *llvm.BasicBlock
+	irqLabelName   string
+	nmiBlock       *llvm.BasicBlock
+	resetBlock     *llvm.BasicBlock
+	irqBlock       *llvm.BasicBlock
 }
 
 type Compiler interface {
@@ -70,18 +70,21 @@ const (
 	compileMode
 )
 
-
 type CompileFlags int
+
 const (
 	DisableOptFlag CompileFlags = 1 << iota
 	DumpModuleFlag
 	DumpModulePreFlag
 )
 
-
 func (c *Compilation) dataStop() {
-	if len(c.currentLabel) == 0 { return }
-	if c.currentValue.Len() == 0 { return }
+	if len(c.currentLabel) == 0 {
+		return
+	}
+	if c.currentValue.Len() == 0 {
+		return
+	}
 	text := llvm.ConstString(c.currentValue.String(), false)
 	strGlobal := llvm.AddGlobal(c.mod, text.Type(), c.currentLabel)
 	strGlobal.SetLinkage(llvm.PrivateLinkage)
@@ -125,7 +128,9 @@ func (c *Compilation) visitForDataStmts(n Node) {
 	case DataList:
 	case *IntegerDataItem:
 		// trash the data
-		if len(c.currentLabel) == 0 { return }
+		if len(c.currentLabel) == 0 {
+			return
+		}
 		err := c.currentValue.WriteByte(byte(*t))
 		if err != nil {
 			c.Errors = append(c.Errors, err.Error())
@@ -133,7 +138,9 @@ func (c *Compilation) visitForDataStmts(n Node) {
 		}
 	case *StringDataItem:
 		// trash the data
-		if len(c.currentLabel) == 0 { return }
+		if len(c.currentLabel) == 0 {
+			return
+		}
 		_, err := c.currentValue.WriteString(string(*t))
 		if err != nil {
 			c.Errors = append(c.Errors, err.Error())
@@ -187,7 +194,7 @@ func (c *Compilation) clearInt() {
 }
 
 func (c *Compilation) testAndSetNeg(v int) {
-	if v & 0x80 == 0x80 {
+	if v&0x80 == 0x80 {
 		c.setNeg()
 		return
 	}
@@ -462,7 +469,9 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 
 		cycleCount := 4
 		addr := c.program.Labels[i.LabelName]
-		if addr > 0xff { cycleCount += 1 }
+		if addr > 0xff {
+			cycleCount += 1
+		}
 		c.cycle(cycleCount)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
@@ -566,7 +575,6 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		c.Errors = append(c.Errors, fmt.Sprintf("%s <label> lacks Compile() implementation", i.OpName))
 	}
 }
-
 
 func (i *DirectInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
@@ -694,7 +702,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 		inWRam := c.builder.CreateICmp(llvm.IntULT, word, x2000, "")
 		notInWRamBlock := c.createIf(inWRam)
 		// this generated code runs if the write is happening in the WRAM range
-		maskedAddr := c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x800 - 1, false), "")
+		maskedAddr := c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
 		indexes := []llvm.Value{
 			llvm.ConstInt(llvm.Int16Type(), 0, false),
 			maskedAddr,
@@ -708,7 +716,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 		inPpuRam := c.builder.CreateICmp(llvm.IntULT, word, x4000, "")
 		notInPpuRamBlock := c.createIf(inPpuRam)
 		// this generated code runs if the write is in the PPU RAM range
-		maskedAddr = c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x8 - 1, false), "")
+		maskedAddr = c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x8-1, false), "")
 		badPpuAddrBlock := c.createBlock("BadPPUAddr")
 		sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 7)
 		// this generated code runs if the write is in a bad PPU RAM addr
@@ -777,7 +785,9 @@ func (i *IndirectInstruction) Compile(c *Compilation) {
 func (s *LabeledStatement) Compile(c *Compilation) {
 	// if we've already processed it as data, move on
 	_, ok := c.labeledData[s.LabelName]
-	if ok { return }
+	if ok {
+		return
+	}
 
 	bb := c.labeledBlocks[s.LabelName]
 	if c.currentBlock != nil {
@@ -797,7 +807,9 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 func (s *LabeledStatement) CompileLabels(c *Compilation) {
 	// if we've already processed it as data, move on
 	_, ok := c.labeledData[s.LabelName]
-	if ok { return }
+	if ok {
+		return
+	}
 
 	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
 	c.labeledBlocks[s.LabelName] = bb
@@ -841,8 +853,8 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.mod = llvm.NewModule("asm_module")
 	c.builder = llvm.NewBuilder()
 	defer c.builder.Dispose()
-	c.labeledData = map[string] llvm.Value{}
-	c.labeledBlocks = map[string] llvm.BasicBlock{}
+	c.labeledData = map[string]llvm.Value{}
+	c.labeledBlocks = map[string]llvm.BasicBlock{}
 
 	// 2KB memory
 	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
@@ -875,7 +887,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	// declare void @exit(i32) noreturn nounwind
 	exitType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
 	c.exitFn = llvm.AddFunction(c.mod, "exit", exitType)
-	c.exitFn.AddFunctionAttr(llvm.NoReturnAttribute|llvm.NoUnwindAttribute)
+	c.exitFn.AddFunctionAttr(llvm.NoReturnAttribute | llvm.NoUnwindAttribute)
 	c.exitFn.SetLinkage(llvm.ExternalLinkage)
 
 	// cycle should be called after every instruction with how many cycles the instruction took
@@ -952,7 +964,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.builder.SetInsertPointAtEnd(entry)
 	c.builder.CreateBr(*c.resetBlock)
 
-	if flags & DumpModulePreFlag != 0 {
+	if flags&DumpModulePreFlag != 0 {
 		c.mod.Dump()
 	}
 	err := llvm.VerifyModule(c.mod, llvm.ReturnStatusAction)
@@ -968,7 +980,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	}
 	defer engine.Dispose()
 
-	if flags & DisableOptFlag == 0 {
+	if flags&DisableOptFlag == 0 {
 		pass := llvm.NewPassManager()
 		defer pass.Dispose()
 
@@ -983,7 +995,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 		pass.Run(c.mod)
 	}
 
-	if flags & DumpModuleFlag != 0 {
+	if flags&DumpModuleFlag != 0 {
 		c.mod.Dump()
 	}
 

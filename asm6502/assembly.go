@@ -1,13 +1,13 @@
 package asm6502
 
 import (
-	"strings"
+	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
-	"bufio"
 	"io"
-	"encoding/binary"
+	"os"
+	"strings"
 )
 
 // Program is a proper program, one that you can compile
@@ -15,18 +15,18 @@ import (
 // Program and 6502 machine code can be read directly into
 // a Program
 type Program struct {
-	Ast *ProgramAST
-	Variables map[string] int
-	Labels map[string] int
-	Errors []error
+	Ast       *ProgramAST
+	Variables map[string]int
+	Labels    map[string]int
+	Errors    []error
 
-	offset int
-	offsets map[int] Node
+	offset  int
+	offsets map[int]Node
 }
 
 func (p *Program) Error() string {
 	errStrs := make([]string, 0, len(p.Errors))
-	for _, e := range(p.Errors) {
+	for _, e := range p.Errors {
 		errStrs = append(errStrs, e.Error())
 	}
 	return strings.Join(errStrs, "\n")
@@ -45,13 +45,13 @@ type Assembler interface {
 // Maintains the state for assembling a Program into
 // machine code
 type machineCode struct {
-	prog *Program
-	writer *bufio.Writer
-	Errors []string
-	offset int
+	prog           *Program
+	writer         *bufio.Writer
+	Errors         []string
+	offset         int
 	expectedOffset int
-	firstOrg bool
-	orgFillValue byte
+	firstOrg       bool
+	orgFillValue   byte
 }
 
 func (m machineCode) Error() string {
@@ -71,7 +71,7 @@ func (bin *machineCode) getSymbol(name string, offset int) (int, bool) {
 	return value, ok
 }
 
-var impliedOpCode = map[string] byte {
+var impliedOpCode = map[string]byte{
 	"asl": 0x0a,
 	"brk": 0x00,
 	"clc": 0x18,
@@ -103,7 +103,7 @@ var impliedOpCode = map[string] byte {
 	"tya": 0x98,
 }
 
-var immediateOpCode = map[string] byte {
+var immediateOpCode = map[string]byte{
 	"adc": 0x69,
 	"and": 0x29,
 	"cmp": 0xc9,
@@ -117,7 +117,7 @@ var immediateOpCode = map[string] byte {
 	"sbc": 0xe9,
 }
 
-var zeroPageXOpcode = map[string] byte {
+var zeroPageXOpcode = map[string]byte{
 	"adc": 0x75,
 	"and": 0x35,
 	"asl": 0x16,
@@ -136,7 +136,7 @@ var zeroPageXOpcode = map[string] byte {
 	"sty": 0x94,
 }
 
-var absIndexedXOpCode = map[string] byte {
+var absIndexedXOpCode = map[string]byte{
 	"adc": 0x7d,
 	"and": 0x3d,
 	"asl": 0x1e,
@@ -154,12 +154,12 @@ var absIndexedXOpCode = map[string] byte {
 	"sta": 0x9d,
 }
 
-var zeroPageYOpCode = map[string] byte {
+var zeroPageYOpCode = map[string]byte{
 	"ldx": 0xb6,
 	"stx": 0x96,
 }
 
-var zeroPageOpCode = map[string] byte {
+var zeroPageOpCode = map[string]byte{
 	"adc": 0x65,
 	"and": 0x25,
 	"asl": 0x06,
@@ -183,7 +183,7 @@ var zeroPageOpCode = map[string] byte {
 	"sty": 0x84,
 }
 
-var absIndexedYOpCode = map[string] byte {
+var absIndexedYOpCode = map[string]byte{
 	"adc": 0x79,
 	"and": 0x39,
 	"cmp": 0xd9,
@@ -195,7 +195,7 @@ var absIndexedYOpCode = map[string] byte {
 	"sta": 0x99,
 }
 
-var absOpCode = map[string] byte {
+var absOpCode = map[string]byte{
 	"adc": 0x6d,
 	"and": 0x2d,
 	"asl": 0x0e,
@@ -221,7 +221,7 @@ var absOpCode = map[string] byte {
 	"sty": 0x8c,
 }
 
-var relOpCode = map[string] byte {
+var relOpCode = map[string]byte{
 	"bcc": 0x90,
 	"bcs": 0xb0,
 	"beq": 0xf0,
@@ -232,7 +232,7 @@ var relOpCode = map[string] byte {
 	"bvs": 0x70,
 }
 
-var indirectXOpCode = map[string] byte {
+var indirectXOpCode = map[string]byte{
 	"adc": 0x61,
 	"and": 0x21,
 	"cmp": 0xc1,
@@ -243,7 +243,7 @@ var indirectXOpCode = map[string] byte {
 	"sta": 0x81,
 }
 
-var indirectYOpCode = map[string] byte {
+var indirectYOpCode = map[string]byte{
 	"adc": 0x71,
 	"and": 0x31,
 	"cmp": 0xd1,
@@ -256,7 +256,7 @@ var indirectYOpCode = map[string] byte {
 
 type opcodeDef struct {
 	opcode int
-	size int
+	size   int
 }
 
 func (ii *ImmediateInstruction) Measure(p *Program) error {
@@ -275,7 +275,9 @@ func (ii *ImmediateInstruction) Measure(p *Program) error {
 
 func (n *ImmediateInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(byte(n.OpCode))
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return bin.writer.WriteByte(byte(n.Value))
 }
 
@@ -340,7 +342,6 @@ func (n *DirectIndexedInstruction) Assemble(bin *machineCode) error {
 	return err
 }
 
-
 func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
@@ -364,10 +365,11 @@ func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
 	return errors.New(fmt.Sprintf("Line %d: Register argument must be X or Y", n.Line))
 }
 
-
 func (n *DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	symbolValue, ok := bin.getSymbol(n.LabelName, n.Offset)
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, n.LabelName))
@@ -380,7 +382,6 @@ func (n *DirectWithLabelIndexedInstruction) Assemble(bin *machineCode) error {
 	_, err = bin.writer.Write(buf)
 	return err
 }
-
 
 func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 	if p.offset >= 0xffff {
@@ -405,7 +406,9 @@ func (n *DirectWithLabelInstruction) Measure(p *Program) error {
 
 func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 	err := bin.writer.WriteByte(n.OpCode)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	symbolValue, ok := bin.getSymbol(n.LabelName, n.Offset)
 	if !ok {
 		return errors.New(fmt.Sprintf("Line %d: Undefined label: %s", n.Line, n.LabelName))
@@ -487,7 +490,6 @@ func (n *IndirectXInstruction) Assemble(bin *machineCode) error {
 	return err
 }
 
-
 func (n *IndirectYInstruction) Measure(p *Program) error {
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectYOpCode[lowerOpName]
@@ -509,73 +511,37 @@ func (n *IndirectYInstruction) Assemble(bin *machineCode) error {
 func (n *DataStatement) Measure(p *Program) error {
 	n.Size = 0
 	n.Offset = p.offset
-	for _, dataItem := range(n.dataList) {
+	for _, dataItem := range n.dataList {
 		switch t := dataItem.(type) {
-		case *StringDataItem: n.Size += len(*t)
+		case *StringDataItem:
+			n.Size += len(*t)
 		case *IntegerDataItem:
 			if *t > 0xff {
 				return errors.New(fmt.Sprintf("Line %d: Integer data item limited to 1 byte.", n.Line))
 			}
 			n.Size += 1
-		case *LabelCall: n.Size += 2
-		default: panic("unknown data item type")
+		case *LabelCall:
+			n.Size += 2
+		default:
+			panic("unknown data item type")
 		}
 	}
 	return nil
 }
 
 func (n *DataStatement) Assemble(bin *machineCode) error {
-	for _, dataItem := range(n.dataList) {
+	for _, dataItem := range n.dataList {
 		switch t := dataItem.(type) {
-			case *StringDataItem:
-				_, err := bin.writer.WriteString(string(*t))
-				if err != nil { return err }
-			case *IntegerDataItem:
-				err := bin.writer.WriteByte(byte(*t))
-				if err != nil { return err }
-			case *LabelCall:
-				symbolValue, ok := bin.getSymbol(t.LabelName, n.Offset)
-				if !ok {
-					return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, t.LabelName))
-				}
-				if symbolValue > 0xffff {
-					return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, t.LabelName))
-				}
-				int16buf := []byte{0, 0}
-				binary.LittleEndian.PutUint16(int16buf, uint16(symbolValue))
-				_, err := bin.writer.Write(int16buf)
-				if err != nil { return err }
-			default: panic("unknown data item type")
-		}
-	}
-	return nil
-}
-
-func (n *DataWordStatement) Measure(p *Program) error {
-	n.Size = 0
-	n.Offset = p.offset
-	for _, dataItem := range(n.dataList) {
-		switch t := dataItem.(type) {
-		case *IntegerDataItem:
-			if *t > 0xffff {
-				return errors.New(fmt.Sprintf("Line %d: Word data item limited to 2 bytes.", n.Line))
+		case *StringDataItem:
+			_, err := bin.writer.WriteString(string(*t))
+			if err != nil {
+				return err
 			}
-			n.Size += 2
-		case *LabelCall: n.Size += 2
-		default: panic("unknown data item type")
-		}
-	}
-	return nil
-}
-
-func (n *DataWordStatement) Assemble(bin *machineCode) error {
-	for _, dataItem := range(n.dataList) {
-		switch t := dataItem.(type) {
 		case *IntegerDataItem:
-			int16buf := []byte{0, 0}
-			binary.LittleEndian.PutUint16(int16buf, uint16(*t))
-			_, err := bin.writer.Write(int16buf)
-			if err != nil { return err }
+			err := bin.writer.WriteByte(byte(*t))
+			if err != nil {
+				return err
+			}
 		case *LabelCall:
 			symbolValue, ok := bin.getSymbol(t.LabelName, n.Offset)
 			if !ok {
@@ -587,8 +553,61 @@ func (n *DataWordStatement) Assemble(bin *machineCode) error {
 			int16buf := []byte{0, 0}
 			binary.LittleEndian.PutUint16(int16buf, uint16(symbolValue))
 			_, err := bin.writer.Write(int16buf)
-			if err != nil { return err }
-		default: panic("unknown data item type")
+			if err != nil {
+				return err
+			}
+		default:
+			panic("unknown data item type")
+		}
+	}
+	return nil
+}
+
+func (n *DataWordStatement) Measure(p *Program) error {
+	n.Size = 0
+	n.Offset = p.offset
+	for _, dataItem := range n.dataList {
+		switch t := dataItem.(type) {
+		case *IntegerDataItem:
+			if *t > 0xffff {
+				return errors.New(fmt.Sprintf("Line %d: Word data item limited to 2 bytes.", n.Line))
+			}
+			n.Size += 2
+		case *LabelCall:
+			n.Size += 2
+		default:
+			panic("unknown data item type")
+		}
+	}
+	return nil
+}
+
+func (n *DataWordStatement) Assemble(bin *machineCode) error {
+	for _, dataItem := range n.dataList {
+		switch t := dataItem.(type) {
+		case *IntegerDataItem:
+			int16buf := []byte{0, 0}
+			binary.LittleEndian.PutUint16(int16buf, uint16(*t))
+			_, err := bin.writer.Write(int16buf)
+			if err != nil {
+				return err
+			}
+		case *LabelCall:
+			symbolValue, ok := bin.getSymbol(t.LabelName, n.Offset)
+			if !ok {
+				return errors.New(fmt.Sprintf("Line %d: Undefined symbol: %s", n.Line, t.LabelName))
+			}
+			if symbolValue > 0xffff {
+				return errors.New(fmt.Sprintf("Line %d: Symbol must fit into 2 bytes: %s", n.Line, t.LabelName))
+			}
+			int16buf := []byte{0, 0}
+			binary.LittleEndian.PutUint16(int16buf, uint16(symbolValue))
+			_, err := bin.writer.Write(int16buf)
+			if err != nil {
+				return err
+			}
+		default:
+			panic("unknown data item type")
 		}
 	}
 	return nil
@@ -693,21 +712,27 @@ func (p *Program) Assemble(w io.Writer) error {
 
 func (p *Program) AssembleToFile(filename string) error {
 	fd, err := os.Create(filename)
-	if err != nil { return err}
+	if err != nil {
+		return err
+	}
 
 	err = p.Assemble(fd)
 	err2 := fd.Close()
-	if err != nil { return err }
-	if err2 != nil { return err2 }
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
+		return err2
+	}
 
 	return nil
 }
 
-func (ast *ProgramAST) ToProgram() (*Program) {
+func (ast *ProgramAST) ToProgram() *Program {
 	p := Program{
 		ast,
-		map[string]int {},
-		map[string]int {},
+		map[string]int{},
+		map[string]int{},
 		[]error{},
 		0,
 		map[int]Node{},
@@ -715,4 +740,3 @@ func (ast *ProgramAST) ToProgram() (*Program) {
 	ast.Ast(&p)
 	return &p
 }
-
