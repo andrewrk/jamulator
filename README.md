@@ -53,11 +53,22 @@
     ./jamulator
     ```
 
-8. If you want to compile a .bc file to a native EXE:
+8. Compile a .bc file which jamulator generates into a static library (.o):
 
     ```
-    llc -filetype=obj file.bc
-    gcc hello.6502.asm.o
-    ./a.out
+    llc -filetype=obj -relocation-model=pic file.bc
     ```
 
+9. Run a static library, calling supports `putchar` and `exit`:
+
+    ```
+    gcc -o runtime.o -c runtime/main.c
+    gcc -o game_exe file.o runtime.o
+    ./game_exe
+    ```
+
+10. Compile a .bc file into a dynamic library (.so)
+
+    ```
+    gcc -shared -Wl,-soname,zelda.so -o zelda.so zelda.o
+    ```
