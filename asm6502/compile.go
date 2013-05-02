@@ -504,7 +504,18 @@ func (i *IndirectXInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "IndirectYInstruction lacks Compile() implementation")
+	switch i.Payload[0] {
+	//case 0x71: // adc
+	//case 0x31: // and
+	//case 0xd1: // cmp
+	//case 0x51: // eor
+	//case 0xb1: // lda
+	//case 0x11: // ora
+	//case 0xf1: // sbc
+	//case 0x91: // sta
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
+	}
 }
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
