@@ -588,7 +588,24 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 	//case 0xb1: // lda
 	//case 0x11: // ora
 	//case 0xf1: // sbc
-	//case 0x91: // sta
+	case 0x91: // sta
+		ptrByte1 := c.load(i.Value)
+		ptrByte2 := c.load(i.Value + 1)
+		ptrByte1w := c.builder.CreateZExt(ptrByte1, llvm.Int16Type(), "")
+		ptrByte2w := c.builder.CreateZExt(ptrByte2, llvm.Int16Type(), "")
+		shiftAmt := llvm.ConstInt(llvm.Int16Type(), uint64(8), false)
+		word := c.builder.CreateShl(ptrByte2w, shiftAmt, "")
+		word = c.builder.CreateOr(word, ptrByte1w, "")
+		rY := c.builder.CreateLoad(c.rY, "")
+		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
+		word = c.builder.CreateAdd(word, rYw, "")
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
+			word,
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		rA := c.builder.CreateLoad(c.rA, "")
+		c.builder.CreateStore(rA, ptr)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
 	}
