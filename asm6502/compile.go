@@ -212,6 +212,15 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 	}
 }
 
+func (c *Compilation) increment(reg llvm.Value, delta int) {
+	v := c.builder.CreateLoad(reg, "")
+	c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
+	newValue := c.builder.CreateAdd(v, c1, "")
+	c.builder.CreateStore(newValue, reg)
+	c.dynTestAndSetNeg(newValue)
+	c.dynTestAndSetZero(newValue)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
@@ -250,16 +259,14 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	case 0x58: // cli
 		c.clearInt()
 	//case 0xb8: // clv
-	//case 0xca: // dex
-	//case 0x88: // dey
+	case 0xca: // dex
+		c.increment(c.rX, -1)
+	case 0x88: // dey
+		c.increment(c.rY, -1)
 	case 0xe8: // inx
-		oldX := c.builder.CreateLoad(c.rX, "")
-		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(1), false)
-		newX := c.builder.CreateAdd(oldX, c1, "")
-		c.builder.CreateStore(newX, c.rX)
-		c.dynTestAndSetNeg(newX)
-		c.dynTestAndSetZero(newX)
-	//case 0xc8: // iny
+		c.increment(c.rX, 1)
+	case 0xc8: // iny
+		c.increment(c.rY, 1)
 	//case 0x4a: // lsr
 	case 0xea: // nop
 		// do nothing
