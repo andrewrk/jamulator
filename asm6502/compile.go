@@ -1,5 +1,8 @@
 package asm6502
 
+// TODO: handle interrupts
+// TODO: load/save state
+
 import (
 	"github.com/axw/gollvm/llvm"
 	"os"
@@ -30,6 +33,7 @@ type Compilation struct {
 	putsFn llvm.Value
 	putCharFn llvm.Value
 	exitFn llvm.Value
+	cycleFn llvm.Value
 	ppuStatusFn llvm.Value
 	ppuCtrlFn llvm.Value
 	ppuMaskFn llvm.Value
@@ -337,6 +341,11 @@ func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
 	return elseBlock
 }
 
+func (c *Compilation) cycle(count int) {
+	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
+	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
@@ -344,14 +353,17 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rX)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
+		c.cycle(2)
 	case 0xa0: // ldy
 		c.builder.CreateStore(v, c.rY)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
+		c.cycle(2)
 	case 0xa9: // lda
 		c.builder.CreateStore(v, c.rA)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
+		c.cycle(2)
 	//case 0x69: // adc
 	//case 0x29: // and
 	//case 0xc9: // cmp
@@ -372,20 +384,26 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x18: // clc
 	case 0xd8: // cld
 		c.clearDec()
+		c.cycle(2)
 	case 0x58: // cli
 		c.clearInt()
+		c.cycle(2)
 	//case 0xb8: // clv
 	case 0xca: // dex
 		c.increment(c.rX, -1)
+		c.cycle(2)
 	case 0x88: // dey
 		c.increment(c.rY, -1)
+		c.cycle(2)
 	case 0xe8: // inx
 		c.increment(c.rX, 1)
+		c.cycle(2)
 	case 0xc8: // iny
 		c.increment(c.rY, 1)
+		c.cycle(2)
 	//case 0x4a: // lsr
 	case 0xea: // nop
-		// do nothing
+		c.cycle(2)
 	//case 0x48: // pha
 	//case 0x08: // php
 	//case 0x68: // pla
@@ -395,24 +413,33 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	case 0x40: // rti
 		c.Warnings = append(c.Warnings, "interrupts not supported - ignoring RTI instruction")
 		c.builder.CreateUnreachable()
+		//c.cycle(6)
 	//case 0x60: // rts
 	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
+		c.cycle(2)
 	case 0x78: // sei
 		c.setInt()
+		c.cycle(2)
 	case 0xaa: // tax
 		c.transfer(c.rA, c.rX)
+		c.cycle(2)
 	case 0xa8: // tay
 		c.transfer(c.rA, c.rY)
+		c.cycle(2)
 	case 0xba: // tsx
 		c.transfer(c.rSP, c.rX)
+		c.cycle(2)
 	case 0x8a: // txa
 		c.transfer(c.rX, c.rA)
+		c.cycle(2)
 	case 0x9a: // txs
 		c.transfer(c.rX, c.rSP)
+		c.cycle(2)
 	case 0x98: // tya
 		c.transfer(c.rY, c.rA)
+		c.cycle(2)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
 	}
@@ -432,6 +459,11 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetNeg(v)
 		c.dynTestAndSetZero(v)
+
+		cycleCount := 4
+		addr := c.program.Labels[i.LabelName]
+		if addr > 0xff { cycleCount += 1 }
+		c.cycle(cycleCount)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -478,6 +510,8 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x4d: // eor
 	//case 0xee: // inc
 	case 0x4c: // jmp
+		// branch instruction - cycle before execution
+		c.cycle(3)
 		destBlock := c.labeledBlocks[i.LabelName]
 		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
@@ -495,6 +529,9 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x8c: // sty
 
 	case 0xf0: // beq
+		// we put the cycle before the execution because
+		// it's a branch...
+		c.cycle(2)
 		thenBlock := c.labeledBlocks[i.LabelName]
 		elseBlock := c.createBlock("else")
 		isZero := c.builder.CreateLoad(c.rSZero, "")
@@ -503,18 +540,21 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
 	case 0x30: // bmi
+		c.cycle(2)
 		thenBlock := c.labeledBlocks[i.LabelName]
 		elseBlock := c.createBlock("else")
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
 		c.selectBlock(elseBlock)
 	case 0xd0: // bne
+		c.cycle(2)
 		thenBlock := c.createBlock("then")
 		elseBlock := c.labeledBlocks[i.LabelName]
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
 		c.selectBlock(thenBlock)
 	case 0x10: // bpl
+		c.cycle(2)
 		thenBlock := c.createBlock("then")
 		elseBlock := c.labeledBlocks[i.LabelName]
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
@@ -535,6 +575,11 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
+		if i.Payload[0] == 0xa5 {
+			c.cycle(3)
+		} else {
+			c.cycle(4)
+		}
 	case 0xc6, 0xce: // dec (zpg, abs)
 		oldValue := c.load(i.Value)
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
@@ -542,7 +587,11 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.store(i.Value, newValue)
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
-
+		if i.Payload[0] == 0xc6 {
+			c.cycle(5)
+		} else {
+			c.cycle(6)
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -589,10 +638,25 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xed: // sbc abs
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
+		if i.Payload[0] == 0x85 {
+			c.cycle(3)
+		} else {
+			c.cycle(4)
+		}
 	case 0x86, 0x8e: // stx (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
+		if i.Payload[0] == 0x86 {
+			c.cycle(3)
+		} else {
+			c.cycle(4)
+		}
 	case 0x84, 0x8c: // sty (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
+		if i.Payload[0] == 0x84 {
+			c.cycle(3)
+		} else {
+			c.cycle(4)
+		}
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
 	}
@@ -699,6 +763,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 
 		// done. X_X
 		c.selectBlock(staDoneBlock)
+		c.cycle(6)
 
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
@@ -813,35 +878,31 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.exitFn.AddFunctionAttr(llvm.NoReturnAttribute|llvm.NoUnwindAttribute)
 	c.exitFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare i8 @ppustatus()
+	// cycle should be called after every instruction with how many cycles the instruction took
+	c.cycleFn = llvm.AddFunction(c.mod, "rom_cycle", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
+	c.cycleFn.SetLinkage(llvm.ExternalLinkage)
+
 	c.ppuStatusFn = llvm.AddFunction(c.mod, "rom_ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
 	c.ppuStatusFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @ppuctrl(i8)
 	c.ppuCtrlFn = llvm.AddFunction(c.mod, "rom_ppuctrl", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuCtrlFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @ppumask(i8)
 	c.ppuMaskFn = llvm.AddFunction(c.mod, "rom_ppumask", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuMaskFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @ppuaddr(i8)
 	c.ppuAddrFn = llvm.AddFunction(c.mod, "rom_ppuaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.ppuAddrFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @setppudata(i8)
 	c.setPpuDataFn = llvm.AddFunction(c.mod, "rom_setppudata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setPpuDataFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @oamaddr(i8)
 	c.oamAddrFn = llvm.AddFunction(c.mod, "rom_oamaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.oamAddrFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @setoamdata(i8)
 	c.setOamDataFn = llvm.AddFunction(c.mod, "rom_setoamdata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setOamDataFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare void @setppuscroll(i8)
 	c.setPpuScrollFn = llvm.AddFunction(c.mod, "rom_setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setPpuScrollFn.SetLinkage(llvm.ExternalLinkage)
 
