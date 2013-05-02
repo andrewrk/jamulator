@@ -257,10 +257,43 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 
 }
 
+func (c *Compilation) load(addr int) llvm.Value {
+	switch {
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
+		return llvm.ConstNull(llvm.Int8Type())
+	case 0x0000 <= addr && addr < 0x2000:
+		// 2KB working RAM. mask because mirrored
+		maskedAddr := addr & (0x800 - 1)
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		return c.builder.CreateLoad(ptr, "")
+	case 0x2000 <= addr && addr < 0x4000:
+		// PPU registers. mask because mirrored
+		switch addr & (0x8 - 1) {
+		case 2:
+			return c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
+		default:
+			c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
+			return llvm.ConstNull(llvm.Int8Type())
+		}
+	}
+	panic("unreachable")
+}
+
 func (c *Compilation) increment(reg llvm.Value, delta int) {
 	v := c.builder.CreateLoad(reg, "")
-	c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
-	newValue := c.builder.CreateAdd(v, c1, "")
+	var newValue llvm.Value
+	if delta < 0 {
+		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(-delta), false)
+		newValue = c.builder.CreateSub(v, c1, "")
+	} else {
+		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
+		newValue = c.builder.CreateAdd(v, c1, "")
+	}
 	c.builder.CreateStore(newValue, reg)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetZero(newValue)
@@ -471,17 +504,22 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	}
 }
 
+
 func (i *DirectInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
-	case 0xa5, 0xad: // lda (zpg / abs)
-		switch i.Value {
-		case 0x2002:
-			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
-			c.dynTestAndSetZero(v)
-			c.dynTestAndSetNeg(v)
-		default:
-			c.Errors = append(c.Errors, "only LDA $2002 is supported")
-		}
+	case 0xa5, 0xad: // lda (zpg, abs)
+		v := c.load(i.Value)
+		c.builder.CreateStore(v, c.rA)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+	case 0xc6, 0xce: // dec (zpg, abs)
+		oldValue := c.load(i.Value)
+		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		newValue := c.builder.CreateSub(oldValue, c1, "")
+		c.store(i.Value, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
+
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -498,7 +536,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xc5: // cmp zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
-	//case 0xc6: // dec zpg
 	//case 0x45: // eor zpg
 	//case 0xe6: // inc zpg
 	//case 0xa6: // ldx zpg
@@ -516,7 +553,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xcd: // cmp abs
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
-	//case 0xce: // dec abs
 	//case 0x4d: // eor abs
 	//case 0xee: // inc abs
 	//case 0x4c: // jmp abs
