@@ -253,18 +253,25 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 		// PPU registers. mask because mirrored
 		switch addr & (0x8 - 1) {
 		case 0: // ppuctrl
+			c.debugPrint("ppu_write_control\n")
 			c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{i8}, "")
 		case 1: // ppumask
+			c.debugPrint("ppu_write_mask\n")
 			c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{i8}, "")
 		case 3: // oamaddr
+			c.debugPrint("ppu_write_oamaddr\n")
 			c.builder.CreateCall(c.oamAddrFn, []llvm.Value{i8}, "")
 		case 4: // oamdata
+			c.debugPrint("ppu_write_oamdata\n")
 			c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
 		case 5: // ppuscroll
+			c.debugPrint("ppu_write_scroll\n")
 			c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{i8}, "")
 		case 6: // ppuaddr
+			c.debugPrint("ppu_write_address\n")
 			c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{i8}, "")
 		case 7: // ppudata
+			c.debugPrintf("ppu_write_data $%02x\n", []llvm.Value{i8})
 			c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{i8}, "")
 		default:
 			panic("unreachable")
@@ -293,6 +300,7 @@ func (c *Compilation) load(addr int) llvm.Value {
 		// PPU registers. mask because mirrored
 		switch addr & (0x8 - 1) {
 		case 2:
+			c.debugPrint("ppu_read_status\n")
 			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
 			//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
 			return v
@@ -356,9 +364,7 @@ func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
 }
 
 func (c *Compilation) cycle(count int) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(fmt.Sprintf("cycles %d\n", count))
-	}
+	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
 	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
 }
@@ -368,6 +374,9 @@ func (c *Compilation) debugPrint(str string) {
 }
 
 func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
+	if c.Flags&IncludeDebugFlag == 0 {
+		return
+	}
 	text := llvm.ConstString(str, true)
 	glob := llvm.AddGlobal(c.mod, text.Type(), "debugPrintStr")
 	glob.SetLinkage(llvm.PrivateLinkage)
@@ -403,9 +412,7 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 }
 
 func (i *ImmediateInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
 	case 0xa2: // ldx
@@ -437,9 +444,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	switch i.OpCode {
 	//case 0x0a: // asl
 	//case 0x00: // brk
@@ -520,9 +525,7 @@ func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.ResolveRender(c))
-	}
+	c.debugPrint(i.ResolveRender(c))
 	switch i.OpCode {
 	case 0xbd: // lda l, X
 		dataPtr := c.labeledData[i.LabelName]
@@ -594,9 +597,7 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.ResolveRender(c))
-	}
+	c.debugPrint(i.ResolveRender(c))
 	switch i.OpCode {
 	//case 0x6d: // adc
 	//case 0x2d: // and
@@ -651,9 +652,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	switch i.Payload[0] {
 	case 0xa5, 0xad: // lda (zpg, abs)
 		v := c.load(i.Value)
@@ -748,16 +747,12 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	c.Errors = append(c.Errors, "IndirectXInstruction lacks Compile() implementation")
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	switch i.Payload[0] {
 	//case 0x71: // adc
 	//case 0x31: // and
@@ -865,9 +860,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
-	if c.Flags&IncludeDebugFlag != 0 {
-		c.debugPrint(i.Render())
-	}
+	c.debugPrint(i.Render())
 	c.Errors = append(c.Errors, "IndirectInstruction lacks Compile() implementation")
 }
 
