@@ -10,13 +10,18 @@ import (
 	"strings"
 )
 
-var astFlag bool
-var assembleFlag bool
-var disassembleFlag bool
-var unRomFlag bool
-var compileFlag bool
-var romFlag bool
-var disableOptFlag, dumpFlag, dumpPreFlag bool
+var (
+	astFlag bool
+	assembleFlag bool
+	disassembleFlag bool
+	unRomFlag bool
+	compileFlag bool
+	romFlag bool
+	disableOptFlag bool
+	dumpFlag bool
+	dumpPreFlag bool
+	debugFlag bool
+)
 
 func init() {
 	flag.BoolVar(&astFlag, "ast", false, "Print the abstract syntax tree and quit")
@@ -28,6 +33,7 @@ func init() {
 	flag.BoolVar(&disableOptFlag, "O0", false, "Disable optimizations")
 	flag.BoolVar(&dumpFlag, "d", false, "Dump LLVM IR code for generated code")
 	flag.BoolVar(&dumpPreFlag, "dd", false, "Dump LLVM IR code for generated code before verifying module")
+	flag.BoolVar(&debugFlag, "g", false, "Include debug print statements in generated code")
 }
 
 func usageAndQuit() {
@@ -55,6 +61,9 @@ func compile(filename string, program *asm6502.Program) {
 	}
 	if dumpPreFlag {
 		flags |= asm6502.DumpModulePreFlag
+	}
+	if debugFlag {
+		flags |= asm6502.IncludeDebugFlag
 	}
 	c := program.Compile(outfile, flags)
 	if len(c.Errors) != 0 {

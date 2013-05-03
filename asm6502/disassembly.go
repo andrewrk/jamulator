@@ -2,6 +2,7 @@ package asm6502
 
 import (
 	"bufio"
+	"bytes"
 	"container/list"
 	"encoding/binary"
 	"errors"
@@ -19,7 +20,7 @@ type SourceWriter struct {
 }
 
 type Renderer interface {
-	Render(SourceWriter) error
+	Render() string
 }
 
 type Disassembly struct {
@@ -643,10 +644,7 @@ func DisassembleFile(filename string) (*Program, error) {
 func (sw SourceWriter) Visit(n Node) {
 	switch t := n.(type) {
 	case Renderer:
-		err := t.Render(sw)
-		if err != nil {
-			sw.Errors = append(sw.Errors, err.Error())
-		}
+		sw.writer.WriteString(t.Render())
 	}
 }
 
@@ -656,141 +654,100 @@ func (sw SourceWriter) Error() string {
 	return strings.Join(sw.Errors, "\n")
 }
 
-func (i *ImmediateInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s #$%02x\n", i.OpName, i.Value))
-	return err
+func (i *ImmediateInstruction) Render() string {
+	return fmt.Sprintf("%s #$%02x\n", i.OpName, i.Value)
 }
 
-func (i *ImpliedInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s\n", i.OpName))
-	return err
+func (i *ImpliedInstruction) Render() string {
+	return fmt.Sprintf("%s\n", i.OpName)
 }
 
-func (i *DirectInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x\n", i.OpName, i.Value))
-	return err
+func (i *DirectInstruction) Render() string {
+	return fmt.Sprintf("%s $%02x\n", i.OpName, i.Value)
 }
 
-func (i *DirectWithLabelInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s %s\n", i.OpName, i.LabelName))
-	return err
+func (i *DirectWithLabelInstruction) Render() string {
+	return fmt.Sprintf("%s %s\n", i.OpName, i.LabelName)
 }
 
-func (i *DirectIndexedInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s $%02x, %s\n", i.OpName, i.Value, i.RegisterName))
-	return err
+func (i *DirectIndexedInstruction) Render() string {
+	return fmt.Sprintf("%s $%02x, %s\n", i.OpName, i.Value, i.RegisterName)
 }
 
-func (i *DirectWithLabelIndexedInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s %s, %s\n", i.OpName, i.LabelName, i.RegisterName))
-	return err
+func (i *DirectWithLabelIndexedInstruction) Render() string {
+	return fmt.Sprintf("%s %s, %s\n", i.OpName, i.LabelName, i.RegisterName)
 }
 
-func (i *IndirectInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x)\n", i.OpName, i.Value))
-	return err
+func (i *IndirectInstruction) Render() string {
+	return fmt.Sprintf("%s ($%02x)\n", i.OpName, i.Value)
 }
 
-func (i *IndirectXInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x, X)\n", i.OpName, i.Value))
-	return err
+func (i *IndirectXInstruction) Render() string {
+	return fmt.Sprintf("%s ($%02x, X)\n", i.OpName, i.Value)
 }
 
-func (i *IndirectYInstruction) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(fmt.Sprintf("%s ($%02x), Y\n", i.OpName, i.Value))
-	return err
+func (i *IndirectYInstruction) Render() string {
+	return fmt.Sprintf("%s ($%02x), Y\n", i.OpName, i.Value)
 }
 
-func (i *OrgPseudoOp) Render(sw SourceWriter) error {
-	var err error
+func (i *OrgPseudoOp) Render() string {
 	if i.Fill == 0xff {
-		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x\n", i.Value))
-	} else {
-		_, err = sw.writer.WriteString(fmt.Sprintf("org $%04x, $%02x\n", i.Value, i.Fill))
+		return fmt.Sprintf("org $%04x\n", i.Value)
 	}
-	return err
+	return fmt.Sprintf("org $%04x, $%02x\n", i.Value, i.Fill)
 }
 
-func (s *DataStatement) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString("dc.b ")
-	if err != nil {
-		return err
-	}
+func (s *DataStatement) Render() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString("dc.b ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *StringDataItem:
-			_, err = sw.writer.WriteString("\"")
-			if err != nil {
-				return err
-			}
-			_, err = sw.writer.WriteString(string(*t))
-			if err != nil {
-				return err
-			}
-			_, err = sw.writer.WriteString("\"")
-			if err != nil {
-				return err
-			}
+			buf.WriteString("\"")
+			buf.WriteString(string(*t))
+			buf.WriteString("\"")
 		case *IntegerDataItem:
-			_, err = sw.writer.WriteString(fmt.Sprintf("#$%02x", int(*t)))
-			if err != nil {
-				return err
-			}
+			buf.WriteString(fmt.Sprintf("#$%02x", int(*t)))
 		}
 		if i < len(s.dataList)-1 {
-			sw.writer.WriteString(", ")
+			buf.WriteString(", ")
 		}
 	}
-	_, err = sw.writer.WriteString("\n")
-	return err
+	buf.WriteString("\n")
+	return buf.String()
 }
 
-func (s *DataWordStatement) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString("dc.w ")
-	if err != nil {
-		return err
-	}
+func (s *DataWordStatement) Render() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString("dc.w ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *LabelCall:
-			_, err = sw.writer.WriteString(t.LabelName)
-			if err != nil {
-				return err
-			}
+			buf.WriteString(t.LabelName)
 		case *IntegerDataItem:
-			_, err = sw.writer.WriteString(fmt.Sprintf("#$%04x", int(*t)))
-			if err != nil {
-				return err
-			}
+			buf.WriteString(fmt.Sprintf("#$%04x", int(*t)))
 		}
 		if i < len(s.dataList)-1 {
-			sw.writer.WriteString(", ")
+			buf.WriteString(", ")
 		}
 	}
-	_, err = sw.writer.WriteString("\n")
-	return err
+	buf.WriteString("\n")
+	return buf.String()
 }
 
-func (s *LabeledStatement) Render(sw SourceWriter) error {
-	_, err := sw.writer.WriteString(s.LabelName)
-	if err != nil {
-		return err
-	}
-	_, err = sw.writer.WriteString(":")
-	if err != nil {
-		return err
-	}
+func (s *LabeledStatement) Render() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString(s.LabelName)
+	buf.WriteString(":")
 
 	if s.Stmt == nil {
-		_, err = sw.writer.WriteString("\n")
-		return err
+		buf.WriteString("\n")
+		return buf.String()
 	}
-	_, err = sw.writer.WriteString(" ")
-	if err != nil {
-		return err
-	}
+	buf.WriteString(" ")
 	n := s.Stmt.(Renderer)
-	return n.Render(sw)
+	buf.WriteString(n.Render())
+	return buf.String()
 }
 
 func (p *Program) WriteSource(writer io.Writer) error {

@@ -13,6 +13,7 @@ import (
 type Compilation struct {
 	Warnings []string
 	Errors   []string
+	Flags	 CompileFlags
 
 	program         *Program
 	mod             llvm.Module
@@ -30,7 +31,7 @@ type Compilation struct {
 
 	// ABI
 	mainFn         llvm.Value
-	putsFn         llvm.Value
+	printfFn       llvm.Value
 	putCharFn      llvm.Value
 	exitFn         llvm.Value
 	cycleFn        llvm.Value
@@ -76,6 +77,7 @@ const (
 	DisableOptFlag CompileFlags = 1 << iota
 	DumpModuleFlag
 	DumpModulePreFlag
+	IncludeDebugFlag
 )
 
 func (c *Compilation) dataStop() {
@@ -223,6 +225,7 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 }
 
 func (c *Compilation) store(addr int, i8 llvm.Value) {
+	//c.debugPrintf(fmt.Sprintf("static store $%04x %s\n", addr, "#$%02x"), []llvm.Value{i8})
 	// homebrew ABI
 	switch addr {
 	case 0x2008: // putchar
@@ -283,12 +286,16 @@ func (c *Compilation) load(addr int) llvm.Value {
 			llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
-		return c.builder.CreateLoad(ptr, "")
+		v := c.builder.CreateLoad(ptr, "")
+		//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
+		return v
 	case 0x2000 <= addr && addr < 0x4000:
 		// PPU registers. mask because mirrored
 		switch addr & (0x8 - 1) {
 		case 2:
-			return c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
+			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
+			//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
+			return v
 		default:
 			c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
 			return llvm.ConstNull(llvm.Int8Type())
@@ -333,7 +340,7 @@ func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
 func (c *Compilation) createPanic() {
 	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	ptr := c.builder.CreatePointerCast(c.runtimePanicMsg, bytePointerType, "")
-	c.builder.CreateCall(c.putsFn, []llvm.Value{ptr}, "")
+	c.builder.CreateCall(c.printfFn, []llvm.Value{ptr}, "")
 	exitCode := llvm.ConstInt(llvm.Int32Type(), 1, false)
 	c.builder.CreateCall(c.exitFn, []llvm.Value{exitCode}, "")
 	c.builder.CreateUnreachable()
@@ -349,11 +356,56 @@ func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
 }
 
 func (c *Compilation) cycle(count int) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(fmt.Sprintf("cycles %d\n", count))
+	}
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
 	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
 }
 
+func (c *Compilation) debugPrint(str string) {
+	c.debugPrintf(str, []llvm.Value{})
+}
+
+func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
+	text := llvm.ConstString(str, true)
+	glob := llvm.AddGlobal(c.mod, text.Type(), "debugPrintStr")
+	glob.SetLinkage(llvm.PrivateLinkage)
+	glob.SetInitializer(text)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	ptr := c.builder.CreatePointerCast(glob, bytePointerType, "")
+	args := []llvm.Value{ptr}
+	for _, v := range(values) {
+		args = append(args, v)
+	}
+	c.builder.CreateCall(c.printfFn, args, "")
+}
+
+func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int) {
+	branchBlock := c.labeledBlocks[labelName]
+	thenBlock := c.createBlock("then")
+	elseBlock := c.createBlock("else")
+	c.builder.CreateCondBr(cond, thenBlock, elseBlock)
+	// if the condition is met, the cycle count is 3 or 4, depending
+	// on whether the page boundary is crossed.
+	c.selectBlock(thenBlock)
+	addr := c.program.Labels[labelName]
+	if instrAddr & 0xff00 == addr & 0xff00 {
+		c.cycle(3)
+	} else {
+		c.cycle(4)
+	}
+	c.builder.CreateBr(branchBlock)
+	// the else block is when the code does *not* branch.
+	// in this case, the cycle count is 2.
+	c.selectBlock(elseBlock)
+	c.cycle(2)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
 	case 0xa2: // ldx
@@ -385,6 +437,9 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	switch i.OpCode {
 	//case 0x0a: // asl
 	//case 0x00: // brk
@@ -452,7 +507,22 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	}
 }
 
+func (i *DirectWithLabelIndexedInstruction) ResolveRender(c *Compilation) string {
+	// render, but replace the label with the address
+	addr := c.program.Labels[i.LabelName]
+	return fmt.Sprintf("%s $%04x, %s\n", i.OpName, addr, i.RegisterName)
+}
+
+func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
+	// render, but replace the label with the address
+	addr := c.program.Labels[i.LabelName]
+	return fmt.Sprintf("%s $%04x\n", i.OpName, addr)
+}
+
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.ResolveRender(c))
+	}
 	switch i.OpCode {
 	case 0xbd: // lda l, X
 		dataPtr := c.labeledData[i.LabelName]
@@ -507,6 +577,9 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.ResolveRender(c))
+	}
 	switch i.OpCode {
 	//case 0x6d: // adc
 	//case 0x2d: // and
@@ -538,37 +611,21 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x8c: // sty
 
 	case 0xf0: // beq
-		// we put the cycle before the execution because
-		// it's a branch...
-		c.cycle(2)
-		thenBlock := c.labeledBlocks[i.LabelName]
-		elseBlock := c.createBlock("else")
 		isZero := c.builder.CreateLoad(c.rSZero, "")
-		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
-		c.selectBlock(elseBlock)
+		c.createBranch(isZero, i.LabelName, i.Offset)
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
 	case 0x30: // bmi
-		c.cycle(2)
-		thenBlock := c.labeledBlocks[i.LabelName]
-		elseBlock := c.createBlock("else")
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
-		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
-		c.selectBlock(elseBlock)
+		c.createBranch(isNeg, i.LabelName, i.Offset)
 	case 0xd0: // bne
-		c.cycle(2)
-		thenBlock := c.createBlock("then")
-		elseBlock := c.labeledBlocks[i.LabelName]
 		isZero := c.builder.CreateLoad(c.rSZero, "")
-		c.builder.CreateCondBr(isZero, thenBlock, elseBlock)
-		c.selectBlock(thenBlock)
+		notZero := c.builder.CreateNot(isZero, "")
+		c.createBranch(notZero, i.LabelName, i.Offset)
 	case 0x10: // bpl
-		c.cycle(2)
-		thenBlock := c.createBlock("then")
-		elseBlock := c.labeledBlocks[i.LabelName]
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
-		c.builder.CreateCondBr(isNeg, thenBlock, elseBlock)
-		c.selectBlock(thenBlock)
+		notNeg := c.builder.CreateNot(isNeg, "")
+		c.createBranch(notNeg, i.LabelName, i.Offset)
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
@@ -577,6 +634,9 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	switch i.Payload[0] {
 	case 0xa5, 0xad: // lda (zpg, abs)
 		v := c.load(i.Value)
@@ -671,10 +731,16 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	c.Errors = append(c.Errors, "IndirectXInstruction lacks Compile() implementation")
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	switch i.Payload[0] {
 	//case 0x71: // adc
 	//case 0x31: // and
@@ -695,6 +761,9 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
 		word = c.builder.CreateAdd(word, rYw, "")
 		rA := c.builder.CreateLoad(c.rA, "")
+
+		// debug statement, TODO remove this
+		//c.debugPrintf("dyn store %04x\n", []llvm.Value{word})
 
 		// runtime memory check
 		staDoneBlock := c.createBlock("STA_done")
@@ -779,6 +848,9 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
+	if c.Flags & IncludeDebugFlag != 0 {
+		c.debugPrint(i.Render())
+	}
 	c.Errors = append(c.Errors, "IndirectInstruction lacks Compile() implementation")
 }
 
@@ -795,6 +867,8 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 	}
 	c.currentBlock = &bb
 	c.builder.SetInsertPointAtEnd(bb)
+
+	//c.debugPrint(fmt.Sprintf("Label: %s\n", s.LabelName))
 
 	switch s.LabelName {
 	case c.nmiLabelName:
@@ -847,6 +921,7 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	llvm.InitializeNativeTarget()
 
 	c = new(Compilation)
+	c.Flags = flags
 	c.program = p
 	c.Warnings = []string{}
 	c.Errors = []string{}
@@ -877,12 +952,12 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	c.putCharFn = llvm.AddFunction(c.mod, "putchar", putCharType)
 	c.putCharFn.SetLinkage(llvm.ExternalLinkage)
 
-	// declare i32 @puts(i8*)
+	// declare i32 @printf(i8*, ...)
 	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
-	putsType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{bytePointerType}, false)
-	c.putsFn = llvm.AddFunction(c.mod, "puts", putsType)
-	c.putsFn.SetFunctionCallConv(llvm.CCallConv)
-	c.putsFn.SetLinkage(llvm.ExternalLinkage)
+	printfType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{bytePointerType}, true)
+	c.printfFn = llvm.AddFunction(c.mod, "printf", printfType)
+	c.printfFn.SetFunctionCallConv(llvm.CCallConv)
+	c.printfFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare void @exit(i32) noreturn nounwind
 	exitType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
