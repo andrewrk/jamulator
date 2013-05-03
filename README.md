@@ -9,7 +9,9 @@
 
 ## Roadmap
 
- * Use LLVM to recompile NES games into native executables.
+ * Add a runtime for the PPU
+ * Support interrupts in compiled code
+ * Recompile NES games into native executables (include CHR ROM etc)
  * More robust disassembling capabilities (mappers?)
  * Unpack CHR ROM into PCX files and vice versa
  * Ability to emulate an NES ROM
