@@ -250,22 +250,25 @@ void Ppu_updateEndScanlineRegisters(Ppu* p) {
     }
 }
 
-/*
+void Ppu_clearStatus(Ppu* p, uint8_t s) {
+    uint8_t current = p->registers.status;
 
-func (p *Ppu) clearStatus(s uint8) {
-    current := p.Registers.Status
-
-    switch s {
-    case StatusSpriteOverflow:
-        current = current & 0xDF
-    case StatusSprite0Hit:
-        current = current & 0xBF
-    case StatusVblankStarted:
-        current = current & 0x7F
+    switch (s) {
+    case STATUS_SPRITE_OVERFLOW:
+        current = current & 0xDF;
+        break;
+    case STATUS_SPRITE0HIT:
+        current = current & 0xBF;
+        break;
+    case STATUS_VBLANK_STARTED:
+        current = current & 0x7F;
+        break;
     }
 
-    p.Registers.Status = current
+    p->registers.status = current;
 }
+
+/*
 
 func (p *Ppu) setStatus(s uint8) {
     current := p.Registers.Status
