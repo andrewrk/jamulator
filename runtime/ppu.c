@@ -187,7 +187,6 @@ void Ppu_step(Ppu* p) {
         } else if (p->cycle == 304) {
             // Copy scroll latch into VRAMADDR register
             if (p->masks.showBackground || p->masks.showSprites) {
-                // p.VramAddress = (p.VramAddress) | (p.VramLatch & 0x41F)
                 p->registers.vramAddress = p->registers.vramLatch;
             }
         }
@@ -319,146 +318,143 @@ void Ppu_writeOamData(Ppu* p, uint8_t v) {
     p->registers.spriteRamAddress++;
     p->registers.spriteRamAddress %= 0x100;
 }
-/*
 
+void Ppu_updateBufferedSpriteMem(Ppu* p, int a, uint8_t v) {
+    int i = a / 4;
 
-func (p *Ppu) updateBufferedSpriteMem(a int, v uint8) {
-    i := a / 4
-
-    switch a % 4 {
+    switch (a % 4) {
     case 0x0:
-        p.YCoordinates[i] = v
+        p->spriteData.yCoordinates[i] = v;
+        break;
     case 0x1:
-        p.Tiles[i] = v
+        p->spriteData.tiles[i] = v;
+        break;
     case 0x2:
         // Attribute
-        p.Attributes[i] = v
+        p->spriteData.attributes[i] = v;
+        break;
     case 0x3:
-        p.XCoordinates[i] = v
+        p->spriteData.xCoordinates[i] = v;
+        break;
     }
 }
+
 
 // $2004
-func (p *Ppu) ReadOamData() (uint8, error) {
-    return p.SpriteRam[p.SpriteRamAddress], nil
+uint8_t Ppu_readOamData(Ppu* p) {
+    return p->spriteRam[p->registers.spriteRamAddress];
 }
+
 
 // $2005
-func (p *Ppu) WriteScroll(v uint8) {
-    if p.WriteLatch {
-        p.VramLatch = p.VramLatch & 0x7FE0
-        p.VramLatch = p.VramLatch | ((int(v) & 0xF8) >> 3)
-        p.FineX = v & 0x07
+void Ppu_writeScroll(Ppu* p, uint8_t v) {
+    int intValue = v;
+    if (p->registers.writeLatch) {
+        p->registers.vramLatch = p->registers.vramLatch & 0x7FE0;
+        p->registers.vramLatch = p->registers.vramLatch | ((intValue & 0xF8) >> 3);
+        p->registers.fineX = v & 0x07;
     } else {
-        p.VramLatch = p.VramLatch & 0xC1F
-        p.VramLatch = p.VramLatch | (((int(v) & 0xF8) << 2) | ((int(v) & 0x07) << 12))
+        p->registers.vramLatch = p->registers.vramLatch & 0xC1F;
+        p->registers.vramLatch = p->registers.vramLatch | (((intValue & 0xF8) << 2) | ((intValue & 0x07) << 12));
     }
 
-    p.WriteLatch = !p.WriteLatch
+    p->registers.writeLatch = !p->registers.writeLatch;
 }
+
 
 // $2006
-func (p *Ppu) WriteAddress(v uint8) {
-    if p.WriteLatch {
-        p.VramLatch = p.VramLatch & 0xFF
-        p.VramLatch = p.VramLatch | ((int(v) & 0x3F) << 8)
+void Ppu_writeAddress(Ppu* p, uint8_t v) {
+    int intValue = v;
+    if (p->registers.writeLatch) {
+        p->registers.vramLatch = p->registers.vramLatch & 0xFF;
+        p->registers.vramLatch = p->registers.vramLatch | ((intValue & 0x3F) << 8);
     } else {
-        p.VramLatch = p.VramLatch & 0x7F00
-        p.VramLatch = p.VramLatch | int(v)
-        p.VramAddress = p.VramLatch
+        p->registers.vramLatch = p->registers.vramLatch & 0x7F00;
+        p->registers.vramLatch = p->registers.vramLatch | intValue;
+        p->registers.vramAddress = p->registers.vramLatch;
     }
 
-    p.WriteLatch = !p.WriteLatch
+    p->registers.writeLatch = !p->registers.writeLatch;
 }
 
+
 // $2007
-func (p *Ppu) WriteData(v uint8) {
-    if p.VramAddress > 0x3000 {
-        p.writeMirroredVram(p.VramAddress, v)
-    } else if p.VramAddress >= 0x2000 && p.VramAddress < 0x3000 {
+void Ppu_writeData(Ppu* p, uint8_t v) {
+    if (p->registers.vramAddress > 0x3000) {
+        Ppu_writeMirroredVram(p, p->registers.vramAddress, v);
+    } else if (p->registers.vramAddress >= 0x2000 && p->registers.vramAddress < 0x3000) {
         // Nametable mirroring
-        p.Nametables.writeNametableData(p.VramAddress, v)
+        Nametable_writeNametableData(&p->nametables, p->registers.vramAddress, v);
     } else {
-        p.Vram[p.VramAddress&0x3FFF] = v
+        p->vram[p->registers.vramAddress&0x3FFF] = v;
     }
 
-    p.incrementVramAddress()
+    Ppu_incrementVramAddress(p);
 }
 
 // $2007
-func (p *Ppu) ReadData() (r uint8, err error) {
+uint8_t Ppu_readData(Ppu* p) {
+    uint8_t r;
     // Reads from $2007 are buffered with a
     // 1-byte delay
-    if p.VramAddress >= 0x2000 && p.VramAddress < 0x3000 {
-        r = p.VramDataBuffer
-        p.VramDataBuffer = p.Nametables.readNametableData(p.VramAddress)
-    } else if p.VramAddress < 0x3F00 {
-        r = p.VramDataBuffer
-        p.VramDataBuffer = p.Vram[p.VramAddress]
+    if (p->registers.vramAddress >= 0x2000 && p->registers.vramAddress < 0x3000) {
+        r = p->registers.vramDataBuffer;
+        p->registers.vramDataBuffer = Nametable_readNametableData(&p->nametables, p->registers.vramAddress);
+    } else if (p->registers.vramAddress < 0x3F00) {
+        r = p->registers.vramDataBuffer;
+        p->registers.vramDataBuffer = p->vram[p->registers.vramAddress];
     } else {
-        bufferAddress := p.VramAddress - 0x1000
-        switch {
-        case bufferAddress >= 0x2000 && bufferAddress < 0x3000:
-            p.VramDataBuffer = p.Nametables.readNametableData(bufferAddress)
-        default:
-            p.VramDataBuffer = p.Vram[bufferAddress]
-        }
-
-        a := p.VramAddress
-        if a&0xF == 0 {
-            a = 0
-        }
-
-        r = p.PaletteRam[a&0x1F]
-    }
-
-    p.incrementVramAddress()
-
-    return
-}
-
-func (p *Ppu) incrementVramAddress() {
-    switch p.VramAddressInc {
-    case 0x01:
-        p.VramAddress = p.VramAddress + 0x20
-    default:
-        p.VramAddress = p.VramAddress + 0x01
-    }
-}
-
-func (p *Ppu) sprPatternTableAddress(i int) int {
-    if p.SpriteSize&0x01 != 0x0 {
-        // 8x16 Sprites
-        if i&0x01 != 0 {
-            return 0x1000 | ((int(i) >> 1) * 0x20)
+        int bufferAddress = p->registers.vramAddress - 0x1000;
+        if (bufferAddress >= 0x2000 && bufferAddress < 0x3000) {
+            p->registers.vramDataBuffer = Nametable_readNametableData(&p->nametables, bufferAddress);
         } else {
-            return ((int(i) >> 1) * 0x20)
+            p->registers.vramDataBuffer = p->vram[bufferAddress];
+        }
+
+        int a = p->registers.vramAddress;
+        if (a&0xF == 0) {
+            a = 0;
+        }
+
+        r = p->paletteRam[a&0x1F];
+    }
+
+    Ppu_incrementVramAddress(p);
+
+    return r;
+}
+
+
+void Ppu_incrementVramAddress(Ppu* p) {
+    if (p->flags.vramAddressInc == 0x01) {
+        p->registers.vramAddress = p->registers.vramAddress + 0x20;
+    } else {
+        p->registers.vramAddress = p->registers.vramAddress + 0x01;
+    }
+}
+
+int Ppu_sprPatternTableAddress(Ppu* p, int i) {
+    if (p->flags.spriteSize&0x01 != 0x0) {
+        // 8x16 Sprites
+        if (i&0x01 != 0) {
+            return 0x1000 | ((i >> 1) * 0x20);
+        } else {
+            return ((i >> 1) * 0x20);
         }
 
     }
 
     // 8x8 Sprites
-    var a int
-    if p.SpritePatternAddress == 0x01 {
-        a = 0x1000
-    } else {
-        a = 0x0
-    }
+    int a = p->flags.spritePatternAddress == 0x01 ? 0x1000 : 0x0;
 
-    return int(i)*0x10 + a
+    return i*0x10 + a;
 }
 
-func (p *Ppu) bgPatternTableAddress(i uint8) int {
-    var a int
-    if p.BackgroundPatternAddress == 0x01 {
-        a = 0x1000
-    } else {
-        a = 0x0
-    }
-
-    return (int(i) << 4) | (p.VramAddress >> 12) | a
+int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i) {
+    int a = p->flags.backgroundPatternAddress == 0x01 ? 0x1000 : 0x0;
+    return (i << 4) | (p->registers.vramAddress >> 12) | a;
 }
-
+/*
 func (p *Ppu) renderTileRow() {
     // Generates each tile, one scanline at a time
     // and applies the palette
@@ -466,23 +462,23 @@ func (p *Ppu) renderTileRow() {
     // Load first two tiles into shift registers at start, then load
     // one per loop and shift the other back out
     fetchTileAttributes := func() (uint16, uint16, uint8) {
-        attrAddr := 0x23C0 | (p.VramAddress & 0xC00) | int(p.AttributeLocation[p.VramAddress&0x3FF])
-        shift := p.AttributeShift[p.VramAddress&0x3FF]
+        attrAddr := 0x23C0 | (p->registers.vramAddress & 0xC00) | int(p.AttributeLocation[p->registers.vramAddress&0x3FF])
+        shift := p.AttributeShift[p->registers.vramAddress&0x3FF]
         attr := ((p.Nametables.readNametableData(attrAddr) >> shift) & 0x03) << 2
 
-        index := p.Nametables.readNametableData(p.VramAddress)
+        index := p.Nametables.readNametableData(p->registers.vramAddress)
         t := p.bgPatternTableAddress(index)
 
         // Flip bit 10 on wraparound
-        if p.VramAddress&0x1F == 0x1F {
+        if p->registers.vramAddress&0x1F == 0x1F {
             // If rendering is enabled, at the end of a scanline
             // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
-            p.VramAddress ^= 0x41F
+            p->registers.vramAddress ^= 0x41F
         } else {
-            p.VramAddress++
+            p->registers.vramAddress++
         }
 
-        return uint16(p.Vram[t]), uint16(p.Vram[t+8]), attr
+        return uint16(p->vram[t]), uint16(p->vram[t+8]), attr
     }
 
     // Move first tile into shift registers
@@ -503,13 +499,13 @@ func (p *Ppu) renderTileRow() {
         for b = 0; b < 8; b++ {
             fbRow := p.Scanline*256 + ((x * 8) + int(b))
 
-            pixel := (p.LowBitShift >> (15 - b - uint(p.FineX))) & 0x01
-            pixel += ((p.HighBitShift >> (15 - b - uint(p.FineX)) & 0x01) << 1)
+            pixel := (p.LowBitShift >> (15 - b - uint(p->registers.fineX))) & 0x01
+            pixel += ((p.HighBitShift >> (15 - b - uint(p->registers.fineX)) & 0x01) << 1)
 
             // If we're grabbing the pixel from the high
             // part of the shift register, use the buffered
             // palette, not the current one
-            if (15 - b - uint(p.FineX)) < 8 {
+            if (15 - b - uint(p->registers.fineX)) < 8 {
                 palette = p.bgPaletteEntry(attrBuf, pixel)
             } else {
                 palette = p.bgPaletteEntry(attr, pixel)
@@ -528,7 +524,7 @@ func (p *Ppu) renderTileRow() {
             }
         }
 
-        // xcoord = p.VramAddress & 0x1F
+        // xcoord = p->registers.vramAddress & 0x1F
         attr = attrBuf
 
         // Shift the first tile out, bring the new tile in
@@ -544,7 +540,7 @@ func (p *Ppu) evaluateScanlineSprites(line int) {
 
     for i, y := range p.SpriteData.YCoordinates {
         spriteHeight := 8
-        if p.SpriteSize&0x1 == 0x1 {
+        if p->flags.spriteSize&0x1 == 0x1 {
             spriteHeight = 16
         }
 
@@ -569,13 +565,13 @@ func (p *Ppu) evaluateScanlineSprites(line int) {
                 ycoord = int(p.YCoordinates[i]) + c + 1
             }
 
-            if p.SpriteSize&0x01 != 0x0 {
+            if p->flags.spriteSize&0x01 != 0x0 {
                 // 8x16 Sprite
                 s := p.sprPatternTableAddress(int(t))
                 var tile []uint8
 
-                top := p.Vram[s : s+16]
-                bottom := p.Vram[s+16 : s+32]
+                top := p->vram[s : s+16]
+                bottom := p->vram[s+16 : s+32]
 
                 if c > 7 && yflip {
                     tile = top
@@ -599,7 +595,7 @@ func (p *Ppu) evaluateScanlineSprites(line int) {
             } else {
                 // 8x8 Sprite
                 s := p.sprPatternTableAddress(int(t))
-                tile := p.Vram[s : s+16]
+                tile := p->vram[s : s+16]
 
                 p.decodePatternTile([]uint8{tile[c], tile[c+8]},
                     int(p.XCoordinates[i]),
@@ -679,55 +675,57 @@ func (p *Ppu) decodePatternTile(t []uint8, x, y int, pal []uint8, attr *uint8, s
         }
     }
 }
+*/
 
-func (p *Ppu) bgPaletteEntry(a uint8, pix uint16) (pal int) {
-    if pix == 0x0 {
-        return int(p.PaletteRam[0x00])
+int Ppu_bgPaletteEntry(Ppu* p, uint8_t a, uint16_t pix) {
+    if (pix == 0x0) {
+        return p->paletteRam[0x00];
     }
 
-    switch a {
+    switch (a) {
     case 0x0:
-        return int(p.PaletteRam[0x00+pix])
+        return p->paletteRam[0x00+pix];
     case 0x4:
-        return int(p.PaletteRam[0x04+pix])
+        return p->paletteRam[0x04+pix];
     case 0x8:
-        return int(p.PaletteRam[0x08+pix])
+        return p->paletteRam[0x08+pix];
     case 0xC:
-        return int(p.PaletteRam[0x0C+pix])
+        return p->paletteRam[0x0C+pix];
     }
 
-    return
+    return 0;
 }
 
+/*
 func (p *Ppu) sprPaletteEntry(a uint) (pal []uint8) {
     switch a {
     case 0x0:
         pal = []uint8{
-            p.PaletteRam[0x10],
-            p.PaletteRam[0x11],
-            p.PaletteRam[0x12],
-            p.PaletteRam[0x13],
+            p->paletteRam[0x10],
+            p->paletteRam[0x11],
+            p->paletteRam[0x12],
+            p->paletteRam[0x13],
         }
     case 0x1:
         pal = []uint8{
-            p.PaletteRam[0x10],
-            p.PaletteRam[0x15],
-            p.PaletteRam[0x16],
-            p.PaletteRam[0x17],
+            p->paletteRam[0x10],
+            p->paletteRam[0x15],
+            p->paletteRam[0x16],
+            p->paletteRam[0x17],
         }
     case 0x2:
         pal = []uint8{
-            p.PaletteRam[0x10],
-            p.PaletteRam[0x19],
-            p.PaletteRam[0x1A],
-            p.PaletteRam[0x1B],
+            p->paletteRam[0x10],
+            p->paletteRam[0x19],
+            p->paletteRam[0x1A],
+            p->paletteRam[0x1B],
         }
     case 0x3:
         pal = []uint8{
-            p.PaletteRam[0x10],
-            p.PaletteRam[0x1D],
-            p.PaletteRam[0x1E],
-            p.PaletteRam[0x1F],
+            p->paletteRam[0x10],
+            p->paletteRam[0x1D],
+            p->paletteRam[0x1E],
+            p->paletteRam[0x1F],
         }
     }
 
