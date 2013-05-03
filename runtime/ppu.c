@@ -3,7 +3,6 @@
 #include "string.h"
 #include "rom.h"
 
-// don't forget to call Ppu_dispose
 Ppu* Ppu_new() {
     Ppu* p = (Ppu*) malloc(sizeof(Ppu));
     memset(p, 0, sizeof(Ppu));
@@ -203,9 +202,8 @@ void Ppu_step(Ppu* p) {
     p->cycleCount++;
 }
 
-/*
-func (p *Ppu) updateEndScanlineRegisters() {
 
+void Ppu_updateEndScanlineRegisters(Ppu* p) {
     // *******************************************************
     //  TODO: Some documentation implies that the X increment
     //  should occur 34 times per scanline. These may not be
@@ -213,48 +211,46 @@ func (p *Ppu) updateEndScanlineRegisters() {
     // *******************************************************
 
     // Flip bit 10 on wraparound
-    if p.VramAddress&0x1F == 0x1F {
+    if (p->registers.vramAddress&0x1F == 0x1F) {
         // If rendering is enabled, at the end of a scanline
         // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
-        p.VramAddress ^= 0x41F
+        p->registers.vramAddress ^= 0x41F;
     } else {
-        p.VramAddress++
+        p->registers.vramAddress++;
     }
 
     // Flip bit 10 on wraparound
-    if p.VramAddress&0x1F == 0x1F {
+    if (p->registers.vramAddress&0x1F == 0x1F) {
         // If rendering is enabled, at the end of a scanline
         // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
-        p.VramAddress ^= 0x41F
+        p->registers.vramAddress ^= 0x41F;
     } else {
-        p.VramAddress++
+        p->registers.vramAddress++;
     }
 
-    if p.ShowBackground || p.ShowSprites {
+    if (p->masks.showBackground || p->masks.showSprites) {
         // Scanline has ended
-        if p.VramAddress&0x7000 == 0x7000 {
-            tmp := p.VramAddress & 0x3E0
-            p.VramAddress &= 0xFFF
+        if (p->registers.vramAddress&0x7000 == 0x7000) {
+            int tmp = p->registers.vramAddress & 0x3E0;
+            p->registers.vramAddress &= 0xFFF;
 
-            switch tmp {
-            case 0x3A0:
-                p.VramAddress ^= 0xBA0
-            case 0x3E0:
-                p.VramAddress ^= 0x3E0
-            default:
-                p.VramAddress += 0x20
+            if (tmp == 0x3A0) {
+                p->registers.vramAddress ^= 0xBA0;
+            } else if (tmp == 0x3e0) {
+                p->registers.vramAddress ^= 0x3E0;
+            } else {
+                p->registers.vramAddress += 0x20;
             }
-
         } else {
             // Increment the fine-Y
-            p.VramAddress += 0x1000
+            p->registers.vramAddress += 0x1000;
         }
 
-        p.VramAddress = (p.VramAddress & 0x7BE0) | (p.VramLatch & 0x41F)
+        p->registers.vramAddress = (p->registers.vramAddress & 0x7BE0) | (p->registers.vramLatch & 0x41F);
     }
 }
 
-
+/*
 
 func (p *Ppu) clearStatus(s uint8) {
     current := p.Registers.Status

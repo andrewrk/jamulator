@@ -97,3 +97,13 @@ typedef struct {
     int cycleCount;
 } Ppu;
 
+// don't forget to call Ppu_dispose
+Ppu* Ppu_new();
+void Ppu_dispose(Ppu* p);
+
+void Ppu_writeMirroredVram(Ppu* p, int a, uint8_t v);
+void Ppu_writeControl(Ppu* p, uint8_t v);
+void Ppu_writeMask(Ppu* p, uint8_t v);
+void Ppu_raster(Ppu* p);
+void Ppu_step(Ppu* p);
+void Ppu_updateEndScanlineRegisters(Ppu* p);
