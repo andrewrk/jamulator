@@ -85,6 +85,7 @@ func (c *Compilation) dataStop() {
 		return
 	}
 	if c.currentValue.Len() == 0 {
+		c.currentLabel = "";
 		return
 	}
 	text := llvm.ConstString(c.currentValue.String(), false)
