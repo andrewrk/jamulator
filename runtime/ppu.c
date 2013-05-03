@@ -144,69 +144,66 @@ void Ppu_raster(Ppu* p) {
     // ****************** p.framebuffer
 }
 
-/*
-func (p *Ppu) Step() {
-    switch {
-    case p.Scanline == 240:
-        switch p.Cycle {
-        case 1:
-            if !p.SuppressVbl {
+
+void Ppu_step(Ppu* p) {
+    if (p->scanline == 240) {
+        if (p->cycle == 1) {
+            if (!p->suppressVbl) {
                 // We're in VBlank
-                p.setStatus(StatusVblankStarted)
-                p.CycleCount = 0
+                Ppu_setStatus(p, STATUS_VBLANK_STARTED);
+                p->cycleCount = 0;
             }
-            p.raster()
+            Ppu_raster(p);
         }
-    case p.Scanline == 260: // End of vblank
-        switch p.Cycle {
-        case 1:
+    } else if (p->scanline == 260) {
+        // End of vblank
+        if (p->cycle == 1) {
             // Clear VBlank flag
-            p.clearStatus(StatusVblankStarted)
-            p.CycleCount = 0
-        case 341:
-            p.Scanline = -1
-            p.Cycle = 1
-            p.FrameCount++
-            return
+            Ppu_clearStatus(p, STATUS_VBLANK_STARTED);
+            p->cycleCount = 0;
+        } else if(p->cycle == 341) {
+            p->scanline = -1;
+            p->cycle = 1;
+            p->frameCount++;
+            return;
         }
-    case p.Scanline < 240 && p.Scanline > -1:
-        switch p.Cycle {
-        case 254:
-            if p.ShowBackground {
-                p.renderTileRow()
+    } else if (p->scanline < 240 && p->scanline > -1) {
+        if (p->cycle == 254) {
+            if (p->masks.showBackground) {
+                Ppu_renderTileRow(p);
             }
 
-            if p.ShowSprites {
-                p.evaluateScanlineSprites(p.Scanline)
+            if (p->masks.showSprites) {
+                Ppu_evaluateScanlineSprites(p, p->scanline);
             }
-        case 256:
-            if p.ShowBackground {
-                p.updateEndScanlineRegisters()
+        } else if (p->cycle == 256) {
+            if (p->masks.showBackground) {
+                Ppu_updateEndScanlineRegisters(p);
             }
         }
-    case p.Scanline == -1:
-        switch p.Cycle {
-        case 1:
-            p.clearStatus(StatusSprite0Hit)
-            p.clearStatus(StatusSpriteOverflow)
-        case 304:
+    } else if (p->scanline == -1) {
+        if (p->cycle == 1) {
+            Ppu_clearStatus(p, STATUS_SPRITE0HIT);
+            Ppu_clearStatus(p, STATUS_SPRITE_OVERFLOW);
+        } else if (p->cycle == 304) {
             // Copy scroll latch into VRAMADDR register
-            if p.ShowBackground || p.ShowSprites {
+            if (p->masks.showBackground || p->masks.showSprites) {
                 // p.VramAddress = (p.VramAddress) | (p.VramLatch & 0x41F)
-                p.VramAddress = p.VramLatch
+                p->registers.vramAddress = p->registers.vramLatch;
             }
         }
     }
 
-    if p.Cycle == 341 {
-        p.Cycle = 0
-        p.Scanline++
+    if (p->cycle == 341) {
+        p->cycle = 0;
+        p->scanline++;
     }
 
-    p.Cycle++
-    p.CycleCount++
+    p->cycle++;
+    p->cycleCount++;
 }
 
+/*
 func (p *Ppu) updateEndScanlineRegisters() {
 
     // *******************************************************
