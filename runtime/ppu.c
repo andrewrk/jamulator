@@ -268,22 +268,25 @@ void Ppu_clearStatus(Ppu* p, uint8_t s) {
     p->registers.status = current;
 }
 
-/*
+void Ppu_setStatus(Ppu* p, uint8_t s) {
+    int current = p->registers.status;
 
-func (p *Ppu) setStatus(s uint8) {
-    current := p.Registers.Status
-
-    switch s {
-    case StatusSpriteOverflow:
-        current = current | 0x20
-    case StatusSprite0Hit:
-        current = current | 0x40
-    case StatusVblankStarted:
-        current = current | 0x80
+    switch (s) {
+    case STATUS_SPRITE_OVERFLOW:
+        current = current | 0x20;
+        break;
+    case STATUS_SPRITE0HIT:
+        current = current | 0x40;
+        break;
+    case STATUS_VBLANK_STARTED:
+        current = current | 0x80;
+        break;
     }
 
-    p.Registers.Status = current
+    p->registers.status = current;
 }
+
+/*
 
 // $2002
 func (p *Ppu) ReadStatus() (s uint8, e error) {

@@ -108,3 +108,4 @@ void Ppu_raster(Ppu* p);
 void Ppu_step(Ppu* p);
 void Ppu_updateEndScanlineRegisters(Ppu* p);
 void Ppu_clearStatus(Ppu* p, uint8_t s);
+void Ppu_setStatus(Ppu* p, uint8_t s);
