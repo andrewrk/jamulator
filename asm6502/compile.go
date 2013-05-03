@@ -527,9 +527,10 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	case 0xbd: // lda l, X
 		dataPtr := c.labeledData[i.LabelName]
 		index := c.builder.CreateLoad(c.rX, "")
+		index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
 		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int8Type(), 0, false),
-			index,
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
+			index16,
 		}
 		ptr := c.builder.CreateGEP(dataPtr, indexes, "")
 		v := c.builder.CreateLoad(ptr, "")
@@ -537,12 +538,28 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetNeg(v)
 		c.dynTestAndSetZero(v)
 
-		cycleCount := 4
-		addr := c.program.Labels[i.LabelName]
-		if addr > 0xff {
-			cycleCount += 1
-		}
-		c.cycle(cycleCount)
+		// if address & 0xff00 != (address + x) & 0xff00
+		baseAddr := c.program.Labels[i.LabelName]
+		baseAddrMasked := baseAddr & 0xff00
+		baseAddrMaskedValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddrMasked), false)
+
+		baseAddrValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddr), false)
+		addrPlusX := c.builder.CreateAdd(baseAddrValue, index16, "")
+		xff00 := llvm.ConstInt(llvm.Int16Type(), uint64(0xff00), false)
+		maskedAddrPlusX := c.builder.CreateAnd(addrPlusX, xff00, "")
+
+		eq := c.builder.CreateICmp(llvm.IntEQ, baseAddrMaskedValue, maskedAddrPlusX, "")
+		ldaDoneBlock := c.createBlock("LDA_done")
+		pageBoundaryCrossedBlock := c.createIf(eq)
+		// executed if page boundary is not crossed
+		c.cycle(4)
+		c.builder.CreateBr(ldaDoneBlock)
+		// executed if page boundary crossed
+		c.selectBlock(pageBoundaryCrossedBlock)
+		c.cycle(5)
+		c.builder.CreateBr(ldaDoneBlock)
+		// done
+		c.selectBlock(ldaDoneBlock)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
