@@ -13,7 +13,7 @@ import (
 type Compilation struct {
 	Warnings []string
 	Errors   []string
-	Flags	 CompileFlags
+	Flags    CompileFlags
 
 	program         *Program
 	mod             llvm.Module
@@ -356,7 +356,7 @@ func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
 }
 
 func (c *Compilation) cycle(count int) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(fmt.Sprintf("cycles %d\n", count))
 	}
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
@@ -375,7 +375,7 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	ptr := c.builder.CreatePointerCast(glob, bytePointerType, "")
 	args := []llvm.Value{ptr}
-	for _, v := range(values) {
+	for _, v := range values {
 		args = append(args, v)
 	}
 	c.builder.CreateCall(c.printfFn, args, "")
@@ -390,7 +390,7 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	// on whether the page boundary is crossed.
 	c.selectBlock(thenBlock)
 	addr := c.program.Labels[labelName]
-	if instrAddr & 0xff00 == addr & 0xff00 {
+	if instrAddr&0xff00 == addr&0xff00 {
 		c.cycle(3)
 	} else {
 		c.cycle(4)
@@ -403,7 +403,7 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 }
 
 func (i *ImmediateInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
@@ -437,7 +437,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	switch i.OpCode {
@@ -520,7 +520,7 @@ func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.ResolveRender(c))
 	}
 	switch i.OpCode {
@@ -577,7 +577,7 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.ResolveRender(c))
 	}
 	switch i.OpCode {
@@ -634,7 +634,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	switch i.Payload[0] {
@@ -731,14 +731,14 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	c.Errors = append(c.Errors, "IndirectXInstruction lacks Compile() implementation")
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	switch i.Payload[0] {
@@ -848,7 +848,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
-	if c.Flags & IncludeDebugFlag != 0 {
+	if c.Flags&IncludeDebugFlag != 0 {
 		c.debugPrint(i.Render())
 	}
 	c.Errors = append(c.Errors, "IndirectInstruction lacks Compile() implementation")
