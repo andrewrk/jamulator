@@ -286,41 +286,41 @@ void Ppu_setStatus(Ppu* p, uint8_t s) {
     p->registers.status = current;
 }
 
-/*
-
 // $2002
-func (p *Ppu) ReadStatus() (s uint8, e error) {
-    p.WriteLatch = true
-    s = p.Registers.Status
+uint8_t Ppu_readStatus(Ppu* p) {
+    p->registers.writeLatch = true;
+    uint8_t s = p->registers.status;
 
-    if p.Cycle == 1 && p.Scanline == 240 {
-        s &= 0x7F
-        p.SuppressNmi = true
-        p.SuppressVbl = true
+    if (p->cycle == 1 && p->scanline == 240) {
+        s &= 0x7F;
+        p->suppressNmi = true;
+        p->suppressVbl = true;
     } else {
-        p.SuppressNmi = false
-        p.SuppressVbl = false
+        p->suppressNmi = false;
+        p->suppressVbl = false;
         // Clear VBlank flag
-        p.clearStatus(StatusVblankStarted)
+        Ppu_clearStatus(p, STATUS_VBLANK_STARTED);
     }
 
-    return
+    return s;
 }
 
 // $2003
-func (p *Ppu) WriteOamAddress(v uint8) {
-    p.SpriteRamAddress = int(v)
+void Ppu_writeOamAddress(Ppu* p, uint8_t v) {
+    p->registers.spriteRamAddress = v;
 }
 
 // $2004
-func (p *Ppu) WriteOamData(v uint8) {
-    p.SpriteRam[p.SpriteRamAddress] = v
+void Ppu_writeOamData(Ppu* p, uint8_t v) {
+    p->spriteRam[p->registers.spriteRamAddress] = v;
 
-    p.updateBufferedSpriteMem(p.SpriteRamAddress, v)
+    Ppu_updateBufferedSpriteMem(p, p->registers.spriteRamAddress, v);
 
-    p.SpriteRamAddress++
-    p.SpriteRamAddress %= 0x100
+    p->registers.spriteRamAddress++;
+    p->registers.spriteRamAddress %= 0x100;
 }
+/*
+
 
 func (p *Ppu) updateBufferedSpriteMem(a int, v uint8) {
     i := a / 4

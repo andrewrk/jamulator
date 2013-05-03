@@ -109,3 +109,6 @@ void Ppu_step(Ppu* p);
 void Ppu_updateEndScanlineRegisters(Ppu* p);
 void Ppu_clearStatus(Ppu* p, uint8_t s);
 void Ppu_setStatus(Ppu* p, uint8_t s);
+uint8_t Ppu_readStatus(Ppu* p);
+void Ppu_writeOamAddress(Ppu* p, uint8_t v);
+void Ppu_writeOamData(Ppu* p, uint8_t v);
