@@ -1,5 +1,7 @@
 package asm6502
 
+// generates a module compatible with runtime/rom.h
+
 // TODO: handle interrupts
 // TODO: load/save state
 
@@ -930,18 +932,21 @@ func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 
 func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	//uint8_t rom_chr_bank_count;
-	bankCountConst := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	bankCountConst := llvm.ConstInt(llvm.Int8Type(), uint64(len(chrRom)), false)
 	bankCountGlobal := llvm.AddGlobal(c.mod, bankCountConst.Type(), "rom_chr_bank_count")
 	bankCountGlobal.SetLinkage(llvm.ExternalLinkage)
 	bankCountGlobal.SetInitializer(bankCountConst)
 
 	//uint8_t* rom_chr_data;
-	chrDataValues := make([]llvm.Value, 0, 0x2000)
+	dataLen := 0x2000 * len(chrRom)
+	chrDataValues := make([]llvm.Value, 0, dataLen)
 	int8type := llvm.Int8Type()
-	for _, b := range chrRom[0] {
-		chrDataValues = append(chrDataValues, llvm.ConstInt(int8type, uint64(b), false))
+	for _, bank := range chrRom {
+		for _, b := range bank {
+			chrDataValues = append(chrDataValues, llvm.ConstInt(int8type, uint64(b), false))
+		}
 	}
-	chrDataConst := llvm.ConstArray(llvm.ArrayType(llvm.Int8Type(), 0x2000), chrDataValues)
+	chrDataConst := llvm.ConstArray(llvm.ArrayType(llvm.Int8Type(), dataLen), chrDataValues)
 	chrDataGlobal := llvm.AddGlobal(c.mod, chrDataConst.Type(), "rom_chr_data")
 	chrDataGlobal.SetLinkage(llvm.PrivateLinkage)
 	chrDataGlobal.SetInitializer(chrDataConst)
@@ -957,10 +962,12 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	readChrFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(readChrFn, "Entry")
 	c.builder.SetInsertPointAtEnd(entry)
-	x2000 := llvm.ConstInt(llvm.Int32Type(), 0x2000, false)
-	dest := c.builder.CreatePointerCast(readChrFn.Param(0), voidPtrType, "")
-	source := c.builder.CreatePointerCast(chrDataGlobal, voidPtrType, "")
-	c.builder.CreateCall(memcpyFn, []llvm.Value{dest, source, x2000}, "")
+	if dataLen > 0 {
+		x2000 := llvm.ConstInt(llvm.Int32Type(), uint64(dataLen), false)
+		dest := c.builder.CreatePointerCast(readChrFn.Param(0), voidPtrType, "")
+		source := c.builder.CreatePointerCast(chrDataGlobal, voidPtrType, "")
+		c.builder.CreateCall(memcpyFn, []llvm.Value{dest, source, x2000}, "")
+	}
 	c.builder.CreateRetVoid()
 }
 
