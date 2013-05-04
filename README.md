@@ -42,35 +42,27 @@
     go install
     ```
 
-6. Run the tests:
+6. Install the C dependencies:
+
+    ```
+    sudo apt-get install libsdl1.2-dev libsdl-gfx1.2-dev libsdl-image1.2-dev libglew1.6-dev libxrandr-dev
+    ```
+
+7. Run the tests:
 
     ```
     make test
     ```
 
-7. Compile & run:
+8. Compile & run:
 
     ```
     make
     ./jamulator
     ```
 
-8. Compile a .bc file which jamulator generates into a static library (.o):
+9. Recompile a rom into a native binary:
 
     ```
-    llc -filetype=obj -relocation-model=pic file.bc
-    ```
-
-9. Run a static library, calling supports `putchar` and `exit`:
-
-    ```
-    gcc -o runtime.o -c runtime/main.c
-    gcc -o game_exe file.o runtime.o
-    ./game_exe
-    ```
-
-10. Compile a .bc file into a dynamic library (.so)
-
-    ```
-    gcc -shared -Wl,-soname,zelda.so -o zelda.so zelda.o
+    ./jamulator -recompile game.nes
     ```

@@ -83,6 +83,8 @@ typedef struct {
     uint32_t *framebuffer;
     int framebufferSize;
 
+    void (*render)();
+
     int cycle;
     int scanline;
     int timestamp;

@@ -55,7 +55,7 @@ func (rom *Rom) RecompileToBinary(filename string, flags asm6502.CompileFlags) e
 	}
 
 	fmt.Fprintf(os.Stderr, "Linking...\n")
-	out, err = exec.Command("gcc", "-o", filename, tmpPrgObject, runtimeArchive).CombinedOutput()
+	out, err = exec.Command("gcc", tmpPrgObject, runtimeArchive, "-lGLEW", "-lGL", "-lSDL", "-lSDL_gfx", "-o", filename).CombinedOutput()
 	fmt.Fprint(os.Stderr, string(out))
 	if err != nil {
 		return err

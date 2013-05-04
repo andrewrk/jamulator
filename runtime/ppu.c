@@ -154,9 +154,9 @@ void Ppu_raster(Ppu* p) {
         p->palettebuffer[i].pindex = -1;
     }
 
-    // TODO: some kind of callback or notification that
-    // we have a framebuffer ready to be rendered
-    // ****************** p.framebuffer
+    if (p->render != NULL) {
+        p->render();
+    }
 }
 
 
