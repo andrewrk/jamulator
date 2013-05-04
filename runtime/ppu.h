@@ -2,6 +2,7 @@
 #include "stdint.h"
 #include "nametable.h"
 
+// TODO: namespace everything
 typedef enum {
     INTERRUPT_NONE,
     INTERRUPT_IRQ,
@@ -122,3 +123,5 @@ void Ppu_incrementVramAddress(Ppu* p);
 int Ppu_sprPatternTableAddress(Ppu* p, int i);
 int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i);
 int Ppu_bgPaletteEntry(Ppu* p, uint8_t a, uint16_t pix);
+void Ppu_renderTileRow(Ppu* p);
+void Ppu_fetchTileAttributes(Ppu* p, PpuTileAttributes* attrs);

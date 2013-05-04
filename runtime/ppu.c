@@ -3,6 +3,22 @@
 #include "string.h"
 #include "rom.h"
 
+uint32_t PPU_PALETTE_RGB[] = {
+    0x666666, 0x002A88, 0x1412A7, 0x3B00A4, 0x5C007E,
+    0x6E0040, 0x6C0600, 0x561D00, 0x333500, 0x0B4800,
+    0x005200, 0x004F08, 0x00404D, 0x000000, 0x000000,
+    0x000000, 0xADADAD, 0x155FD9, 0x4240FF, 0x7527FE,
+    0xA01ACC, 0xB71E7B, 0xB53120, 0x994E00, 0x6B6D00,
+    0x388700, 0x0C9300, 0x008F32, 0x007C8D, 0x000000,
+    0x000000, 0x000000, 0xFFFEFF, 0x64B0FF, 0x9290FF,
+    0xC676FF, 0xF36AFF, 0xFE6ECC, 0xFE8170, 0xEA9E22,
+    0xBCBE00, 0x88D800, 0x5CE430, 0x45E082, 0x48CDDE,
+    0x4F4F4F, 0x000000, 0x000000, 0xFFFEFF, 0xC0DFFF,
+    0xD3D2FF, 0xE8C8FF, 0xFBC2FF, 0xFEC4EA, 0xFECCC5,
+    0xF7D8A5, 0xE4E594, 0xCFEF96, 0xBDF4AB, 0xB3F3CC,
+    0xB5EBF2, 0xB8B8B8, 0x000000, 0x000000,
+};
+
 Ppu* Ppu_new() {
     Ppu* p = (Ppu*) malloc(sizeof(Ppu));
     memset(p, 0, sizeof(Ppu));
@@ -454,87 +470,100 @@ int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i) {
     int a = p->flags.backgroundPatternAddress == 0x01 ? 0x1000 : 0x0;
     return (i << 4) | (p->registers.vramAddress >> 12) | a;
 }
-/*
-func (p *Ppu) renderTileRow() {
+
+typedef struct {
+    uint16_t low;
+    uint16_t high;
+    uint8_t attr;
+} PpuTileAttributes;
+
+void Ppu_fetchTileAttributes(Ppu* p, PpuTileAttributes* attrs) {
+    // Load first two tiles into shift registers at start, then load
+    // one per loop and shift the other back out
+
+    int intAttrLoc = p->attributeLocation[p->registers.vramAddress&0x3FF];
+    int attrAddr = 0x23C0 | (p->registers.vramAddress & 0xC00) | intAttrLoc;
+    unsigned int shift = p->attributeShift[p->registers.vramAddress&0x3FF];
+    uint8_t attr = ((Nametable_readNametableData(&p->nametables, attrAddr) >> shift) & 0x03) << 2;
+
+    uint8_t index = Nametable_readNametableData(&p->nametables, p->registers.vramAddress);
+    int t = Ppu_bgPatternTableAddress(p, index);
+
+    // Flip bit 10 on wraparound
+    if (p->registers.vramAddress&0x1F == 0x1F) {
+        // If rendering is enabled, at the end of a scanline
+        // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
+        p->registers.vramAddress ^= 0x41F;
+    } else {
+        p->registers.vramAddress++;
+    }
+
+    attrs->low = p->vram[t];
+    attrs->high = p->vram[t+8];
+    attrs->attr = attr;
+}
+
+void Ppu_renderTileRow(Ppu* p) {
     // Generates each tile, one scanline at a time
     // and applies the palette
 
-    // Load first two tiles into shift registers at start, then load
-    // one per loop and shift the other back out
-    fetchTileAttributes := func() (uint16, uint16, uint8) {
-        attrAddr := 0x23C0 | (p->registers.vramAddress & 0xC00) | int(p.AttributeLocation[p->registers.vramAddress&0x3FF])
-        shift := p.AttributeShift[p->registers.vramAddress&0x3FF]
-        attr := ((p.Nametables.readNametableData(attrAddr) >> shift) & 0x03) << 2
-
-        index := p.Nametables.readNametableData(p->registers.vramAddress)
-        t := p.bgPatternTableAddress(index)
-
-        // Flip bit 10 on wraparound
-        if p->registers.vramAddress&0x1F == 0x1F {
-            // If rendering is enabled, at the end of a scanline
-            // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
-            p->registers.vramAddress ^= 0x41F
-        } else {
-            p->registers.vramAddress++
-        }
-
-        return uint16(p->vram[t]), uint16(p->vram[t+8]), attr
-    }
-
     // Move first tile into shift registers
-    low, high, attr := fetchTileAttributes()
-    p.LowBitShift, p.HighBitShift = low, high
+    PpuTileAttributes tileAttrs;
+    Ppu_fetchTileAttributes(p, &tileAttrs);
+    p->registers.lowBitShift = tileAttrs.low;
+    p->registers.highBitShift = tileAttrs.high;
+    uint8_t attr = tileAttrs.attr;
 
-    low, high, attrBuf := fetchTileAttributes()
+    Ppu_fetchTileAttributes(p, &tileAttrs);
     // Get second tile, move the pixels into the right side of
     // shift registers
+    p->registers.lowBitShift = (p->registers.lowBitShift << 8) | tileAttrs.low;
+    p->registers.highBitShift = (p->registers.highBitShift << 8) | tileAttrs.high;
     // Current tile to render is attrBuf
-    p.LowBitShift = (p.LowBitShift << 8) | low
-    p.HighBitShift = (p.HighBitShift << 8) | high
+    uint8_t attrBuf = tileAttrs.attr;
 
-    for x := 0; x < 32; x++ {
-        var palette int
+    for (int x = 0; x < 32; x++) {
+        int palette = 0;
 
-        var b uint
-        for b = 0; b < 8; b++ {
-            fbRow := p.Scanline*256 + ((x * 8) + int(b))
+        for (unsigned int b = 0; b < 8; b++) {
+            int intB = b;
+            int fbRow = p->scanline*256 + ((x * 8) + intB);
 
-            pixel := (p.LowBitShift >> (15 - b - uint(p->registers.fineX))) & 0x01
-            pixel += ((p.HighBitShift >> (15 - b - uint(p->registers.fineX)) & 0x01) << 1)
+            unsigned int uintFineX = p->registers.fineX;
+            uint16_t pixel = (p->registers.lowBitShift >> (15 - b - uintFineX)) & 0x01;
+            pixel += ((p->registers.highBitShift >> (15 - b - uintFineX) & 0x01) << 1);
 
             // If we're grabbing the pixel from the high
             // part of the shift register, use the buffered
             // palette, not the current one
-            if (15 - b - uint(p->registers.fineX)) < 8 {
-                palette = p.bgPaletteEntry(attrBuf, pixel)
+            if ((15 - b - uintFineX) < 8) {
+                palette = Ppu_bgPaletteEntry(p, attrBuf, pixel);
             } else {
-                palette = p.bgPaletteEntry(attr, pixel)
+                palette = Ppu_bgPaletteEntry(p, attr, pixel);
             }
 
-            if p.Palettebuffer[fbRow].Value != 0 {
+            if (p->palettebuffer[fbRow].value != 0) {
                 // Pixel is already rendered and priority
                 // 1 means show behind background
-                continue
+                continue;
             }
 
-            p.Palettebuffer[fbRow] = Pixel{
-                PaletteRgb[palette%64],
-                int(pixel),
-                -1,
-            }
+            p->palettebuffer[fbRow].color = PPU_PALETTE_RGB[palette%64];
+            p->palettebuffer[fbRow].value = pixel;
+            p->palettebuffer[fbRow].pindex = -1;
         }
 
         // xcoord = p->registers.vramAddress & 0x1F
-        attr = attrBuf
+        attr = attrBuf;
 
         // Shift the first tile out, bring the new tile in
-        low, high, attrBuf = fetchTileAttributes()
-
-        p.LowBitShift = (p.LowBitShift << 8) | low
-        p.HighBitShift = (p.HighBitShift << 8) | high
+        Ppu_fetchTileAttributes(p, &tileAttrs);
+        p->registers.lowBitShift = (p->registers.lowBitShift << 8) | tileAttrs.low;
+        p->registers.highBitShift = (p->registers.highBitShift << 8) | tileAttrs.high;
+        attrBuf = tileAttrs.attr;
     }
 }
-
+/*
 func (p *Ppu) evaluateScanlineSprites(line int) {
     spriteCount := 0
 
@@ -649,25 +678,25 @@ func (p *Ppu) decodePatternTile(t []uint8, x, y int, pal []uint8, attr *uint8, s
             priority := (*attr >> 5) & 0x1
 
             hit := (p.Registers.Status&0x40 == 0x40)
-            if p.Palettebuffer[fbRow].Value != 0 && spZero && !hit {
+            if p->palettebuffer[fbRow].Value != 0 && spZero && !hit {
                 // Since we render background first, if we're placing an opaque
                 // pixel here and the existing pixel is opaque, we've hit
                 // Sprite 0 
                 p.setStatus(StatusSprite0Hit)
             }
 
-            if p.Palettebuffer[fbRow].Pindex > -1 && p.Palettebuffer[fbRow].Pindex < index {
+            if p->palettebuffer[fbRow].Pindex > -1 && p->palettebuffer[fbRow].Pindex < index {
                 // Pixel with a higher sprite priority (lower index)
                 // is already here, so don't render this pixel
                 continue
-            } else if p.Palettebuffer[fbRow].Value != 0 && priority == 1 {
+            } else if p->palettebuffer[fbRow].Value != 0 && priority == 1 {
                 // Pixel is already rendered and priority
                 // 1 means show behind background
                 // unless background pixel is not transparent
                 continue
             }
 
-            p.Palettebuffer[fbRow] = Pixel{
+            p->palettebuffer[fbRow] = Pixel{
                 PaletteRgb[int(pal[pixel])%64],
                 int(pixel),
                 index,
