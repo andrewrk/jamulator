@@ -575,12 +575,6 @@ void Ppu_evaluateScanlineSprites(Ppu* p, int line) {
 
             int c = (line - 1) - intY;
 
-            // TODO: Hack to fix random sprite appearing in upper
-            // left. It should be cropped by overscan.
-            if (p->spriteData.xCoordinates[i] == 0 && p->spriteData.yCoordinates[i] == 0) {
-                continue;
-            }
-
             int ycoord;
             bool yflip = ((p->spriteData.attributes[i]>>7)&0x1) == 0x1;
             int intYCoord = p->spriteData.yCoordinates[i];
