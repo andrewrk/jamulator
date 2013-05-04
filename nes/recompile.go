@@ -22,6 +22,9 @@ func (rom *Rom) RecompileToBinary(filename string, flags asm6502.CompileFlags) e
 	if err != nil {
 		return err
 	}
+	program.ChrRom = rom.ChrRom
+	program.Mirroring = rom.Mirroring
+
 	tmpDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return err

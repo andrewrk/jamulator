@@ -148,11 +148,11 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 		case "mirroring":
 			switch parts[1] {
 			case "Horizontal":
-				r.Mirroring = HorizontalMirroring
+				r.Mirroring = asm6502.HorizontalMirroring
 			case "Vertical":
-				r.Mirroring = VerticalMirroring
+				r.Mirroring = asm6502.VerticalMirroring
 			case "FourScreenVRAM":
-				r.Mirroring = FourScreenVRamMirroring
+				r.Mirroring = asm6502.FourScreenVRamMirroring
 			default:
 				return nil, errors.New(fmt.Sprintf("Line %d: unrecognized mirroring value: %s", lineCount, parts[1]))
 			}

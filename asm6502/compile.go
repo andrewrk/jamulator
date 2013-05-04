@@ -948,6 +948,19 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.wram.SetLinkage(llvm.PrivateLinkage)
 	c.wram.SetInitializer(llvm.ConstNull(memType))
 
+	//uint8_t rom_mirroring;
+	mirroringConst := llvm.ConstInt(llvm.Int8Type(), uint64(p.Mirroring), false)
+	mirroringGlobal := llvm.AddGlobal(c.mod, mirroringConst.Type(), "rom_mirroring")
+	mirroringGlobal.SetLinkage(llvm.ExternalLinkage)
+	mirroringGlobal.SetInitializer(mirroringConst)
+	//uint8_t rom_chr_bank_count;
+	bankCountConst := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	bankCountGlobal := llvm.AddGlobal(c.mod, bankCountConst.Type(), "rom_chr_bank_count")
+	bankCountGlobal.SetLinkage(llvm.ExternalLinkage)
+	bankCountGlobal.SetInitializer(bankCountConst)
+
+	//uint8_t* rom_chr_data;
+
 	// runtime panic msg
 	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)
 	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")

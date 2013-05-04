@@ -10,6 +10,24 @@ import (
 	"strings"
 )
 
+// TODO: asm6502 and nes packages are just tripping over each other now, get rid of them
+const (
+	HorizontalMirroring = iota
+	VerticalMirroring
+	FourScreenVRamMirroring
+)
+
+type Mirroring int
+
+func (m Mirroring) String() string {
+	if m == HorizontalMirroring {
+		return "Horizontal"
+	} else if m == VerticalMirroring {
+		return "Vertical"
+	}
+	return "FourScreenVRAM"
+}
+
 // Program is a proper program, one that you can compile
 // into native code. A ProgramAST can be compiled into a
 // Program and 6502 machine code can be read directly into
@@ -19,6 +37,8 @@ type Program struct {
 	Variables map[string]int
 	Labels    map[string]int
 	Errors    []error
+	ChrRom    [][]byte
+	Mirroring     Mirroring
 
 	offset  int
 	offsets map[int]Node
@@ -729,14 +749,11 @@ func (p *Program) AssembleToFile(filename string) error {
 }
 
 func (ast *ProgramAST) ToProgram() *Program {
-	p := Program{
-		ast,
-		map[string]int{},
-		map[string]int{},
-		[]error{},
-		0,
-		map[int]Node{},
-	}
-	ast.Ast(&p)
-	return &p
+	p := new(Program)
+	p.Ast = ast
+	p.Variables = map[string]int{}
+	p.Labels = map[string]int{}
+	p.offsets = map[int]Node{}
+	ast.Ast(p)
+	return p
 }

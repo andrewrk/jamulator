@@ -1,17 +1,12 @@
 package nes
 
 import (
+	"../asm6502"
 	"bufio"
 	"errors"
 	"io"
 	"os"
 	"path"
-)
-
-const (
-	HorizontalMirroring = iota
-	VerticalMirroring
-	FourScreenVRamMirroring
 )
 
 const (
@@ -31,24 +26,13 @@ func (tvs TvSystem) String() string {
 	return "DualCompatible"
 }
 
-type Mirroring int
-
-func (m Mirroring) String() string {
-	if m == HorizontalMirroring {
-		return "Horizontal"
-	} else if m == VerticalMirroring {
-		return "Vertical"
-	}
-	return "FourScreenVRAM"
-}
-
 type Rom struct {
 	Filename string
 	PrgRom   [][]byte
 	ChrRom   [][]byte
 
 	Mapper        byte
-	Mirroring     Mirroring
+	Mirroring     asm6502.Mirroring
 	BatteryBacked bool
 	TvSystem      TvSystem
 	SRamPresent   bool
@@ -79,11 +63,11 @@ func Load(ioreader io.Reader) (*Rom, error) {
 
 	r.Mapper = (flags6 >> 4) | (flags7 & 0xf0)
 	if flags6&0x8 != 0 {
-		r.Mirroring = FourScreenVRamMirroring
+		r.Mirroring = asm6502.FourScreenVRamMirroring
 	} else if flags6&0x1 != 0 {
-		r.Mirroring = HorizontalMirroring
+		r.Mirroring = asm6502.HorizontalMirroring
 	} else {
-		r.Mirroring = VerticalMirroring
+		r.Mirroring = asm6502.VerticalMirroring
 	}
 	if flags6&0x2 != 0 {
 		r.BatteryBacked = true
@@ -171,10 +155,10 @@ func (r *Rom) Save(writer io.Writer) error {
 
 	// mirroring
 	switch r.Mirroring {
-	case HorizontalMirroring:
+	case asm6502.HorizontalMirroring:
 		flags6 |= 0x1
-	case VerticalMirroring: // nothing to do
-	case FourScreenVRamMirroring:
+	case asm6502.VerticalMirroring: // nothing to do
+	case asm6502.FourScreenVRamMirroring:
 		flags6 |= 0x8
 	default:
 		panic("Unknown mirroring")
