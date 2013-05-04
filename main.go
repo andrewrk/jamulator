@@ -21,8 +21,10 @@ var (
 	dumpFlag bool
 	dumpPreFlag bool
 	debugFlag bool
+	recompileFlag bool
 )
 
+// TODO: change this to use commands
 func init() {
 	flag.BoolVar(&astFlag, "ast", false, "Print the abstract syntax tree and quit")
 	flag.BoolVar(&assembleFlag, "asm", false, "Assemble into 6502 machine code")
@@ -34,10 +36,11 @@ func init() {
 	flag.BoolVar(&dumpFlag, "d", false, "Dump LLVM IR code for generated code")
 	flag.BoolVar(&dumpPreFlag, "dd", false, "Dump LLVM IR code for generated code before verifying module")
 	flag.BoolVar(&debugFlag, "g", false, "Include debug print statements in generated code")
+	flag.BoolVar(&recompileFlag, "recompile", false, "Recompile an NES ROM into a native binary")
 }
 
 func usageAndQuit() {
-	fmt.Printf("Usage: %s [options] inputfile [outputfile]\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage: %s [options] inputfile [outputfile]\n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -46,13 +49,7 @@ func removeExtension(filename string) string {
 	return filename[0 : len(filename)-len(path.Ext(filename))]
 }
 
-func compile(filename string, program *asm6502.Program) {
-	outfile := removeExtension(filename) + ".bc"
-	if flag.NArg() == 2 {
-		outfile = flag.Arg(1)
-	}
-	fmt.Printf("Compiling to %s\n", outfile)
-	var flags asm6502.CompileFlags
+func compileFlags() (flags asm6502.CompileFlags) {
 	if disableOptFlag {
 		flags |= asm6502.DisableOptFlag
 	}
@@ -65,7 +62,19 @@ func compile(filename string, program *asm6502.Program) {
 	if debugFlag {
 		flags |= asm6502.IncludeDebugFlag
 	}
-	c := program.Compile(outfile, flags)
+	return
+}
+
+func compile(filename string, program *asm6502.Program) {
+	outfile := removeExtension(filename) + ".bc"
+	if flag.NArg() == 2 {
+		outfile = flag.Arg(1)
+	}
+	fmt.Fprintf(os.Stderr, "Compiling to %s\n", outfile)
+	c, err := program.CompileToFilename(outfile, compileFlags())
+	if err != nil {
+		panic(err)
+	}
 	if len(c.Errors) != 0 {
 		fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
 		return
@@ -82,7 +91,7 @@ func main() {
 	}
 	filename := flag.Arg(0)
 	if astFlag || assembleFlag {
-		fmt.Printf("Parsing %s\n", filename)
+		fmt.Fprintf(os.Stderr, "Parsing %s\n", filename)
 		programAst, err := asm6502.ParseFile(filename)
 		if err != nil {
 			panic(err)
@@ -93,7 +102,7 @@ func main() {
 		if !assembleFlag && !compileFlag {
 			return
 		}
-		fmt.Printf("Assembling %s\n", filename)
+		fmt.Fprintf(os.Stderr, "Assembling %s\n", filename)
 		program := programAst.ToProgram()
 		if len(program.Errors) > 0 {
 			for _, err := range program.Errors {
@@ -110,31 +119,43 @@ func main() {
 			if flag.NArg() == 2 {
 				outfile = flag.Arg(1)
 			}
-			fmt.Printf("Writing to %s\n", outfile)
+			fmt.Fprintf(os.Stderr, "Writing to %s\n", outfile)
 			err = program.AssembleToFile(outfile)
 			if err != nil {
 				panic(err)
 			}
 		}
 		return
-	} else if unRomFlag {
-		fmt.Printf("loading %s\n", filename)
+	} else if unRomFlag || recompileFlag {
+		fmt.Fprintf(os.Stderr, "loading %s\n", filename)
 		rom, err := nes.LoadFile(filename)
 		if err != nil {
 			panic(err)
 		}
-		outdir := removeExtension(filename)
-		if flag.NArg() == 2 {
-			outdir = flag.Arg(1)
+		if unRomFlag {
+			outdir := removeExtension(filename)
+			if flag.NArg() == 2 {
+				outdir = flag.Arg(1)
+			}
+			fmt.Fprintf(os.Stderr, "disassembling to %s\n", outdir)
+			err = rom.DisassembleToDir(outdir)
+			if err != nil {
+				panic(err)
+			}
+			return
 		}
-		fmt.Printf("disassembling to %s\n", outdir)
-		err = rom.DisassembleToDir(outdir)
+		// recompile to native binary
+		outfile := removeExtension(filename)
+		if flag.NArg() == 2 {
+			outfile = flag.Arg(1)
+		}
+		err = rom.RecompileToBinary(outfile, compileFlags())
 		if err != nil {
 			panic(err)
 		}
 		return
 	} else if disassembleFlag {
-		fmt.Printf("disassembling %s\n", filename)
+		fmt.Fprintf(os.Stderr, "disassembling %s\n", filename)
 		p, err := asm6502.DisassembleFile(filename)
 		if err != nil {
 			panic(err)
@@ -148,7 +169,7 @@ func main() {
 			if flag.NArg() == 2 {
 				outfile = flag.Arg(1)
 			}
-			fmt.Printf("writing source %s\n", outfile)
+			fmt.Fprintf(os.Stderr, "writing source %s\n", outfile)
 			err = p.WriteSourceFile(outfile)
 			if err != nil {
 				panic(err)
@@ -156,12 +177,12 @@ func main() {
 		}
 		return
 	} else if romFlag {
-		fmt.Printf("building rom from %s\n", filename)
+		fmt.Fprintf(os.Stderr, "building rom from %s\n", filename)
 		r, err := nes.AssembleFile(filename)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("saving rom %s\n", r.Filename)
+		fmt.Fprintf(os.Stderr, "saving rom %s\n", r.Filename)
 		err = r.SaveFile(path.Dir(filename))
 		if err != nil {
 			panic(err)

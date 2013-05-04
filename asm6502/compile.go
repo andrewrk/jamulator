@@ -928,10 +928,10 @@ func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	*s = call.LabelName
 }
 
-func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) {
+func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
 	llvm.InitializeNativeTarget()
 
-	c = new(Compilation)
+	c := new(Compilation)
 	c.Flags = flags
 	c.program = p
 	c.Warnings = []string{}
@@ -1035,15 +1035,15 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	// hook up entry points
 	if c.nmiBlock == nil {
 		c.Errors = append(c.Errors, "missing nmi entry point")
-		return
+		return c, nil
 	}
 	if c.resetBlock == nil {
 		c.Errors = append(c.Errors, "missing reset entry point")
-		return
+		return c, nil
 	}
 	if c.irqBlock == nil {
 		c.Errors = append(c.Errors, "missing irq entry point")
-		return
+		return c, nil
 	}
 
 	// hook up the first entry block to the reset block
@@ -1056,13 +1056,13 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 	err := llvm.VerifyModule(c.mod, llvm.ReturnStatusAction)
 	if err != nil {
 		c.Errors = append(c.Errors, err.Error())
-		return
+		return c, nil
 	}
 
 	engine, err := llvm.NewJITCompiler(c.mod, 3)
 	if err != nil {
 		c.Errors = append(c.Errors, err.Error())
-		return
+		return c, nil
 	}
 	defer engine.Dispose()
 
@@ -1085,23 +1085,29 @@ func (p *Program) Compile(filename string, flags CompileFlags) (c *Compilation) 
 		c.mod.Dump()
 	}
 
+	err = llvm.WriteBitcodeToFile(c.mod, file)
+
+	if err != nil {
+		return c, err
+	}
+
+	return c, nil
+}
+
+func (p *Program) CompileToFilename(filename string, flags CompileFlags) (*Compilation, error) {
 	fd, err := os.Create(filename)
 	if err != nil {
-		c.Errors = append(c.Errors, err.Error())
-		return
+		return nil, err
 	}
 
-	err = llvm.WriteBitcodeToFile(c.mod, fd)
+	c, err := p.CompileToFile(fd, flags)
+	err2 := fd.Close()
+
 	if err != nil {
-		c.Errors = append(c.Errors, err.Error())
-		return
+		return nil, err
 	}
-
-	err = fd.Close()
-	if err != nil {
-		c.Errors = append(c.Errors, err.Error())
-		return
+	if err2 != nil {
+		return nil, err2
 	}
-
-	return
+	return c, nil
 }
