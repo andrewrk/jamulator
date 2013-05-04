@@ -108,23 +108,26 @@ typedef struct {
 Ppu* Ppu_new();
 void Ppu_dispose(Ppu* p);
 
-void Ppu_writeMirroredVram(Ppu* p, int a, uint8_t v);
 void Ppu_writeControl(Ppu* p, uint8_t v);
 void Ppu_writeMask(Ppu* p, uint8_t v);
-void Ppu_raster(Ppu* p);
-void Ppu_step(Ppu* p);
-void Ppu_updateEndScanlineRegisters(Ppu* p);
-void Ppu_clearStatus(Ppu* p, uint8_t s);
-void Ppu_setStatus(Ppu* p, uint8_t s);
-uint8_t Ppu_readStatus(Ppu* p);
 void Ppu_writeOamAddress(Ppu* p, uint8_t v);
 void Ppu_writeOamData(Ppu* p, uint8_t v);
-void Ppu_updateBufferedSpriteMem(Ppu* p, int a, uint8_t v);
-uint8_t Ppu_readOamData(Ppu* p);
 void Ppu_writeScroll(Ppu* p, uint8_t v);
 void Ppu_writeAddress(Ppu* p, uint8_t v);
 void Ppu_writeData(Ppu* p, uint8_t v);
+
+uint8_t Ppu_readStatus(Ppu* p);
+uint8_t Ppu_readOamData(Ppu* p);
 uint8_t Ppu_readData(Ppu* p);
+
+void Ppu_raster(Ppu* p);
+void Ppu_step(Ppu* p);
+
+void Ppu_writeMirroredVram(Ppu* p, int a, uint8_t v);
+void Ppu_updateEndScanlineRegisters(Ppu* p);
+void Ppu_clearStatus(Ppu* p, uint8_t s);
+void Ppu_setStatus(Ppu* p, uint8_t s);
+void Ppu_updateBufferedSpriteMem(Ppu* p, int a, uint8_t v);
 void Ppu_incrementVramAddress(Ppu* p);
 int Ppu_sprPatternTableAddress(Ppu* p, int i);
 int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i);
