@@ -60,6 +60,7 @@ func (rom *Rom) RecompileToBinary(filename string, flags asm6502.CompileFlags) e
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "Done: %s\n", filename)
 
 	return nil
 }
