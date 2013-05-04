@@ -53,7 +53,7 @@ void Ppu_dispose(Ppu* p) {
 // Writes to mirrored regions of VRAM
 void Ppu_writeMirroredVram(Ppu* p, int a, uint8_t v) {
     if (a >= 0x3F00) {
-        if (a&0xF == 0) {
+        if ((a & 0xF) == 0) {
             a = 0;
         }
         p->paletteRam[a&0x1F] = v;
@@ -105,7 +105,7 @@ void Ppu_writeMask(Ppu* p, uint8_t v) {
     // ||+------ Intensify reds (and darken other colors)
     // |+------- Intensify greens (and darken other colors)
     // +-------- Intensify blues (and darken other colors)
-    p->masks.grayscale = (v&0x01 == 0x01);
+    p->masks.grayscale = ((v&0x01) == 0x01);
     p->masks.showBackgroundOnLeft = (((v >> 1) & 0x01) == 0x01);
     p->masks.showSpritesOnLeft = (((v >> 2) & 0x01) == 0x01);
     p->masks.showBackground = (((v >> 3) & 0x01) == 0x01);
@@ -226,7 +226,7 @@ void Ppu_updateEndScanlineRegisters(Ppu* p) {
     // *******************************************************
 
     // Flip bit 10 on wraparound
-    if (p->registers.vramAddress&0x1F == 0x1F) {
+    if ((p->registers.vramAddress&0x1F) == 0x1F) {
         // If rendering is enabled, at the end of a scanline
         // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
         p->registers.vramAddress ^= 0x41F;
@@ -235,7 +235,7 @@ void Ppu_updateEndScanlineRegisters(Ppu* p) {
     }
 
     // Flip bit 10 on wraparound
-    if (p->registers.vramAddress&0x1F == 0x1F) {
+    if ((p->registers.vramAddress&0x1F) == 0x1F) {
         // If rendering is enabled, at the end of a scanline
         // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
         p->registers.vramAddress ^= 0x41F;
@@ -245,7 +245,7 @@ void Ppu_updateEndScanlineRegisters(Ppu* p) {
 
     if (p->masks.showBackground || p->masks.showSprites) {
         // Scanline has ended
-        if (p->registers.vramAddress&0x7000 == 0x7000) {
+        if ((p->registers.vramAddress&0x7000) == 0x7000) {
             int tmp = p->registers.vramAddress & 0x3E0;
             p->registers.vramAddress &= 0xFFF;
 
@@ -428,7 +428,7 @@ uint8_t Ppu_readData(Ppu* p) {
         }
 
         int a = p->registers.vramAddress;
-        if (a&0xF == 0) {
+        if ((a&0xF) == 0) {
             a = 0;
         }
 
@@ -450,9 +450,9 @@ void Ppu_incrementVramAddress(Ppu* p) {
 }
 
 int Ppu_sprPatternTableAddress(Ppu* p, int i) {
-    if (p->flags.spriteSize&0x01 != 0x0) {
+    if ((p->flags.spriteSize&0x01) != 0x0) {
         // 8x16 Sprites
-        if (i&0x01 != 0) {
+        if ((i & 0x01) != 0) {
             return 0x1000 | ((i >> 1) * 0x20);
         } else {
             return ((i >> 1) * 0x20);
@@ -471,12 +471,6 @@ int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i) {
     return (i << 4) | (p->registers.vramAddress >> 12) | a;
 }
 
-typedef struct {
-    uint16_t low;
-    uint16_t high;
-    uint8_t attr;
-} PpuTileAttributes;
-
 void Ppu_fetchTileAttributes(Ppu* p, PpuTileAttributes* attrs) {
     // Load first two tiles into shift registers at start, then load
     // one per loop and shift the other back out
@@ -490,7 +484,7 @@ void Ppu_fetchTileAttributes(Ppu* p, PpuTileAttributes* attrs) {
     int t = Ppu_bgPatternTableAddress(p, index);
 
     // Flip bit 10 on wraparound
-    if (p->registers.vramAddress&0x1F == 0x1F) {
+    if ((p->registers.vramAddress&0x1F) == 0x1F) {
         // If rendering is enabled, at the end of a scanline
         // copy bits 10 and 4-0 from VRAM latch into VRAMADDR
         p->registers.vramAddress ^= 0x41F;
@@ -563,148 +557,147 @@ void Ppu_renderTileRow(Ppu* p) {
         attrBuf = tileAttrs.attr;
     }
 }
-/*
-func (p *Ppu) evaluateScanlineSprites(line int) {
-    spriteCount := 0
 
-    for i, y := range p.SpriteData.YCoordinates {
-        spriteHeight := 8
-        if p->flags.spriteSize&0x1 == 0x1 {
-            spriteHeight = 16
+void Ppu_evaluateScanlineSprites(Ppu* p, int line) {
+    int spriteCount = 0;
+
+    for (int i = 0; i < 256; ++i) {
+        uint8_t y = p->spriteData.yCoordinates[i];
+        int spriteHeight = 8;
+        if ((p->flags.spriteSize&0x1) == 0x1) {
+            spriteHeight = 16;
         }
 
-        if int(y) > (line-1)-spriteHeight && int(y)+(spriteHeight-1) < (line-1)+spriteHeight {
-            attrValue := p.Attributes[i] & 0x3
-            t := p.SpriteData.Tiles[i]
+        int intY = y;
+        if (intY > (line-1)-spriteHeight && intY+(spriteHeight-1) < (line-1)+spriteHeight) {
+            uint8_t attrValue = p->spriteData.attributes[i] & 0x3;
+            uint8_t t = p->spriteData.tiles[i];
 
-            c := (line - 1) - int(y)
+            int c = (line - 1) - intY;
 
             // TODO: Hack to fix random sprite appearing in upper
             // left. It should be cropped by overscan.
-            if p.XCoordinates[i] == 0 && p.YCoordinates[i] == 0 {
-                continue
+            if (p->spriteData.xCoordinates[i] == 0 && p->spriteData.yCoordinates[i] == 0) {
+                continue;
             }
 
-            var ycoord int
-
-            yflip := (p.Attributes[i]>>7)&0x1 == 0x1
-            if yflip {
-                ycoord = int(p.YCoordinates[i]) + ((spriteHeight - 1) - c)
+            int ycoord;
+            bool yflip = ((p->spriteData.attributes[i]>>7)&0x1) == 0x1;
+            int intYCoord = p->spriteData.yCoordinates[i];
+            if (yflip) {
+                ycoord = intYCoord + ((spriteHeight - 1) - c);
             } else {
-                ycoord = int(p.YCoordinates[i]) + c + 1
+                ycoord = intYCoord + c + 1;
             }
 
-            if p->flags.spriteSize&0x01 != 0x0 {
+            uint8_t entry[4];
+            Ppu_sprPaletteEntry(p, attrValue, entry);
+            int s = Ppu_sprPatternTableAddress(p, t);
+            bool sprite0 = i == 0;
+            int t0Index;
+            int t1Index;
+            if ((p->flags.spriteSize&0x01) != 0x0) {
                 // 8x16 Sprite
-                s := p.sprPatternTableAddress(int(t))
-                var tile []uint8
-
-                top := p->vram[s : s+16]
-                bottom := p->vram[s+16 : s+32]
-
-                if c > 7 && yflip {
-                    tile = top
-                    ycoord += 8
-                } else if c < 8 && yflip {
-                    tile = bottom
-                    ycoord -= 8
-                } else if c > 7 {
-                    tile = bottom
+                int topStartIndex = s;
+                int bottomStartIndex = s + 16;
+                int tileStartIndex;
+                if (c > 7 && yflip) {
+                    tileStartIndex = topStartIndex;
+                    ycoord += 8;
+                } else if (c < 8 && yflip) {
+                    tileStartIndex = bottomStartIndex;
+                    ycoord -= 8;
+                } else if (c > 7) {
+                    tileStartIndex = bottomStartIndex;
                 } else {
-                    tile = top
+                    tileStartIndex = topStartIndex;
                 }
 
-                sprite0 := i == 0
-
-                p.decodePatternTile([]uint8{tile[c%8], tile[(c%8)+8]},
-                    int(p.XCoordinates[i]),
-                    ycoord,
-                    p.sprPaletteEntry(uint(attrValue)),
-                    &p.Attributes[i], sprite0, i)
+                t0Index = tileStartIndex + c % 8;
+                t1Index = tileStartIndex + (c % 8) + 8;
             } else {
                 // 8x8 Sprite
-                s := p.sprPatternTableAddress(int(t))
-                tile := p->vram[s : s+16]
-
-                p.decodePatternTile([]uint8{tile[c], tile[c+8]},
-                    int(p.XCoordinates[i]),
-                    ycoord,
-                    p.sprPaletteEntry(uint(attrValue)),
-                    &p.Attributes[i], i == 0, i)
+                t0Index = s + c;
+                t1Index = s + c + 8;
             }
+            Ppu_decodePatternTile(p, p->vram[t0Index], p->vram[t1Index],
+                p->spriteData.xCoordinates[i],
+                ycoord,
+                entry,
+                &p->spriteData.attributes[i], sprite0, i);
 
-            spriteCount++
+            spriteCount++;
 
-            if spriteCount == 9 {
-                if p.SpriteLimitEnabled {
-                    p.setStatus(StatusSpriteOverflow)
-                    break
+            if (spriteCount == 9) {
+                if (p->spriteLimitEnabled) {
+                    Ppu_setStatus(p, STATUS_SPRITE_OVERFLOW);
+                    break;
                 }
             }
         }
     }
 }
 
-func (p *Ppu) decodePatternTile(t []uint8, x, y int, pal []uint8, attr *uint8, spZero bool, index int) {
-    var b uint
-    for b = 0; b < 8; b++ {
-        var xcoord int
-        if (*attr>>6)&0x1 != 0 {
-            xcoord = x + int(b)
+void Ppu_decodePatternTile(Ppu* p, uint8_t t0, uint8_t t1, int x, int y,
+        uint8_t* pal, uint8_t* attr, bool spZero, int index)
+{
+    for (unsigned int b = 0; b < 8; ++b) {
+        int xcoord = 0;
+        int intB = b;
+        if (((*attr>>6)&0x1) != 0) {
+            xcoord = x + intB;
         } else {
-            xcoord = x + int(7-b)
+            int reversedB = 7 - b;
+            xcoord = x + reversedB;
         }
 
         // Don't wrap around if we're past the edge of the
         // screen
-        if xcoord > 255 {
-            continue
+        if (xcoord > 255) {
+            continue;
         }
 
-        fbRow := y*256 + xcoord
+        int fbRow = y*256 + xcoord;
 
         // Store the bit 0/1
-        pixel := (t[0] >> b) & 0x01
-        pixel += ((t[1] >> b & 0x01) << 1)
+        uint8_t pixel = (t0 >> b) & 0x01;
+        pixel += ((t1 >> b & 0x01) << 1);
 
-        trans := false
-        if attr != nil && pixel == 0 {
-            trans = true
+        bool trans = false;
+        if (attr != NULL && pixel == 0) {
+            trans = true;
         }
 
         // Set the color of the pixel in the buffer
-        //
-        if fbRow < 0xF000 && !trans {
-            priority := (*attr >> 5) & 0x1
+        if (fbRow < 0xF000 && !trans) {
+            uint8_t priority = (*attr >> 5) & 0x1;
 
-            hit := (p.Registers.Status&0x40 == 0x40)
-            if p->palettebuffer[fbRow].Value != 0 && spZero && !hit {
+            bool hit = ((p->registers.status&0x40) == 0x40);
+            if (p->palettebuffer[fbRow].value != 0 && spZero && !hit) {
                 // Since we render background first, if we're placing an opaque
                 // pixel here and the existing pixel is opaque, we've hit
                 // Sprite 0 
-                p.setStatus(StatusSprite0Hit)
+                Ppu_setStatus(p, STATUS_SPRITE0HIT);
             }
 
-            if p->palettebuffer[fbRow].Pindex > -1 && p->palettebuffer[fbRow].Pindex < index {
+            if (p->palettebuffer[fbRow].pindex > -1 && p->palettebuffer[fbRow].pindex < index) {
                 // Pixel with a higher sprite priority (lower index)
                 // is already here, so don't render this pixel
-                continue
-            } else if p->palettebuffer[fbRow].Value != 0 && priority == 1 {
+                continue;
+            } else if (p->palettebuffer[fbRow].value != 0 && priority == 1) {
                 // Pixel is already rendered and priority
                 // 1 means show behind background
                 // unless background pixel is not transparent
-                continue
+                continue;
             }
 
-            p->palettebuffer[fbRow] = Pixel{
-                PaletteRgb[int(pal[pixel])%64],
-                int(pixel),
-                index,
-            }
+            int intPalPixel = pal[pixel];
+            p->palettebuffer[fbRow].color = PPU_PALETTE_RGB[intPalPixel%64];
+            p->palettebuffer[fbRow].value = pixel;
+            p->palettebuffer[fbRow].pindex = index;
         }
     }
 }
-*/
 
 int Ppu_bgPaletteEntry(Ppu* p, uint8_t a, uint16_t pix) {
     if (pix == 0x0) {
@@ -725,40 +718,32 @@ int Ppu_bgPaletteEntry(Ppu* p, uint8_t a, uint16_t pix) {
     return 0;
 }
 
-/*
-func (p *Ppu) sprPaletteEntry(a uint) (pal []uint8) {
-    switch a {
+
+void Ppu_sprPaletteEntry(Ppu* p, unsigned int a, uint8_t* dest) {
+    switch (a) {
     case 0x0:
-        pal = []uint8{
-            p->paletteRam[0x10],
-            p->paletteRam[0x11],
-            p->paletteRam[0x12],
-            p->paletteRam[0x13],
-        }
+        dest[0] = p->paletteRam[0x10];
+        dest[1] = p->paletteRam[0x11];
+        dest[2] = p->paletteRam[0x12];
+        dest[3] = p->paletteRam[0x13];
+        break;
     case 0x1:
-        pal = []uint8{
-            p->paletteRam[0x10],
-            p->paletteRam[0x15],
-            p->paletteRam[0x16],
-            p->paletteRam[0x17],
-        }
+        dest[0] = p->paletteRam[0x10];
+        dest[1] = p->paletteRam[0x15];
+        dest[2] = p->paletteRam[0x16];
+        dest[3] = p->paletteRam[0x17];
+        break;
     case 0x2:
-        pal = []uint8{
-            p->paletteRam[0x10],
-            p->paletteRam[0x19],
-            p->paletteRam[0x1A],
-            p->paletteRam[0x1B],
-        }
+        dest[0] = p->paletteRam[0x10];
+        dest[1] = p->paletteRam[0x19];
+        dest[2] = p->paletteRam[0x1A];
+        dest[3] = p->paletteRam[0x1B];
+        break;
     case 0x3:
-        pal = []uint8{
-            p->paletteRam[0x10],
-            p->paletteRam[0x1D],
-            p->paletteRam[0x1E],
-            p->paletteRam[0x1F],
-        }
+        dest[0] = p->paletteRam[0x10];
+        dest[1] = p->paletteRam[0x1D];
+        dest[2] = p->paletteRam[0x1E];
+        dest[3] = p->paletteRam[0x1F];
+        break;
     }
-
-    return
 }
-
-*/

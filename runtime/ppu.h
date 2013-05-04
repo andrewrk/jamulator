@@ -3,14 +3,14 @@
 #include "nametable.h"
 
 // TODO: namespace everything
-typedef enum {
+enum {
     INTERRUPT_NONE,
     INTERRUPT_IRQ,
     INTERRUPT_RESET,
     INTERRUPT_NMI,
 };
 
-typedef enum {
+enum {
     STATUS_SPRITE_OVERFLOW,
     STATUS_SPRITE0HIT,
     STATUS_VBLANK_STARTED,
@@ -98,6 +98,12 @@ typedef struct {
     int cycleCount;
 } Ppu;
 
+typedef struct {
+    uint16_t low;
+    uint16_t high;
+    uint8_t attr;
+} PpuTileAttributes;
+
 // don't forget to call Ppu_dispose
 Ppu* Ppu_new();
 void Ppu_dispose(Ppu* p);
@@ -125,3 +131,6 @@ int Ppu_bgPatternTableAddress(Ppu* p, uint8_t i);
 int Ppu_bgPaletteEntry(Ppu* p, uint8_t a, uint16_t pix);
 void Ppu_renderTileRow(Ppu* p);
 void Ppu_fetchTileAttributes(Ppu* p, PpuTileAttributes* attrs);
+void Ppu_sprPaletteEntry(Ppu* p, unsigned int a, uint8_t* dest);
+void Ppu_evaluateScanlineSprites(Ppu* p, int line);
+void Ppu_decodePatternTile(Ppu* p, uint8_t t0, uint8_t t1, int x, int y, uint8_t* pal, uint8_t* attr, bool spZero, int index);

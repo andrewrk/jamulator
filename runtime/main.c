@@ -1,8 +1,11 @@
-#include "stdbool.h"
 #include "rom.h"
+#include "ppu.h"
 
+Ppu* p;
 int main() {
+    p = Ppu_new();
     rom_start();
+    Ppu_dispose(p);
 }
 
 uint8_t rom_ppustatus() {

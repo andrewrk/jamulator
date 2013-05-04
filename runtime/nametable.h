@@ -1,6 +1,6 @@
 #include "stdint.h"
 
-typedef enum {
+enum {
     MIRRORING_VERTICAL,
     MIRRORING_HORIZONTAL,
     MIRRORING_SINGLE_UPPER,
