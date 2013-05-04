@@ -48,7 +48,7 @@ func (rom *Rom) RecompileToBinary(filename string, flags asm6502.CompileFlags) e
 		fmt.Fprintf(os.Stderr, "Warnings:\n%s\n", strings.Join(c.Warnings, "\n"))
 	}
 	fmt.Fprintf(os.Stderr, "Compiling...\n")
-	out, err := exec.Command("llc", "-o", tmpPrgObject, "-filetype=obj", tmpPrgBitcode).CombinedOutput()
+	out, err := exec.Command("llc", "-o", tmpPrgObject, "-filetype=obj", "-relocation-model=pic", tmpPrgBitcode).CombinedOutput()
 	fmt.Fprint(os.Stderr, string(out))
 	if err != nil {
 		return err

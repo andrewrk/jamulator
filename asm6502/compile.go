@@ -928,6 +928,42 @@ func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	*s = call.LabelName
 }
 
+func (c *Compilation) createReadChrFn(chrRom [][]byte) {
+	//uint8_t rom_chr_bank_count;
+	bankCountConst := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	bankCountGlobal := llvm.AddGlobal(c.mod, bankCountConst.Type(), "rom_chr_bank_count")
+	bankCountGlobal.SetLinkage(llvm.ExternalLinkage)
+	bankCountGlobal.SetInitializer(bankCountConst)
+
+	//uint8_t* rom_chr_data;
+	chrDataValues := make([]llvm.Value, 0, 0x2000)
+	int8type := llvm.Int8Type()
+	for _, b := range chrRom[0] {
+		chrDataValues = append(chrDataValues, llvm.ConstInt(int8type, uint64(b), false))
+	}
+	chrDataConst := llvm.ConstArray(llvm.ArrayType(llvm.Int8Type(), 0x2000), chrDataValues)
+	chrDataGlobal := llvm.AddGlobal(c.mod, chrDataConst.Type(), "rom_chr_data")
+	chrDataGlobal.SetLinkage(llvm.PrivateLinkage)
+	chrDataGlobal.SetInitializer(chrDataConst)
+	// declare void @memcpy(void* dest, void* source, i32 size)
+	voidPtrType := llvm.PointerType(llvm.VoidType(), 0)
+	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{voidPtrType, voidPtrType, llvm.Int32Type()}, false)
+	memcpyFn := llvm.AddFunction(c.mod, "memcpy", memcpyType)
+	memcpyFn.SetLinkage(llvm.ExternalLinkage)
+	// void rom_read_chr(uint8_t* dest)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	readChrType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType}, false)
+	readChrFn := llvm.AddFunction(c.mod, "rom_read_chr", readChrType)
+	readChrFn.SetFunctionCallConv(llvm.CCallConv)
+	entry := llvm.AddBasicBlock(readChrFn, "Entry")
+	c.builder.SetInsertPointAtEnd(entry)
+	x2000 := llvm.ConstInt(llvm.Int32Type(), 0x2000, false)
+	dest := c.builder.CreatePointerCast(readChrFn.Param(0), voidPtrType, "")
+	source := c.builder.CreatePointerCast(chrDataGlobal, voidPtrType, "")
+	c.builder.CreateCall(memcpyFn, []llvm.Value{dest, source, x2000}, "")
+	c.builder.CreateRetVoid()
+}
+
 func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
 	llvm.InitializeNativeTarget()
 
@@ -953,13 +989,8 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	mirroringGlobal := llvm.AddGlobal(c.mod, mirroringConst.Type(), "rom_mirroring")
 	mirroringGlobal.SetLinkage(llvm.ExternalLinkage)
 	mirroringGlobal.SetInitializer(mirroringConst)
-	//uint8_t rom_chr_bank_count;
-	bankCountConst := llvm.ConstInt(llvm.Int8Type(), 1, false)
-	bankCountGlobal := llvm.AddGlobal(c.mod, bankCountConst.Type(), "rom_chr_bank_count")
-	bankCountGlobal.SetLinkage(llvm.ExternalLinkage)
-	bankCountGlobal.SetInitializer(bankCountConst)
 
-	//uint8_t* rom_chr_data;
+	c.createReadChrFn(p.ChrRom)
 
 	// runtime panic msg
 	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)

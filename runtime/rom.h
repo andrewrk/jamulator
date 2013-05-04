@@ -9,7 +9,9 @@ enum {
 
 uint8_t rom_mirroring;
 uint8_t rom_chr_bank_count;
-uint8_t* rom_chr_data;
+
+// write the chr rom into dest
+void rom_read_chr(uint8_t* dest);
 
 // starts executing the PRG ROM.
 // this function will not return until the rom code exits.

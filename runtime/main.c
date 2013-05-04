@@ -1,21 +1,23 @@
 #include "rom.h"
 #include "assert.h"
 #include "ppu.h"
+#include "stdio.h"
 
 Ppu* p;
 int main() {
     p = Ppu_new();
     Nametable_setMirroring(&p->nametables, rom_mirroring);
-    // copy chr data to vram
     assert(rom_chr_bank_count == 1);
-    for (int i = 0; i < 0x2000; ++i) {
-        p->vram[i] = rom_chr_data[i];
-    }
+    rom_read_chr(p->vram);
     rom_start();
     Ppu_dispose(p);
 }
 
-void rom_cycle(uint8_t b){}
+void rom_cycle(uint8_t cycles) {
+    for (int i = 0; i < 3 * cycles; ++i) {
+        Ppu_step(p);
+    }
+}
 
 uint8_t rom_ppustatus() {
     return Ppu_readStatus(p);
