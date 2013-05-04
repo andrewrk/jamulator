@@ -1,12 +1,5 @@
 #include "stdint.h"
 
-enum {
-    MIRRORING_VERTICAL,
-    MIRRORING_HORIZONTAL,
-    MIRRORING_SINGLE_UPPER,
-    MIRRORING_SINGLE_LOWER,
-};
-
 typedef struct {
     int mirroring;
     uint8_t* logicalTables[4];
@@ -16,3 +9,4 @@ typedef struct {
 
 void Nametable_writeNametableData(Nametable* n, int a, uint8_t v);
 uint8_t Nametable_readNametableData(Nametable* n, int a);
+void Nametable_setMirroring(Nametable* n, int m);

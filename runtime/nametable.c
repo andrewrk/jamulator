@@ -1,28 +1,29 @@
 #include "nametable.h"
+#include "rom.h"
 
 void Nametable_setMirroring(Nametable* n, int m) {
     n->mirroring = m;
 
     switch (m) {
-        case MIRRORING_HORIZONTAL:
+        case ROM_MIRRORING_HORIZONTAL:
             n->logicalTables[0] = n->nametable0;
             n->logicalTables[1] = n->nametable0;
             n->logicalTables[2] = n->nametable1;
             n->logicalTables[3] = n->nametable1;
             break;
-        case MIRRORING_VERTICAL:
+        case ROM_MIRRORING_VERTICAL:
             n->logicalTables[0] = n->nametable0;
             n->logicalTables[1] = n->nametable1;
             n->logicalTables[2] = n->nametable0;
             n->logicalTables[3] = n->nametable1;
             break;
-        case MIRRORING_SINGLE_UPPER:
+        case ROM_MIRRORING_SINGLE_UPPER:
             n->logicalTables[0] = n->nametable0;
             n->logicalTables[1] = n->nametable0;
             n->logicalTables[2] = n->nametable0;
             n->logicalTables[3] = n->nametable0;
             break;
-        case MIRRORING_SINGLE_LOWER:
+        case ROM_MIRRORING_SINGLE_LOWER:
             n->logicalTables[0] = n->nametable1;
             n->logicalTables[1] = n->nametable1;
             n->logicalTables[2] = n->nametable1;
