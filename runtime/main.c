@@ -148,9 +148,9 @@ void render() {
     }
     uint8_t* slice = malloc(p->framebufferSize * 3);
     for (int i = 0; i < p->framebufferSize; ++i) {
-        slice[i*3+0] = (slice[i] >> 16) & 0xff;
-        slice[i*3+1] = (slice[i] >> 8) & 0xff;
-        slice[i*3+2] = slice[i] & 0xff;
+        slice[i*3+0] = (p->framebuffer[i] >> 16) & 0xff;
+        slice[i*3+1] = (p->framebuffer[i] >> 8) & 0xff;
+        slice[i*3+2] = p->framebuffer[i] & 0xff;
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
