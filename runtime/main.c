@@ -6,9 +6,37 @@
 #include "SDL/SDL_framerate.h"
 #include "GL/glew.h"
 
+
+typedef struct {
+    SDL_Surface* screen;
+    GLuint tex;
+    FPSmanager fpsmanager;
+    bool pendingResize;
+    int pendingResizeWidth;
+    int pendingResizeHeight;
+} Video;
+
+static Video v;
 static Ppu* p;
 
+void flush_events() {
+    SDL_Event event;
+
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_VIDEORESIZE:
+                v.pendingResize = true;
+                v.pendingResizeWidth = event.resize.w;
+                v.pendingResizeHeight = event.resize.h;
+                break;
+            case SDL_QUIT:
+                exit(0);
+        }
+    }
+}
+
 void rom_cycle(uint8_t cycles) {
+    flush_events();
     for (int i = 0; i < 3 * cycles; ++i) {
         Ppu_step(p);
     }
@@ -82,14 +110,6 @@ void reshape_video(int width, int height) {
     glDisable(GL_DEPTH_TEST);
 }
 
-typedef struct {
-    SDL_Surface* screen;
-    GLuint tex;
-    FPSmanager fpsmanager;
-} Video;
-
-static Video v;
-
 void init_video() {
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK|SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
@@ -112,6 +132,7 @@ void init_video() {
 
     glEnable(GL_TEXTURE_2D);
     reshape_video(v.screen->w, v.screen->h);
+    v.pendingResize = false;
 
     glGenTextures(1, &v.tex);
 
@@ -121,6 +142,10 @@ void init_video() {
 
 
 void render() {
+    if (v.pendingResize) {
+        reshape_video(v.pendingResizeWidth, v.pendingResizeHeight);
+        v.pendingResize = false;
+    }
     uint8_t* slice = malloc(p->framebufferSize * 3);
     for (int i = 0; i < p->framebufferSize; ++i) {
         slice[i*3+0] = (slice[i] >> 16) & 0xff;
