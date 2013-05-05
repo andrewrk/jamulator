@@ -2,11 +2,11 @@
 
 ## Features
 
- * 6502 assembler / disassembler
- * unpack & disassemble NES roms and then put them back together
- * Use LLVM to recompile 6502 assembly with a small custom ABI into
-   native executables.
  * Recompile NES games into native executables
+ * 6502 assembler / disassembler
+ * Unpack & disassemble NES roms and then put them back together
+ * Adds a small custom ABI which gives you `putchar` and `exit`
+   for making test roms.
 
 ## Roadmap
 
