@@ -6,16 +6,13 @@
  * unpack & disassemble NES roms and then put them back together
  * Use LLVM to recompile 6502 assembly with a small custom ABI into
    native executables.
+ * Recompile NES games into native executables
 
 ## Roadmap
 
- * Add a runtime for the PPU
  * Support interrupts in compiled code
- * Recompile NES games into native executables (include CHR ROM etc)
- * More robust disassembling capabilities (mappers?)
+ * Support mappers
  * Unpack CHR ROM into PCX files and vice versa
- * Ability to emulate an NES ROM
-
 
 ## Getting Started Developing
 
@@ -48,21 +45,11 @@
     sudo apt-get install libsdl1.2-dev libsdl-gfx1.2-dev libsdl-image1.2-dev libglew1.6-dev libxrandr-dev
     ```
 
-7. Run the tests:
-
-    ```
-    make test
-    ```
-
-8. Compile & run:
+7. Compile, run the tests, and then try it!
 
     ```
     make
-    ./jamulator
-    ```
-
-9. Recompile a rom into a native binary:
-
-    ```
+    make test
     ./jamulator -recompile game.nes
     ```
+
