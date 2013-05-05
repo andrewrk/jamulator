@@ -10,7 +10,6 @@
 
 ## Roadmap
 
- * Support interrupts in compiled code
  * Support mappers
  * Switch from emulating PPU and APU to running them in a thread
  * Use shaders for graphics

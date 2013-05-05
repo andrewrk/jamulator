@@ -53,6 +53,7 @@ type ImmediateInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
+    Offset int
 }
 
 func (ii *ImmediateInstruction) Ast(v Visitor) {
@@ -71,6 +72,7 @@ type ImpliedInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
+    Offset int
 }
 
 func (ii *ImpliedInstruction) Ast(v Visitor) {
@@ -125,6 +127,7 @@ type DirectIndexedInstruction struct {
 
 	// filled in later
 	Payload []byte
+    Offset int
 }
 
 func (n *DirectIndexedInstruction) Ast(v Visitor) {
@@ -161,6 +164,7 @@ type DirectInstruction struct {
 	Line int
 
 	Payload []byte
+    Offset int
 }
 
 func (n *DirectInstruction) Ast(v Visitor) {
@@ -178,6 +182,7 @@ type IndirectXInstruction struct {
 	Line int
 
 	Payload []byte
+    Offset int
 }
 
 func (n *IndirectXInstruction) Ast(v Visitor) {
@@ -195,6 +200,7 @@ type IndirectYInstruction struct {
 	Line int
 
 	Payload []byte
+    Offset int
 }
 
 func (n *IndirectYInstruction) Ast(v Visitor) {
@@ -212,6 +218,7 @@ type IndirectInstruction struct {
 	Line int
 
 	Payload []byte
+    Offset int
 }
 
 func (n *IndirectInstruction) Ast(v Visitor) {
@@ -485,30 +492,30 @@ subroutineDecl : tokIdentifier tokSubroutine {
 
 instructionStatement : tokInstruction tokPound tokInteger {
 	// immediate address
-	$$ = &ImmediateInstruction{$1, $3, parseLineNumber, 0, 0}
+	$$ = &ImmediateInstruction{$1, $3, parseLineNumber, 0, 0, 0}
 } | tokInstruction {
 	// no address
-	$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0}
+	$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0, 0}
 } | tokInstruction labelName tokComma tokRegister {
 	$$ = &DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0, 0}
 } | tokInstruction tokInteger tokComma tokRegister {
-	$$ = &DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}}
+	$$ = &DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}, 0}
 } | tokInstruction labelName {
 	$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
 } | tokInstruction tokInteger {
-	$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}}
+	$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}, 0}
 } | tokInstruction tokLParen tokInteger tokComma tokRegister tokRParen {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")
 	}
-	$$ = &IndirectXInstruction{$1, $3, parseLineNumber, []byte{}}
+	$$ = &IndirectXInstruction{$1, $3, parseLineNumber, []byte{}, 0}
 } | tokInstruction tokLParen tokInteger tokRParen tokComma tokRegister {
 	if $6 != "y" && $6 != "Y" {
 		yylex.Error("Register argument must be Y.")
 	}
-	$$ = &IndirectYInstruction{$1, $3, parseLineNumber, []byte{}}
+	$$ = &IndirectYInstruction{$1, $3, parseLineNumber, []byte{}, 0}
 } | tokInstruction tokLParen tokInteger tokRParen {
-	$$ = &IndirectInstruction{$1, $3, parseLineNumber, []byte{}}
+	$$ = &IndirectInstruction{$1, $3, parseLineNumber, []byte{}, 0}
 }
 
 labelName : tokDot {

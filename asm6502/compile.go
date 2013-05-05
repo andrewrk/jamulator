@@ -25,10 +25,14 @@ type Compilation struct {
 	rY              llvm.Value // Y index register
 	rA              llvm.Value // accumulator
 	rSP             llvm.Value // stack pointer
+	rPC             llvm.Value // program counter
 	rSNeg           llvm.Value // whether the last arithmetic result is negative
-	rSZero          llvm.Value // whether the last arithmetic result is zero
+	rSOver          llvm.Value // whether the last arithmetic result overflowed
+	rSBrk           llvm.Value // break
 	rSDec           llvm.Value // decimal
-	rSInt           llvm.Value // interrupt disable
+	rSInt           llvm.Value // irq interrupt disable
+	rSZero          llvm.Value // whether the last arithmetic result is zero
+	rSCarry         llvm.Value // carry
 	runtimePanicMsg llvm.Value // we print this when a runtime error occurs
 
 	// ABI
@@ -366,8 +370,43 @@ func (c *Compilation) createIf(cond llvm.Value) llvm.BasicBlock {
 	return elseBlock
 }
 
-func (c *Compilation) cycle(count int) {
+func (c *Compilation) pullFromStack() llvm.Value {
+	// increment stack pointer
+	sp := c.builder.CreateLoad(c.rSP, "")
+	spPlusOne := c.builder.CreateAdd(sp, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
+	c.builder.CreateStore(spPlusOne, c.rSP)
+	// read the value at stack pointer
+	spZExt := c.builder.CreateZExt(sp, llvm.Int16Type(), "")
+	addr := c.builder.CreateAdd(spZExt, llvm.ConstInt(llvm.Int16Type(), 0x100, false), "")
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		addr,
+	}
+	ptr := c.builder.CreateGEP(c.wram, indexes, "")
+	return c.builder.CreateLoad(ptr, "")
+}
+
+func (c *Compilation) pushToStack(v llvm.Value) {
+	// write the value to the address at current stack pointer
+	sp := c.builder.CreateLoad(c.rSP, "")
+	spZExt := c.builder.CreateZExt(sp, llvm.Int16Type(), "")
+	addr := c.builder.CreateAdd(spZExt, llvm.ConstInt(llvm.Int16Type(), 0x100, false), "")
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		addr,
+	}
+	ptr := c.builder.CreateGEP(c.wram, indexes, "")
+	c.builder.CreateStore(v, ptr)
+	// stack pointer = stack pointer - 1
+	spMinusOne := c.builder.CreateSub(sp, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
+	c.builder.CreateStore(spMinusOne, c.rSP)
+}
+
+func (c *Compilation) cycle(count int, pc int, size int) {
 	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
+
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int16Type(), uint64(pc + size), false), c.rPC)
+
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
 	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
 }
@@ -393,7 +432,7 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 	c.builder.CreateCall(c.printfFn, args, "")
 }
 
-func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int) {
+func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int, instrSize int) {
 	branchBlock := c.labeledBlocks[labelName]
 	thenBlock := c.createBlock("then")
 	elseBlock := c.createBlock("else")
@@ -403,15 +442,15 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.selectBlock(thenBlock)
 	addr := c.program.Labels[labelName]
 	if instrAddr&0xff00 == addr&0xff00 {
-		c.cycle(3)
+		c.cycle(3, instrAddr, instrSize)
 	} else {
-		c.cycle(4)
+		c.cycle(4, instrAddr, instrSize)
 	}
 	c.builder.CreateBr(branchBlock)
 	// the else block is when the code does *not* branch.
 	// in this case, the cycle count is 2.
 	c.selectBlock(elseBlock)
-	c.cycle(2)
+	c.cycle(2, instrAddr, instrSize)
 }
 
 func (i *ImmediateInstruction) Compile(c *Compilation) {
@@ -422,17 +461,17 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rX)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xa0: // ldy
 		c.builder.CreateStore(v, c.rY)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xa9: // lda
 		c.builder.CreateStore(v, c.rA)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0x69: // adc
 	//case 0x29: // and
 	//case 0xc9: // cmp
@@ -454,62 +493,71 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x18: // clc
 	case 0xd8: // cld
 		c.clearDec()
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x58: // cli
 		c.clearInt()
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0xb8: // clv
 	case 0xca: // dex
 		c.increment(c.rX, -1)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x88: // dey
 		c.increment(c.rY, -1)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xe8: // inx
 		c.increment(c.rX, 1)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xc8: // iny
 		c.increment(c.rY, 1)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0x4a: // lsr
 	case 0xea: // nop
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0x48: // pha
 	//case 0x08: // php
 	//case 0x68: // pla
-	//case 0x28: // plp
+	case 0x28: // plp
+		c.pullStatusReg()
+		c.cycle(4, i.Offset, i.Size)
 	//case 0x2a: // rol
 	//case 0x6a: // ror
 	case 0x40: // rti
-		c.Warnings = append(c.Warnings, "interrupts not supported - ignoring RTI instruction")
-		c.builder.CreateUnreachable()
-		//c.cycle(6)
+		c.pullStatusReg()
+		low := c.pullFromStack()
+		high := c.pullFromStack()
+		low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
+		high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
+		word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
+		word = c.builder.CreateAnd(word, low16, "")
+		c.builder.CreateStore(word, c.rPC)
+		c.cycle(6, i.Offset, i.Size)
+		c.builder.CreateRetVoid()
 	//case 0x60: // rts
 	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x78: // sei
 		c.setInt()
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xaa: // tax
 		c.transfer(c.rA, c.rX)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xa8: // tay
 		c.transfer(c.rA, c.rY)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xba: // tsx
 		c.transfer(c.rSP, c.rX)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x8a: // txa
 		c.transfer(c.rX, c.rA)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x9a: // txs
 		c.transfer(c.rX, c.rSP)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	case 0x98: // tya
 		c.transfer(c.rY, c.rA)
-		c.cycle(2)
+		c.cycle(2, i.Offset, i.Size)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
 	}
@@ -558,11 +606,11 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		ldaDoneBlock := c.createBlock("LDA_done")
 		pageBoundaryCrossedBlock := c.createIf(eq)
 		// executed if page boundary is not crossed
-		c.cycle(4)
+		c.cycle(4, i.Offset, i.Size)
 		c.builder.CreateBr(ldaDoneBlock)
 		// executed if page boundary crossed
 		c.selectBlock(pageBoundaryCrossedBlock)
-		c.cycle(5)
+		c.cycle(5, i.Offset, i.Size)
 		c.builder.CreateBr(ldaDoneBlock)
 		// done
 		c.selectBlock(ldaDoneBlock)
@@ -614,7 +662,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0xee: // inc
 	case 0x4c: // jmp
 		// branch instruction - cycle before execution
-		c.cycle(3)
+		c.cycle(3, i.Offset, i.Size)
 		destBlock := c.labeledBlocks[i.LabelName]
 		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
@@ -633,20 +681,20 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 
 	case 0xf0: // beq
 		isZero := c.builder.CreateLoad(c.rSZero, "")
-		c.createBranch(isZero, i.LabelName, i.Offset)
+		c.createBranch(isZero, i.LabelName, i.Offset, i.Size)
 	//case 0x90: // bcc
 	//case 0xb0: // bcs
 	case 0x30: // bmi
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
-		c.createBranch(isNeg, i.LabelName, i.Offset)
+		c.createBranch(isNeg, i.LabelName, i.Offset, i.Size)
 	case 0xd0: // bne
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		notZero := c.builder.CreateNot(isZero, "")
-		c.createBranch(notZero, i.LabelName, i.Offset)
+		c.createBranch(notZero, i.LabelName, i.Offset, i.Size)
 	case 0x10: // bpl
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		notNeg := c.builder.CreateNot(isNeg, "")
-		c.createBranch(notNeg, i.LabelName, i.Offset)
+		c.createBranch(notNeg, i.LabelName, i.Offset, i.Size)
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
@@ -663,9 +711,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
 		if i.Payload[0] == 0xa5 {
-			c.cycle(3)
+			c.cycle(3, i.Offset, i.GetSize())
 		} else {
-			c.cycle(4)
+			c.cycle(4, i.Offset, i.GetSize())
 		}
 	case 0xc6, 0xce: // dec (zpg, abs)
 		oldValue := c.load(i.Value)
@@ -675,9 +723,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
 		if i.Payload[0] == 0xc6 {
-			c.cycle(5)
+			c.cycle(5, i.Offset, i.GetSize())
 		} else {
-			c.cycle(6)
+			c.cycle(6, i.Offset, i.GetSize())
 		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
@@ -726,23 +774,23 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		if i.Payload[0] == 0x85 {
-			c.cycle(3)
+			c.cycle(3, i.Offset, i.GetSize())
 		} else {
-			c.cycle(4)
+			c.cycle(4, i.Offset, i.GetSize())
 		}
 	case 0x86, 0x8e: // stx (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
 		if i.Payload[0] == 0x86 {
-			c.cycle(3)
+			c.cycle(3, i.Offset, i.GetSize())
 		} else {
-			c.cycle(4)
+			c.cycle(4, i.Offset, i.GetSize())
 		}
 	case 0x84, 0x8c: // sty (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
 		if i.Payload[0] == 0x84 {
-			c.cycle(3)
+			c.cycle(3, i.Offset, i.GetSize())
 		} else {
-			c.cycle(4)
+			c.cycle(4, i.Offset, i.GetSize())
 		}
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
@@ -855,7 +903,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 
 		// done. X_X
 		c.selectBlock(staDoneBlock)
-		c.cycle(6)
+		c.cycle(6, i.Offset, i.GetSize())
 
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
@@ -971,44 +1019,27 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	c.builder.CreateRetVoid()
 }
 
-func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
-	llvm.InitializeNativeTarget()
+func (c *Compilation) createNamedGlobal(intType llvm.Type, name string) llvm.Value {
+	val := llvm.ConstInt(intType, 0, false)
+	glob := llvm.AddGlobal(c.mod, val.Type(), name)
+	glob.SetLinkage(llvm.PrivateLinkage)
+	glob.SetInitializer(val)
+	return glob
+}
 
-	c := new(Compilation)
-	c.Flags = flags
-	c.program = p
-	c.Warnings = []string{}
-	c.Errors = []string{}
-	c.mod = llvm.NewModule("asm_module")
-	c.builder = llvm.NewBuilder()
-	defer c.builder.Dispose()
-	c.labeledData = map[string]llvm.Value{}
-	c.labeledBlocks = map[string]llvm.BasicBlock{}
+func (c *Compilation) createByteRegister(name string) llvm.Value {
+	return c.createNamedGlobal(llvm.Int8Type(), name)
+}
 
-	// 2KB memory
-	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
-	c.wram = llvm.AddGlobal(c.mod, memType, "wram")
-	c.wram.SetLinkage(llvm.PrivateLinkage)
-	c.wram.SetInitializer(llvm.ConstNull(memType))
+func (c *Compilation) createWordRegister(name string) llvm.Value {
+	return c.createNamedGlobal(llvm.Int16Type(), name)
+}
 
-	//uint8_t rom_mirroring;
-	mirroringConst := llvm.ConstInt(llvm.Int8Type(), uint64(p.Mirroring), false)
-	mirroringGlobal := llvm.AddGlobal(c.mod, mirroringConst.Type(), "rom_mirroring")
-	mirroringGlobal.SetLinkage(llvm.ExternalLinkage)
-	mirroringGlobal.SetInitializer(mirroringConst)
+func (c *Compilation) createBitRegister(name string) llvm.Value {
+	return c.createNamedGlobal(llvm.Int1Type(), name)
+}
 
-	c.createReadChrFn(p.ChrRom)
-
-	// runtime panic msg
-	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)
-	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")
-	c.runtimePanicMsg.SetLinkage(llvm.PrivateLinkage)
-	c.runtimePanicMsg.SetInitializer(text)
-
-	// first pass to generate data declarations
-	c.mode = dataStmtMode
-	p.Ast.Ast(c)
-
+func (c *Compilation) createFunctionDeclares() {
 	// declare i32 @putchar(i32)
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
 	c.putCharFn = llvm.AddFunction(c.mod, "putchar", putCharType)
@@ -1054,21 +1085,137 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 
 	c.setPpuScrollFn = llvm.AddFunction(c.mod, "rom_setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.setPpuScrollFn.SetLinkage(llvm.ExternalLinkage)
+}
+
+func (c *Compilation) createRegisters() {
+	c.rX = c.createByteRegister("X")
+	c.rY = c.createByteRegister("Y")
+	c.rA = c.createByteRegister("A")
+	c.rSP = c.createByteRegister("SP")
+	c.rPC = c.createWordRegister("PC")
+	c.rSNeg = c.createBitRegister("S_neg")
+	c.rSOver = c.createBitRegister("S_over")
+	c.rSBrk = c.createBitRegister("S_brk")
+	c.rSDec = c.createBitRegister("S_dec")
+	c.rSInt = c.createBitRegister("S_int")
+	c.rSZero = c.createBitRegister("S_zero")
+	c.rSCarry = c.createBitRegister("S_carry")
+}
+
+func (c *Compilation) addInterruptCode() {
+	c.builder.SetInsertPointBefore(c.nmiBlock.FirstInstruction())
+	// * push PC high onto stack
+	pc := c.builder.CreateLoad(c.rPC, "")
+	pcHigh16 := c.builder.CreateLShr(pc, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
+	pcHigh := c.builder.CreateTrunc(pcHigh16, llvm.Int8Type(), "")
+	c.pushToStack(pcHigh)
+	// * push PC low onto stack
+	pcLow16 := c.builder.CreateAnd(pc, llvm.ConstInt(llvm.Int16Type(), 0xff, false), "")
+	pcLow := c.builder.CreateTrunc(pcLow16, llvm.Int8Type(), "")
+	c.pushToStack(pcLow)
+	// * push processor status onto stack
+	c.pushStatusReg()
+}
+
+func (c *Compilation) pullStatusReg() {
+	status := c.pullFromStack()
+	// and
+	s7 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x80, false), "")
+	s6 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x40, false), "")
+	s4 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x10, false), "")
+	s3 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x08, false), "")
+	s2 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x04, false), "")
+	s1 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x02, false), "")
+	s0 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x01, false), "")
+	// icmp
+	zero := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	s7 = c.builder.CreateICmp(llvm.IntNE, s7, zero, "")
+	s6 = c.builder.CreateICmp(llvm.IntNE, s6, zero, "")
+	s4 = c.builder.CreateICmp(llvm.IntNE, s4, zero, "")
+	s3 = c.builder.CreateICmp(llvm.IntNE, s3, zero, "")
+	s2 = c.builder.CreateICmp(llvm.IntNE, s2, zero, "")
+	s1 = c.builder.CreateICmp(llvm.IntNE, s1, zero, "")
+	s0 = c.builder.CreateICmp(llvm.IntNE, s0, zero, "")
+	// store
+	c.builder.CreateStore(s7, c.rSNeg)
+	c.builder.CreateStore(s6, c.rSOver)
+	c.builder.CreateStore(s4, c.rSBrk)
+	c.builder.CreateStore(s3, c.rSDec)
+	c.builder.CreateStore(s2, c.rSInt)
+	c.builder.CreateStore(s1, c.rSZero)
+	c.builder.CreateStore(s0, c.rSCarry)
+}
+
+func (c *Compilation) pushStatusReg() {
+	// zextend
+	s7z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSNeg, ""), llvm.Int8Type(), "")
+	s6z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSOver, ""), llvm.Int8Type(), "")
+	s4z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSBrk, ""), llvm.Int8Type(), "")
+	s3z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSDec, ""), llvm.Int8Type(), "")
+	s2z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSInt, ""), llvm.Int8Type(), "")
+	s1z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSZero, ""), llvm.Int8Type(), "")
+	s0z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSCarry, ""), llvm.Int8Type(), "")
+	// shift
+	s7z = c.builder.CreateShl(s7z, llvm.ConstInt(llvm.Int8Type(), 7, false), "")
+	s6z = c.builder.CreateShl(s6z, llvm.ConstInt(llvm.Int8Type(), 6, false), "")
+	s4z = c.builder.CreateShl(s4z, llvm.ConstInt(llvm.Int8Type(), 4, false), "")
+	s3z = c.builder.CreateShl(s3z, llvm.ConstInt(llvm.Int8Type(), 3, false), "")
+	s2z = c.builder.CreateShl(s2z, llvm.ConstInt(llvm.Int8Type(), 2, false), "")
+	s1z = c.builder.CreateShl(s1z, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
+	// or
+	s0z = c.builder.CreateOr(s0z, s1z, "")
+	s0z = c.builder.CreateOr(s0z, s2z, "")
+	s0z = c.builder.CreateOr(s0z, s3z, "")
+	s0z = c.builder.CreateOr(s0z, s4z, "")
+	s0z = c.builder.CreateOr(s0z, s6z, "")
+	s0z = c.builder.CreateOr(s0z, s7z, "")
+	c.pushToStack(s0z)
+}
+
+func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
+	llvm.InitializeNativeTarget()
+
+	c := new(Compilation)
+	c.Flags = flags
+	c.program = p
+	c.mod = llvm.NewModule("asm_module")
+	c.builder = llvm.NewBuilder()
+	defer c.builder.Dispose()
+	c.labeledData = map[string]llvm.Value{}
+	c.labeledBlocks = map[string]llvm.BasicBlock{}
+
+	// 2KB memory
+	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
+	c.wram = llvm.AddGlobal(c.mod, memType, "wram")
+	c.wram.SetLinkage(llvm.PrivateLinkage)
+	c.wram.SetInitializer(llvm.ConstNull(memType))
+
+	//uint8_t rom_mirroring;
+	mirroringConst := llvm.ConstInt(llvm.Int8Type(), uint64(p.Mirroring), false)
+	mirroringGlobal := llvm.AddGlobal(c.mod, mirroringConst.Type(), "rom_mirroring")
+	mirroringGlobal.SetLinkage(llvm.ExternalLinkage)
+	mirroringGlobal.SetInitializer(mirroringConst)
+
+	c.createReadChrFn(p.ChrRom)
+
+	// runtime panic msg
+	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)
+	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")
+	c.runtimePanicMsg.SetLinkage(llvm.PrivateLinkage)
+	c.runtimePanicMsg.SetInitializer(text)
+
+	// first pass to generate data declarations
+	c.mode = dataStmtMode
+	p.Ast.Ast(c)
+
+	c.createFunctionDeclares()
+	c.createRegisters()
 
 	// main function / entry point
-	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{}, false)
+	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false)
 	c.mainFn = llvm.AddFunction(c.mod, "rom_start", mainType)
 	c.mainFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(c.mainFn, "Entry")
-	c.builder.SetInsertPointAtEnd(entry)
-	c.rX = c.builder.CreateAlloca(llvm.Int8Type(), "X")
-	c.rY = c.builder.CreateAlloca(llvm.Int8Type(), "Y")
-	c.rA = c.builder.CreateAlloca(llvm.Int8Type(), "A")
-	c.rSP = c.builder.CreateAlloca(llvm.Int8Type(), "SP")
-	c.rSNeg = c.builder.CreateAlloca(llvm.Int1Type(), "S_neg")
-	c.rSZero = c.builder.CreateAlloca(llvm.Int1Type(), "S_zero")
-	c.rSDec = c.builder.CreateAlloca(llvm.Int1Type(), "S_dec")
-	c.rSInt = c.builder.CreateAlloca(llvm.Int1Type(), "S_int")
 
 	// set up entry points
 	c.setUpEntryPoint(p, 0xfffa, &c.nmiLabelName)
@@ -1076,6 +1223,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.setUpEntryPoint(p, 0xfffe, &c.irqLabelName)
 
 	// second pass to build basic blocks
+	c.builder.SetInsertPointAtEnd(entry)
 	c.mode = basicBlocksMode
 	p.Ast.Ast(c)
 
@@ -1097,9 +1245,19 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 		return c, nil
 	}
 
-	// hook up the first entry block to the reset block
+	// entry jump table
+	c.selectBlock(entry)
 	c.builder.SetInsertPointAtEnd(entry)
-	c.builder.CreateBr(*c.resetBlock)
+	badInterruptBlock := c.createBlock("BadInterrupt")
+	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, 3)
+	c.selectBlock(badInterruptBlock)
+	c.createPanic()
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 1, false), *c.nmiBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 2, false), *c.resetBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 3, false), *c.irqBlock)
+
+	c.addInterruptCode()
+
 
 	if flags&DumpModulePreFlag != 0 {
 		c.mod.Dump()

@@ -6,7 +6,6 @@
 #include "SDL/SDL_framerate.h"
 #include "GL/glew.h"
 
-
 typedef struct {
     SDL_Surface* screen;
     GLuint tex;
@@ -18,6 +17,7 @@ typedef struct {
 
 static Video v;
 static Ppu* p;
+static int interruptRequested = ROM_INTERRUPT_NONE;
 
 void flush_events() {
     SDL_Event event;
@@ -39,6 +39,11 @@ void rom_cycle(uint8_t cycles) {
     flush_events();
     for (int i = 0; i < 3 * cycles; ++i) {
         Ppu_step(p);
+    }
+    int req = interruptRequested;
+    if (req != ROM_INTERRUPT_NONE) {
+        interruptRequested = ROM_INTERRUPT_NONE;
+        rom_start(req);
     }
 }
 
@@ -140,6 +145,9 @@ void init_video() {
     SDL_setFramerate(&v.fpsmanager, 70);
 }
 
+void vblankInterrupt() {
+    interruptRequested = ROM_INTERRUPT_NMI;
+}
 
 void render() {
     if (v.pendingResize) {
@@ -185,11 +193,12 @@ void render() {
 int main() {
     p = Ppu_new();
     p->render = &render;
+    p->vblankInterrupt = &vblankInterrupt;
     Nametable_setMirroring(&p->nametables, rom_mirroring);
     assert(rom_chr_bank_count == 1);
     rom_read_chr(p->vram);
     init_video();
-    rom_start();
+    rom_start(ROM_INTERRUPT_RESET);
     Ppu_dispose(p);
 }
 

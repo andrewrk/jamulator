@@ -280,6 +280,7 @@ type opcodeDef struct {
 }
 
 func (ii *ImmediateInstruction) Measure(p *Program) error {
+	ii.Offset = p.offset
 	lowerOpName := strings.ToLower(ii.OpName)
 	opcode, ok := immediateOpCode[lowerOpName]
 	if !ok {
@@ -302,6 +303,7 @@ func (n *ImmediateInstruction) Assemble(bin *machineCode) error {
 }
 
 func (ii *ImpliedInstruction) Measure(p *Program) error {
+	ii.Offset = p.offset
 	lowerOpName := strings.ToLower(ii.OpName)
 	opcode, ok := impliedOpCode[lowerOpName]
 	if !ok {
@@ -317,6 +319,7 @@ func (n *ImpliedInstruction) Assemble(bin *machineCode) error {
 }
 
 func (n *DirectIndexedInstruction) Measure(p *Program) error {
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
@@ -363,6 +366,7 @@ func (n *DirectIndexedInstruction) Assemble(bin *machineCode) error {
 }
 
 func (n *DirectWithLabelIndexedInstruction) Measure(p *Program) error {
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 	lowerRegName := strings.ToLower(n.RegisterName)
 	if lowerRegName == "x" {
@@ -452,6 +456,7 @@ func (n *DirectWithLabelInstruction) Assemble(bin *machineCode) error {
 }
 
 func (n *DirectInstruction) Measure(p *Program) error {
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 
 	// try indirect
@@ -493,6 +498,7 @@ func (n *DirectInstruction) Assemble(bin *machineCode) error {
 }
 
 func (n *IndirectXInstruction) Measure(p *Program) error {
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectXOpCode[lowerOpName]
 	if !ok {
@@ -511,6 +517,7 @@ func (n *IndirectXInstruction) Assemble(bin *machineCode) error {
 }
 
 func (n *IndirectYInstruction) Measure(p *Program) error {
+	n.Offset = p.offset
 	lowerOpName := strings.ToLower(n.OpName)
 	opcode, ok := indirectYOpCode[lowerOpName]
 	if !ok {

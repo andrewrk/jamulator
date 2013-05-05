@@ -120,6 +120,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		} else {
 			i := new(DirectInstruction)
 			i.OpName = opCodeInfo.opName
+			i.Offset = addr
 			i.Payload = []byte{opCode, 0, 0}
 			i.Value = targetAddr
 			binary.LittleEndian.PutUint16(i.Payload[1:], w)
@@ -147,15 +148,16 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if targetAddr >= d.offset {
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
+			i.Offset = addr
 			i.LabelName = d.getLabelAt(targetAddr)
 			i.RegisterName = "X"
-			i.Offset = addr
 			i.Size = 3
 			i.OpCode = opCode
 			elem.Value = i
 		} else {
 			i := new(DirectIndexedInstruction)
 			i.OpName = opCodeInfo.opName
+			i.Offset = addr
 			i.Payload = []byte{opCode, 0, 0}
 			i.Value = int(w)
 			i.RegisterName = "X"
@@ -174,6 +176,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(DirectIndexedInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, 0, 0}
 		i.Value = int(w)
 		i.RegisterName = "Y"
@@ -191,6 +194,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(ImmediateInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.OpCode = opCode
 		i.Value = int(v)
 		elem.Value = i
@@ -201,6 +205,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	case impliedAddr:
 		i := new(ImpliedInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.OpCode = opCode
 		elem.Value = i
 
@@ -222,6 +227,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(IndirectInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, 0, 0}
 		i.Value = int(w)
 		binary.LittleEndian.PutUint16(i.Payload[1:], w)
@@ -242,6 +248,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(IndirectXInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
@@ -256,6 +263,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(IndirectYInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
@@ -288,6 +296,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(DirectInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
@@ -302,6 +311,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(DirectIndexedInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		i.RegisterName = "X"
@@ -317,6 +327,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		}
 		i := new(DirectIndexedInstruction)
 		i.OpName = opCodeInfo.opName
+		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		i.RegisterName = "Y"

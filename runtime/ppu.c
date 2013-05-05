@@ -168,6 +168,10 @@ void Ppu_step(Ppu* p) {
                 Ppu_setStatus(p, STATUS_VBLANK_STARTED);
                 p->cycleCount = 0;
             }
+            if (p->flags.nmiOnVblank == 0x1 && !p->suppressNmi) {
+                // Request NMI
+                p->vblankInterrupt();
+            }
             Ppu_raster(p);
         }
     } else if (p->scanline == 260) {

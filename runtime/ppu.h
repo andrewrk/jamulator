@@ -3,12 +3,6 @@
 #include "nametable.h"
 
 // TODO: namespace everything
-enum {
-    INTERRUPT_NONE,
-    INTERRUPT_IRQ,
-    INTERRUPT_RESET,
-    INTERRUPT_NMI,
-};
 
 enum {
     STATUS_SPRITE_OVERFLOW,
@@ -84,6 +78,7 @@ typedef struct {
     int framebufferSize;
 
     void (*render)();
+    void (*vblankInterrupt)();
 
     int cycle;
     int scanline;
