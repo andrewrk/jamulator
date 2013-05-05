@@ -928,15 +928,6 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 	}
 	c.currentBlock = &bb
 	c.builder.SetInsertPointAtEnd(bb)
-
-	//c.debugPrint(fmt.Sprintf("Label: %s\n", s.LabelName))
-
-	switch s.LabelName {
-	case c.nmiLabelName:
-		c.currentBlock = nil
-	case c.irqLabelName:
-		c.currentBlock = nil
-	}
 }
 
 func (s *LabeledStatement) CompileLabels(c *Compilation) {
@@ -962,17 +953,17 @@ func (s *LabeledStatement) CompileLabels(c *Compilation) {
 func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	n, ok := p.offsets[addr]
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Missing 0x%04x entry point"))
+		c.Errors = append(c.Errors, fmt.Sprintf("Missing 0x%04x entry point", addr))
 		return
 	}
 	stmt, ok := n.(*DataWordStatement)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w"))
+		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w", addr))
 		return
 	}
 	call, ok := stmt.dataList[0].(*LabelCall)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w with a label"))
+		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w with a label", addr))
 		return
 	}
 	*s = call.LabelName
