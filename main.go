@@ -151,7 +151,7 @@ func main() {
 		}
 		err = rom.RecompileToBinary(outfile, compileFlags())
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		}
 		return
 	} else if disassembleFlag {

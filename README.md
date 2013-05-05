@@ -10,6 +10,8 @@
 
 ## Roadmap
 
+ * Support roms with no mapper that depend on being written to both $8000 and $C000
+ * Support roms with no mapper that have 2 PRG ROM banks
  * Support mappers
  * Switch from emulating PPU and APU to running them in a thread
  * Use shaders for graphics
