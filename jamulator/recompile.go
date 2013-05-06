@@ -1,7 +1,6 @@
 package jamulator
 
 import (
-	"bytes"
 	"fmt"
 	"path"
 	"errors"
@@ -12,17 +11,14 @@ import (
 )
 
 func (rom *Rom) RecompileToBinary(filename string, flags CompileFlags) error {
-	if len(rom.PrgRom) != 1 {
-		return errors.New("only roms with 1 prg rom bank are supported")
+	if len(rom.PrgRom) != 1 && len(rom.PrgRom) != 2 {
+		return errors.New("only roms with 1-2 prg rom banks are supported")
 	}
 	fmt.Fprintf(os.Stderr, "Disassembling...\n")
-	buf := bytes.NewBuffer(rom.PrgRom[0])
-	program, err := Disassemble(buf)
+	program, err := rom.Disassemble()
 	if err != nil {
 		return err
 	}
-	program.ChrRom = rom.ChrRom
-	program.Mirroring = rom.Mirroring
 
 	tmpDir, err := ioutil.TempDir("", "")
 	if err != nil {

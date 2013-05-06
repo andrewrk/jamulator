@@ -650,6 +650,8 @@ func (r *Rom) Disassemble() (*Program, error) {
 	dis.collapseDataStatements()
 
 	p := dis.ToProgram()
+	p.ChrRom = r.ChrRom
+	p.Mirroring = r.Mirroring
 
 	if len(dis.Errors) > 0 {
 		return p, dis
