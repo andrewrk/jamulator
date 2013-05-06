@@ -545,7 +545,12 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.createCompare(c.rY, v)
 		c.cycle(2, i.Offset, i.Size)
 	//case 0x49: // eor
-	//case 0x09: // ora
+	case 0x09: // ora
+		a := c.builder.CreateLoad(c.rA, "")
+		newA := c.builder.CreateOr(a, v, "")
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0xe9: // sbc
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
