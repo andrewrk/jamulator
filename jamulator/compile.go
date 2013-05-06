@@ -228,6 +228,12 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 	c.builder.CreateStore(isZero, c.rSZero)
 }
 
+func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.Value) {
+	// set the carry bit if result is positive or zero
+	isCarry := c.builder.CreateICmp(llvm.IntUGE, left, right, "")
+	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
 func (c *Compilation) store(addr int, i8 llvm.Value) {
 	//c.debugPrintf(fmt.Sprintf("static store $%04x %s\n", addr, "#$%02x"), []llvm.Value{i8})
 	// homebrew ABI
@@ -524,15 +530,26 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.cycle(2, i.Offset, i.Size)
 	//case 0x69: // adc
 	//case 0x29: // and
-	//case 0xc9: // cmp
-	//case 0xe0: // cpx
-	//case 0xc0: // cpy
+	case 0xc9: // cmp
+		c.createCompare(c.rA, v)
+	case 0xe0: // cpx
+		c.createCompare(c.rX, v)
+	case 0xc0: // cpy
+		c.createCompare(c.rY, v)
 	//case 0x49: // eor
 	//case 0x09: // ora
 	//case 0xe9: // sbc
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
 	}
+}
+
+func (c *Compilation) createCompare(register llvm.Value, value llvm.Value) {
+	reg := c.builder.CreateLoad(register, "")
+	diff := c.builder.CreateSub(reg, value, "")
+	c.dynTestAndSetZero(diff)
+	c.dynTestAndSetNeg(diff)
+	c.dynTestAndSetCarrySubtraction(reg, value)
 }
 
 func (c *Compilation) pullWordFromStack() llvm.Value {
