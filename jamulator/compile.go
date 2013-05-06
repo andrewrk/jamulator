@@ -2,9 +2,6 @@ package jamulator
 
 // generates a module compatible with runtime/rom.h
 
-// TODO: handle interrupts
-// TODO: load/save state
-
 import (
 	"bytes"
 	"fmt"
@@ -532,6 +529,7 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(word, c.rPC)
 		c.cycle(6, i.Offset, i.Size)
 		c.builder.CreateRetVoid()
+		c.currentBlock = nil
 	//case 0x60: // rts
 	//case 0x38: // sec
 	case 0xf8: // sed
