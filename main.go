@@ -76,7 +76,7 @@ func compile(filename string, program *jamulator.Program) {
 	}
 	if len(c.Errors) != 0 {
 		fmt.Fprintf(os.Stderr, "Errors:\n%s\n", strings.Join(c.Errors, "\n"))
-		return
+		os.Exit(1)
 	}
 	if len(c.Warnings) != 0 {
 		fmt.Fprintf(os.Stderr, "Warnings:\n%s\n", strings.Join(c.Warnings, "\n"))
@@ -151,6 +151,7 @@ func main() {
 		err = rom.RecompileToBinary(outfile, compileFlags())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			os.Exit(1)
 		}
 		return
 	} else if disassembleFlag {
