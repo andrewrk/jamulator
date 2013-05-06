@@ -482,6 +482,15 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 	}
 }
 
+func (c *Compilation) pullWordFromStack() llvm.Value {
+	low := c.pullFromStack()
+	high := c.pullFromStack()
+	low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
+	high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
+	word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
+	return c.builder.CreateAnd(word, low16, "")
+}
+
 func (i *ImpliedInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
 	switch i.OpCode {
@@ -520,17 +529,17 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x6a: // ror
 	case 0x40: // rti
 		c.pullStatusReg()
-		low := c.pullFromStack()
-		high := c.pullFromStack()
-		low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
-		high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
-		word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
-		word = c.builder.CreateAnd(word, low16, "")
-		c.builder.CreateStore(word, c.rPC)
+		pc := c.pullWordFromStack()
+		c.builder.CreateStore(pc, c.rPC)
 		c.cycle(6, i.Offset, i.Size)
 		c.builder.CreateRetVoid()
 		c.currentBlock = nil
-	//case 0x60: // rts
+	case 0x60: // rts
+		pc := c.pullWordFromStack()
+		pc = c.builder.CreateAdd(pc, llvm.ConstInt(llvm.Int16Type(), 1, false), "")
+		c.builder.CreateStore(pc, c.rPC)
+		c.builder.CreateRetVoid()
+		c.currentBlock = nil
 	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
