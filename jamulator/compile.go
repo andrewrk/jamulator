@@ -997,12 +997,11 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	chrDataGlobal.SetLinkage(llvm.PrivateLinkage)
 	chrDataGlobal.SetInitializer(chrDataConst)
 	// declare void @memcpy(void* dest, void* source, i32 size)
-	voidPtrType := llvm.PointerType(llvm.VoidType(), 0)
-	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{voidPtrType, voidPtrType, llvm.Int32Type()}, false)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType, bytePointerType, llvm.Int32Type()}, false)
 	memcpyFn := llvm.AddFunction(c.mod, "memcpy", memcpyType)
 	memcpyFn.SetLinkage(llvm.ExternalLinkage)
 	// void rom_read_chr(uint8_t* dest)
-	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	readChrType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType}, false)
 	readChrFn := llvm.AddFunction(c.mod, "rom_read_chr", readChrType)
 	readChrFn.SetFunctionCallConv(llvm.CCallConv)
@@ -1010,9 +1009,8 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	c.builder.SetInsertPointAtEnd(entry)
 	if dataLen > 0 {
 		x2000 := llvm.ConstInt(llvm.Int32Type(), uint64(dataLen), false)
-		dest := c.builder.CreatePointerCast(readChrFn.Param(0), voidPtrType, "")
-		source := c.builder.CreatePointerCast(chrDataGlobal, voidPtrType, "")
-		c.builder.CreateCall(memcpyFn, []llvm.Value{dest, source, x2000}, "")
+		source := c.builder.CreatePointerCast(chrDataGlobal, bytePointerType, "")
+		c.builder.CreateCall(memcpyFn, []llvm.Value{readChrFn.Param(0), source, x2000}, "")
 	}
 	c.builder.CreateRetVoid()
 }
