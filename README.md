@@ -12,6 +12,7 @@
 
  * Support mappers
  * Switch from emulating PPU and APU to running them in a thread
+ * Emulate using JIT and run PPU and APU in separate goroutines
  * Use shaders for graphics
  * Unpack CHR ROM into PCX files and vice versa
 

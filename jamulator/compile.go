@@ -284,6 +284,35 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 
 }
 
+func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Value {
+	// returns the byte at addr, with runtime checks for the range between minAddr and maxAddr
+	// currently only can do WRAM stuff
+	// TODO: support the full address range
+	switch {
+	case maxAddr < 0x0800:
+		// no runtime checks needed.
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			addr,
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		return c.builder.CreateLoad(ptr, "")
+	case maxAddr < 0x4000:
+		// address masking needed.
+		maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			maskedAddr,
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		return c.builder.CreateLoad(ptr, "")
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("dynLoad $%04x < x < $%04x currently only supports max address below $4000", minAddr, maxAddr))
+		return llvm.ConstInt(llvm.Int8Type(), 0, false)
+	}
+	panic("unreachable")
+}
+
 func (c *Compilation) load(addr int) llvm.Value {
 	switch {
 	default:
@@ -450,6 +479,30 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.cycle(2, instrAddr, instrSize)
 }
 
+func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, offset int, size int) {
+	// if address & 0xff00 != (address + x) & 0xff00
+	baseAddrMasked := baseAddr & 0xff00
+	baseAddrMaskedValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddrMasked), false)
+
+	baseAddrValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddr), false)
+	addrPlusX := c.builder.CreateAdd(baseAddrValue, index16, "")
+	xff00 := llvm.ConstInt(llvm.Int16Type(), uint64(0xff00), false)
+	maskedAddrPlusX := c.builder.CreateAnd(addrPlusX, xff00, "")
+
+	eq := c.builder.CreateICmp(llvm.IntEQ, baseAddrMaskedValue, maskedAddrPlusX, "")
+	ldaDoneBlock := c.createBlock("LDA_done")
+	pageBoundaryCrossedBlock := c.createIf(eq)
+	// executed if page boundary is not crossed
+	c.cycle(4, offset, size)
+	c.builder.CreateBr(ldaDoneBlock)
+	// executed if page boundary crossed
+	c.selectBlock(pageBoundaryCrossedBlock)
+	c.cycle(5, offset, size)
+	c.builder.CreateBr(ldaDoneBlock)
+	// done
+	c.selectBlock(ldaDoneBlock)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
@@ -598,29 +651,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetNeg(v)
 		c.dynTestAndSetZero(v)
-
-		// if address & 0xff00 != (address + x) & 0xff00
-		baseAddr := c.program.Labels[i.LabelName]
-		baseAddrMasked := baseAddr & 0xff00
-		baseAddrMaskedValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddrMasked), false)
-
-		baseAddrValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddr), false)
-		addrPlusX := c.builder.CreateAdd(baseAddrValue, index16, "")
-		xff00 := llvm.ConstInt(llvm.Int16Type(), uint64(0xff00), false)
-		maskedAddrPlusX := c.builder.CreateAnd(addrPlusX, xff00, "")
-
-		eq := c.builder.CreateICmp(llvm.IntEQ, baseAddrMaskedValue, maskedAddrPlusX, "")
-		ldaDoneBlock := c.createBlock("LDA_done")
-		pageBoundaryCrossedBlock := c.createIf(eq)
-		// executed if page boundary is not crossed
-		c.cycle(4, i.Offset, i.Size)
-		c.builder.CreateBr(ldaDoneBlock)
-		// executed if page boundary crossed
-		c.selectBlock(pageBoundaryCrossedBlock)
-		c.cycle(5, i.Offset, i.Size)
-		c.builder.CreateBr(ldaDoneBlock)
-		// done
-		c.selectBlock(ldaDoneBlock)
+		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset, i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -673,7 +704,15 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0xde: // dec
 	//case 0x5d: // eor
 	//case 0xfe: // inc
-	//case 0xbd: // lda
+	case 0xbd: // lda
+		x := c.builder.CreateLoad(c.rX, "")
+		x16 := c.builder.CreateZExt(x, llvm.Int16Type(), "")
+		addr := c.builder.CreateAdd(x16, llvm.ConstInt(llvm.Int16Type(), uint64(i.Value), false), "")
+		v := c.dynLoad(addr, i.Value, i.Value + 0xff)
+		c.builder.CreateStore(v, c.rA)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset, i.GetSize())
 	//case 0xbc: // ldy
 	//case 0x5e: // lsr
 	//case 0x1d: // ora
