@@ -32,21 +32,18 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 
 	// save the prg rom
 	jam.WriteString("# assembly code\n")
-	for i, bank := range r.PrgRom {
-		buf := bytes.NewBuffer(bank)
-		program, err := Disassemble(buf)
-		if err != nil {
-			return err
-		}
-		outpath := fmt.Sprintf("prg%d.asm", i)
-		err = program.WriteSourceFile(path.Join(dest, outpath))
-		if err != nil {
-			return err
-		}
-		_, err = jam.WriteString(fmt.Sprintf("prg=%s\n", outpath))
-		if err != nil {
-			return err
-		}
+	program, err := r.Disassemble()
+	if err != nil {
+		return err
+	}
+	outpath := "prg.asm"
+	err = program.WriteSourceFile(path.Join(dest, outpath))
+	if err != nil {
+		return err
+	}
+	_, err = jam.WriteString(fmt.Sprintf("prg=%s\n", outpath))
+	if err != nil {
+		return err
 	}
 	// save the chr banks
 	jam.WriteString("# video data\n")

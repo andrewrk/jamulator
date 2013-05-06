@@ -24,11 +24,12 @@ type Renderer interface {
 }
 
 type Disassembly struct {
-	reader *bufio.Reader
+	Errors  []string
+
+	rom    *Rom
 	list   *list.List
 	// maps memory offset to node
 	offsets map[int]*list.Element
-	Errors  []string
 	offset  int
 }
 
@@ -73,7 +74,7 @@ func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
 }
 
 func (d *Disassembly) getLabelAt(addr int) string {
-	elem := d.offsets[addr]
+	elem := d.elemAtAddr(addr)
 	stmt, ok := elem.Value.(*LabeledStatement)
 	if ok {
 		return stmt.LabelName
@@ -87,13 +88,17 @@ func (d *Disassembly) getLabelAt(addr int) string {
 	}
 	// put one there
 	i := new(LabeledStatement)
-	i.LabelName = fmt.Sprintf("Label_%d", addr)
+	i.LabelName = fmt.Sprintf("Label_%04x", addr)
 	d.list.InsertBefore(i, elem)
 	return i.LabelName
 }
 
 func (d *Disassembly) markAsInstruction(addr int) error {
-	elem := d.offsets[addr]
+	if addr < 0x8000 {
+		// non-ROM address. nothing we can do
+		return nil
+	}
+	elem := d.elemAtAddr(addr)
 	opCode, err := d.elemAsByte(elem)
 	if err != nil {
 		return err
@@ -109,7 +114,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			return err
 		}
 		targetAddr := int(w)
-		if targetAddr >= d.offset {
+		if targetAddr >= 0x8000 {
+			// destination is in PRG ROM
 			i := new(DirectWithLabelInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
@@ -145,7 +151,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			return err
 		}
 		targetAddr := int(w)
-		if targetAddr >= d.offset {
+		if targetAddr >= 0x8000 {
+			// destination is in PRG ROM
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
@@ -359,40 +366,54 @@ func (d *Disassembly) ToProgram() *Program {
 		p.Ast.statements = append(p.Ast.statements, e.Value.(Node))
 	}
 	for k, v := range d.offsets {
-		p.offsets[k] = v.Value.(Node)
+		n := v.Value.(Node)
+		p.offsets[k] = n
+		// if 1 bank, it's mirrored at 0x8000 and 0xc000
+		if len(d.rom.PrgRom) == 1 {
+			p.offsets[k - 0x4000] = n
+		}
 	}
 	return p
 }
 
-func (d *Disassembly) readAllAsData() error {
-	data, err := ioutil.ReadAll(d.reader)
-	if err != nil {
-		return err
+func (d *Disassembly) readAllAsData() {
+	d.offset = 0x10000 - 0x4000 * len(d.rom.PrgRom)
+	offset := d.offset
+	for _, bank := range d.rom.PrgRom {
+		for _, b := range bank {
+			stmt := new(DataStatement)
+			stmt.dataList = make(DataList, 1)
+			item := IntegerDataItem(b)
+			stmt.dataList[0] = &item
+			stmt.Offset = offset
+			stmt.Size = 1
+			d.offsets[stmt.Offset] = d.list.PushBack(stmt)
+			offset += 1
+		}
 	}
-
-	d.offset = 0x10000 - len(data)
-
-	for i, b := range data {
-		stmt := new(DataStatement)
-		stmt.dataList = make(DataList, 1)
-		item := IntegerDataItem(b)
-		stmt.dataList[0] = &item
-		stmt.Offset = d.offset + i
-		stmt.Size = 1
-		d.offsets[stmt.Offset] = d.list.PushBack(stmt)
-	}
-	return nil
 }
 
 func (d *Disassembly) insertLabelAt(addr int, name string) {
-	elem := d.offsets[addr]
+	elem := d.elemAtAddr(addr)
 	stmt := new(LabeledStatement)
 	stmt.LabelName = name
 	d.list.InsertBefore(stmt, elem)
 }
 
+func (d *Disassembly) elemAtAddr(addr int) *list.Element {
+	elem, ok := d.offsets[addr]
+	if ok {
+		return elem
+	}
+	// if there is only 1 prg rom bank, it is at 0x8000 and mirrored at 0xc000
+	if len(d.rom.PrgRom) == 1 && addr < 0xc000 {
+		return d.offsets[addr + 0x4000]
+	}
+	panic(fmt.Sprintf("tried to get element at $%04x but none exists\n", addr))
+}
+
 func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
-	elem1 := d.offsets[addr]
+	elem1 := d.elemAtAddr(addr)
 	elem2 := elem1.Next()
 	s1 := elem1.Value.(*DataStatement)
 	s2 := elem2.Value.(*DataStatement)
@@ -410,7 +431,8 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	newStmt := new(DataWordStatement)
 	newStmt.Offset = addr
 	newStmt.Size = 2
-	if targetAddr >= uint16(d.offset) {
+	if targetAddr >= 0x8000 {
+		// target in PRG ROM
 		newStmt.dataList = WordList{&LabelCall{name}}
 	} else {
 		tmp := IntegerDataItem(targetAddr)
@@ -419,7 +441,8 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 	elem1.Value = newStmt
 	d.list.Remove(elem2)
 
-	if targetAddr >= uint16(d.offset) {
+	if targetAddr >= 0x8000 {
+		// target in PRG ROM
 		d.insertLabelAt(int(targetAddr), name)
 		d.markAsInstruction(int(targetAddr))
 	}
@@ -605,17 +628,17 @@ func (d *Disassembly) groupAsciiStrings() {
 	}
 }
 
-func Disassemble(reader io.Reader) (*Program, error) {
+func (r *Rom) Disassemble() (*Program, error) {
+	if len(r.PrgRom) != 1 && len(r.PrgRom) != 2 {
+		return nil, errors.New("only 1 or 2 prg rom banks supported")
+	}
+
 	dis := new(Disassembly)
-	dis.reader = bufio.NewReader(reader)
+	dis.rom = r
 	dis.list = new(list.List)
 	dis.offsets = make(map[int]*list.Element)
-	dis.Errors = make([]string, 0)
 
-	err := dis.readAllAsData()
-	if err != nil {
-		return nil, err
-	}
+	dis.readAllAsData()
 
 	// use the known entry points to recursively disassemble data statements
 	dis.markAsDataWordLabel(0xfffa, "NMI_Routine")
@@ -632,6 +655,16 @@ func Disassemble(reader io.Reader) (*Program, error) {
 		return p, dis
 	}
 	return p, nil
+}
+
+func Disassemble(reader io.Reader) (*Program, error) {
+	r := new(Rom)
+	bank, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	r.PrgRom = append(r.PrgRom, bank)
+	return r.Disassemble()
 }
 
 func DisassembleFile(filename string) (*Program, error) {
