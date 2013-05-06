@@ -794,8 +794,13 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	case 0xf0: // beq
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		c.createBranch(isZero, i.LabelName, i.Offset, i.Size)
-	//case 0x90: // bcc
-	//case 0xb0: // bcs
+	case 0x90: // bcc
+		isCarry := c.builder.CreateLoad(c.rSCarry, "")
+		notCarry := c.builder.CreateNot(isCarry, "")
+		c.createBranch(notCarry, i.LabelName, i.Offset, i.Size)
+	case 0xb0: // bcs
+		isCarry := c.builder.CreateLoad(c.rSCarry, "")
+		c.createBranch(isCarry, i.LabelName, i.Offset, i.Size)
 	case 0x30: // bmi
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		c.createBranch(isNeg, i.LabelName, i.Offset, i.Size)
