@@ -53,7 +53,7 @@ type ImmediateInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
-    Offset int
+	Offset int
 }
 
 func (ii *ImmediateInstruction) Ast(v Visitor) {
@@ -72,7 +72,7 @@ type ImpliedInstruction struct {
 	// filled in later
 	OpCode byte
 	Size int
-    Offset int
+	Offset int
 }
 
 func (ii *ImpliedInstruction) Ast(v Visitor) {
@@ -127,7 +127,7 @@ type DirectIndexedInstruction struct {
 
 	// filled in later
 	Payload []byte
-    Offset int
+	Offset int
 }
 
 func (n *DirectIndexedInstruction) Ast(v Visitor) {
@@ -164,7 +164,7 @@ type DirectInstruction struct {
 	Line int
 
 	Payload []byte
-    Offset int
+	Offset int
 }
 
 func (n *DirectInstruction) Ast(v Visitor) {
@@ -182,7 +182,7 @@ type IndirectXInstruction struct {
 	Line int
 
 	Payload []byte
-    Offset int
+	Offset int
 }
 
 func (n *IndirectXInstruction) Ast(v Visitor) {
@@ -200,7 +200,7 @@ type IndirectYInstruction struct {
 	Line int
 
 	Payload []byte
-    Offset int
+	Offset int
 }
 
 func (n *IndirectYInstruction) Ast(v Visitor) {
@@ -218,7 +218,7 @@ type IndirectInstruction struct {
 	Line int
 
 	Payload []byte
-    Offset int
+	Offset int
 }
 
 func (n *IndirectInstruction) Ast(v Visitor) {

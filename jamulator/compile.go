@@ -651,7 +651,56 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {
-	c.Errors = append(c.Errors, "DirectIndexedInstruction lacks Compile() implementation")
+	switch i.Payload[0] {
+	// abs y
+	//case 0x79: // adc
+	//case 0x39: // and
+	//case 0xd9: // cmp
+	//case 0x59: // eor
+	//case 0xb9: // lda
+	//case 0xbe: // ldx
+	//case 0x19: // ora
+	//case 0xf9: // sbc
+	//case 0x99: // sta
+	// zpg y
+	//case 0xb6: // ldx
+	//case 0x96: // stx
+	// abs x
+	//case 0x7d: // adc
+	//case 0x3d: // and
+	//case 0x1e: // asl
+	//case 0xdd: // cmp
+	//case 0xde: // dec
+	//case 0x5d: // eor
+	//case 0xfe: // inc
+	//case 0xbd: // lda
+	//case 0xbc: // ldy
+	//case 0x5e: // lsr
+	//case 0x1d: // ora
+	//case 0x3e: // rol
+	//case 0x7e: // ror
+	//case 0xfd: // sbc
+	//case 0x9d: // sta
+	// zpg x
+	//case 0x75: // adc
+	//case 0x35: // and
+	//case 0x16: // asl
+	//case 0xd5: // cmp
+	//case 0xd6: // dec
+	//case 0x55: // eor
+	//case 0xf6: // inc
+	//case 0xb5: // lda
+	//case 0xb4: // ldy
+	//case 0x56: // lsr
+	//case 0x15: // ora
+	//case 0x36: // rol
+	//case 0x76: // ror
+	//case 0xf5: // sbc
+	//case 0x95: // sta
+	//case 0x94: // sty
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
+	}
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
