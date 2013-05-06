@@ -529,13 +529,21 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.testAndSetNeg(i.Value)
 		c.cycle(2, i.Offset, i.Size)
 	//case 0x69: // adc
-	//case 0x29: // and
+	case 0x29: // and
+		a := c.builder.CreateLoad(c.rA, "")
+		newA := c.builder.CreateAnd(a, v, "")
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xc9: // cmp
 		c.createCompare(c.rA, v)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xe0: // cpx
 		c.createCompare(c.rX, v)
+		c.cycle(2, i.Offset, i.Size)
 	case 0xc0: // cpy
 		c.createCompare(c.rY, v)
+		c.cycle(2, i.Offset, i.Size)
 	//case 0x49: // eor
 	//case 0x09: // ora
 	//case 0xe9: // sbc
