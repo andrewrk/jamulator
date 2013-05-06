@@ -1,7 +1,6 @@
-package nes
+package jamulator
 
 import (
-	"../asm6502"
 	"bytes"
 	"fmt"
 	"path"
@@ -12,13 +11,13 @@ import (
 	"strings"
 )
 
-func (rom *Rom) RecompileToBinary(filename string, flags asm6502.CompileFlags) error {
+func (rom *Rom) RecompileToBinary(filename string, flags CompileFlags) error {
 	if len(rom.PrgRom) != 1 {
 		return errors.New("only roms with 1 prg rom bank are supported")
 	}
 	fmt.Fprintf(os.Stderr, "Disassembling...\n")
 	buf := bytes.NewBuffer(rom.PrgRom[0])
-	program, err := asm6502.Disassemble(buf)
+	program, err := Disassemble(buf)
 	if err != nil {
 		return err
 	}

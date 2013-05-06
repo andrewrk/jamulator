@@ -1,5 +1,5 @@
 %{
-package asm6502
+package jamulator
 
 import (
 	"fmt"

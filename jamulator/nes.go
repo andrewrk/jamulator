@@ -1,7 +1,6 @@
-package nes
+package jamulator
 
 import (
-	"../asm6502"
 	"bufio"
 	"bytes"
 	"errors"
@@ -35,7 +34,7 @@ func (r *Rom) disassembleToDirWithJam(dest string, jamFd io.Writer) error {
 	jam.WriteString("# assembly code\n")
 	for i, bank := range r.PrgRom {
 		buf := bytes.NewBuffer(bank)
-		program, err := asm6502.Disassemble(buf)
+		program, err := Disassemble(buf)
 		if err != nil {
 			return err
 		}
@@ -112,7 +111,7 @@ func removeExtension(filename string) string {
 	return filename[0 : len(filename)-len(path.Ext(filename))]
 }
 
-func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
+func AssembleRom(dir string, ioreader io.Reader) (*Rom, error) {
 	reader := bufio.NewReader(ioreader)
 	r := new(Rom)
 	r.PrgRom = make([][]byte, 0)
@@ -148,11 +147,11 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 		case "mirroring":
 			switch parts[1] {
 			case "Horizontal":
-				r.Mirroring = asm6502.HorizontalMirroring
+				r.Mirroring = HorizontalMirroring
 			case "Vertical":
-				r.Mirroring = asm6502.VerticalMirroring
+				r.Mirroring = VerticalMirroring
 			case "FourScreenVRAM":
-				r.Mirroring = asm6502.FourScreenVRamMirroring
+				r.Mirroring = FourScreenVRamMirroring
 			default:
 				return nil, errors.New(fmt.Sprintf("Line %d: unrecognized mirroring value: %s", lineCount, parts[1]))
 			}
@@ -187,7 +186,7 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 			}
 		case "prg":
 			prgfile := path.Join(dir, parts[1])
-			programAst, err := asm6502.ParseFile(prgfile)
+			programAst, err := ParseFile(prgfile)
 			if err != nil {
 				return nil, err
 			}
@@ -228,13 +227,13 @@ func Assemble(dir string, ioreader io.Reader) (*Rom, error) {
 	return r, nil
 }
 
-func AssembleFile(filename string) (*Rom, error) {
+func AssembleRomFile(filename string) (*Rom, error) {
 	fd, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := Assemble(path.Dir(filename), fd)
+	r, err := AssembleRom(path.Dir(filename), fd)
 	err2 := fd.Close()
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-package asm6502
+package jamulator
 
 // generates a module compatible with runtime/rom.h
 

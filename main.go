@@ -1,8 +1,7 @@
 package main
 
 import (
-	"./asm6502"
-	"./nes"
+	"./jamulator"
 	"flag"
 	"fmt"
 	"os"
@@ -49,23 +48,23 @@ func removeExtension(filename string) string {
 	return filename[0 : len(filename)-len(path.Ext(filename))]
 }
 
-func compileFlags() (flags asm6502.CompileFlags) {
+func compileFlags() (flags jamulator.CompileFlags) {
 	if disableOptFlag {
-		flags |= asm6502.DisableOptFlag
+		flags |= jamulator.DisableOptFlag
 	}
 	if dumpFlag {
-		flags |= asm6502.DumpModuleFlag
+		flags |= jamulator.DumpModuleFlag
 	}
 	if dumpPreFlag {
-		flags |= asm6502.DumpModulePreFlag
+		flags |= jamulator.DumpModulePreFlag
 	}
 	if debugFlag {
-		flags |= asm6502.IncludeDebugFlag
+		flags |= jamulator.IncludeDebugFlag
 	}
 	return
 }
 
-func compile(filename string, program *asm6502.Program) {
+func compile(filename string, program *jamulator.Program) {
 	outfile := removeExtension(filename) + ".bc"
 	if flag.NArg() == 2 {
 		outfile = flag.Arg(1)
@@ -92,7 +91,7 @@ func main() {
 	filename := flag.Arg(0)
 	if astFlag || assembleFlag {
 		fmt.Fprintf(os.Stderr, "Parsing %s\n", filename)
-		programAst, err := asm6502.ParseFile(filename)
+		programAst, err := jamulator.ParseFile(filename)
 		if err != nil {
 			panic(err)
 		}
@@ -128,7 +127,7 @@ func main() {
 		return
 	} else if unRomFlag || recompileFlag {
 		fmt.Fprintf(os.Stderr, "loading %s\n", filename)
-		rom, err := nes.LoadFile(filename)
+		rom, err := jamulator.LoadFile(filename)
 		if err != nil {
 			panic(err)
 		}
@@ -156,7 +155,7 @@ func main() {
 		return
 	} else if disassembleFlag {
 		fmt.Fprintf(os.Stderr, "disassembling %s\n", filename)
-		p, err := asm6502.DisassembleFile(filename)
+		p, err := jamulator.DisassembleFile(filename)
 		if err != nil {
 			panic(err)
 		}
@@ -178,7 +177,7 @@ func main() {
 		return
 	} else if romFlag {
 		fmt.Fprintf(os.Stderr, "building rom from %s\n", filename)
-		r, err := nes.AssembleFile(filename)
+		r, err := jamulator.AssembleRomFile(filename)
 		if err != nil {
 			panic(err)
 		}

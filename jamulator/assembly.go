@@ -1,4 +1,4 @@
-package asm6502
+package jamulator
 
 import (
 	"bufio"
@@ -9,24 +9,6 @@ import (
 	"os"
 	"strings"
 )
-
-// TODO: asm6502 and nes packages are just tripping over each other now, get rid of them
-const (
-	HorizontalMirroring = iota
-	VerticalMirroring
-	FourScreenVRamMirroring
-)
-
-type Mirroring int
-
-func (m Mirroring) String() string {
-	if m == HorizontalMirroring {
-		return "Horizontal"
-	} else if m == VerticalMirroring {
-		return "Vertical"
-	}
-	return "FourScreenVRAM"
-}
 
 // Program is a proper program, one that you can compile
 // into native code. A ProgramAST can be compiled into a

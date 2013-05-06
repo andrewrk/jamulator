@@ -1,7 +1,7 @@
-/jamulator
+/jamulate
 /roms
-/asm6502/y.go
-/asm6502/asm6502.nn.go
+/jamulator/y.go
+/jamulator/asm6502.nn.go
 /runtime/runtime.a
 *.test
 *.o
