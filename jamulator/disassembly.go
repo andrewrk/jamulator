@@ -24,10 +24,10 @@ type Renderer interface {
 }
 
 type Disassembly struct {
-	Errors  []string
+	Errors []string
 
-	rom    *Rom
-	list   *list.List
+	rom  *Rom
+	list *list.List
 	// maps memory offset to node
 	offsets map[int]*list.Element
 	offset  int
@@ -370,14 +370,14 @@ func (d *Disassembly) ToProgram() *Program {
 		p.offsets[k] = n
 		// if 1 bank, it's mirrored at 0x8000 and 0xc000
 		if len(d.rom.PrgRom) == 1 {
-			p.offsets[k - 0x4000] = n
+			p.offsets[k-0x4000] = n
 		}
 	}
 	return p
 }
 
 func (d *Disassembly) readAllAsData() {
-	d.offset = 0x10000 - 0x4000 * len(d.rom.PrgRom)
+	d.offset = 0x10000 - 0x4000*len(d.rom.PrgRom)
 	offset := d.offset
 	for _, bank := range d.rom.PrgRom {
 		for _, b := range bank {
@@ -407,7 +407,7 @@ func (d *Disassembly) elemAtAddr(addr int) *list.Element {
 	}
 	// if there is only 1 prg rom bank, it is at 0x8000 and mirrored at 0xc000
 	if len(d.rom.PrgRom) == 1 && addr < 0xc000 {
-		return d.offsets[addr + 0x4000]
+		return d.offsets[addr+0x4000]
 	}
 	panic(fmt.Sprintf("tried to get element at $%04x but none exists\n", addr))
 }

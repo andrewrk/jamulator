@@ -35,12 +35,12 @@ type Compilation struct {
 	labeledData   map[string]llvm.Value
 	labeledBlocks map[string]llvm.BasicBlock
 	// used for the entry jump table so we can do JSR
-	labelIds      map[string]int
-	entryLabelCount   int
+	labelIds        map[string]int
+	entryLabelCount int
 
-	currentValue  *bytes.Buffer
-	currentLabel  string
-	mode          int
+	currentValue *bytes.Buffer
+	currentLabel string
+	mode         int
 	currentBlock *llvm.BasicBlock
 	// label names to look for
 	nmiLabelName   string
@@ -51,11 +51,11 @@ type Compilation struct {
 	irqBlock       *llvm.BasicBlock
 
 	// ABI
-	mainFn         llvm.Value
-	printfFn       llvm.Value
-	putCharFn      llvm.Value
-	exitFn         llvm.Value
-	cycleFn        llvm.Value
+	mainFn    llvm.Value
+	printfFn  llvm.Value
+	putCharFn llvm.Value
+	exitFn    llvm.Value
+	cycleFn   llvm.Value
 	// PPU
 	ppuStatusFn    llvm.Value
 	ppuCtrlFn      llvm.Value
@@ -67,26 +67,26 @@ type Compilation struct {
 	setPpuScrollFn llvm.Value
 	ppuWriteDma    llvm.Value
 	// APU
-	apuWriteSquare1CtrlFn llvm.Value
-	apuWriteSquare1SweepsFn llvm.Value
-	apuWriteSquare1LowFn llvm.Value
-	apuWriteSquare1HighFn llvm.Value
-	apuWriteSquare2CtrlFn llvm.Value
-	apuWriteSquare2SweepsFn llvm.Value
-	apuWriteSquare2LowFn llvm.Value
-	apuWriteSquare2HighFn llvm.Value
-	apuWriteTriangleCtrlFn llvm.Value
-	apuWriteTriangleLowFn llvm.Value
-	apuWriteTriangleHighFn llvm.Value
-	apuWriteNoiseBaseFn llvm.Value
-	apuWriteNoisePeriodFn llvm.Value
-	apuWriteNoiseLengthFn llvm.Value
-	apuWriteDmcFlagsFn llvm.Value
-	apuWriteDmcDirectLoadFn llvm.Value
+	apuWriteSquare1CtrlFn      llvm.Value
+	apuWriteSquare1SweepsFn    llvm.Value
+	apuWriteSquare1LowFn       llvm.Value
+	apuWriteSquare1HighFn      llvm.Value
+	apuWriteSquare2CtrlFn      llvm.Value
+	apuWriteSquare2SweepsFn    llvm.Value
+	apuWriteSquare2LowFn       llvm.Value
+	apuWriteSquare2HighFn      llvm.Value
+	apuWriteTriangleCtrlFn     llvm.Value
+	apuWriteTriangleLowFn      llvm.Value
+	apuWriteTriangleHighFn     llvm.Value
+	apuWriteNoiseBaseFn        llvm.Value
+	apuWriteNoisePeriodFn      llvm.Value
+	apuWriteNoiseLengthFn      llvm.Value
+	apuWriteDmcFlagsFn         llvm.Value
+	apuWriteDmcDirectLoadFn    llvm.Value
 	apuWriteDmcSampleAddressFn llvm.Value
-	apuWriteDmcSampleLengthFn llvm.Value
-	apuWriteCtrlFlags1Fn llvm.Value
-	apuWriteCtrlFlags2Fn llvm.Value
+	apuWriteDmcSampleLengthFn  llvm.Value
+	apuWriteCtrlFlags1Fn       llvm.Value
+	apuWriteCtrlFlags2Fn       llvm.Value
 	// pads
 	padWrite1Fn llvm.Value
 	padWrite2Fn llvm.Value
@@ -116,7 +116,7 @@ func (c *Compilation) dataStop() {
 		return
 	}
 	if c.currentValue.Len() == 0 {
-		c.currentLabel = "";
+		c.currentLabel = ""
 		return
 	}
 	text := llvm.ConstString(c.currentValue.String(), false)
@@ -591,7 +591,6 @@ func (c *Compilation) pushStatusReg() {
 	c.pushToStack(s0z)
 }
 
-
 func (c *Compilation) cycle(count int, pc int) {
 	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
 
@@ -642,7 +641,7 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	// the else block is when the code does *not* branch.
 	// in this case, the cycle count is 2.
 	c.selectBlock(elseBlock)
-	c.cycle(2, instrAddr + 2) // branch instructions are 2 bytes
+	c.cycle(2, instrAddr+2) // branch instructions are 2 bytes
 }
 
 func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, pc int) {
@@ -700,17 +699,17 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rX)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xa0: // ldy
 		c.builder.CreateStore(v, c.rY)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xa9: // lda
 		c.builder.CreateStore(v, c.rA)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x69: // adc
 		a := c.builder.CreateLoad(c.rA, "")
 		aPlusV := c.builder.CreateAdd(a, v, "")
@@ -722,37 +721,37 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetOverflowAddition(a, v, newA)
 		c.dynTestAndSetCarryAddition(a, v, carry)
 
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateAnd(a, v, "")
 		c.builder.CreateStore(newA, c.rA)
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xc9: // cmp
 		c.createCompare(c.rA, v)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xe0: // cpx
 		c.createCompare(c.rX, v)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xc0: // cpy
 		c.createCompare(c.rY, v)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x49: // eor
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateXor(a, v, "")
 		c.builder.CreateStore(newA, c.rA)
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x09: // ora
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateOr(a, v, "")
 		c.builder.CreateStore(newA, c.rA)
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	//case 0xe9: // sbc
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
@@ -785,23 +784,23 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x18: // clc
 	case 0xd8: // cld
 		c.clearDec()
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x58: // cli
 		c.clearInt()
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	//case 0xb8: // clv
 	case 0xca: // dex
 		c.increment(c.rX, -1)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x88: // dey
 		c.increment(c.rY, -1)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xe8: // inx
 		c.increment(c.rX, 1)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xc8: // iny
 		c.increment(c.rY, 1)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x4a: // lsr
 		oldValue := c.builder.CreateLoad(c.rA, "")
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
@@ -809,15 +808,15 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(newValue, c.rA)
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetCarryLShr(oldValue)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xea: // nop
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	//case 0x48: // pha
 	//case 0x08: // php
 	//case 0x68: // pla
 	case 0x28: // plp
 		c.pullStatusReg()
-		c.cycle(4, i.Offset + i.Size)
+		c.cycle(4, i.Offset+i.Size)
 	//case 0x2a: // rol
 	//case 0x6a: // ror
 	case 0x40: // rti
@@ -837,28 +836,28 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x78: // sei
 		c.setInt()
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xaa: // tax
 		c.transfer(c.rA, c.rX)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xa8: // tay
 		c.transfer(c.rA, c.rY)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0xba: // tsx
 		c.transfer(c.rSP, c.rX)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x8a: // txa
 		c.transfer(c.rX, c.rA)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x9a: // txs
 		c.transfer(c.rX, c.rSP)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x98: // tya
 		c.transfer(c.rY, c.rA)
-		c.cycle(2, i.Offset + i.Size)
+		c.cycle(2, i.Offset+i.Size)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
 	}
@@ -892,7 +891,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetNeg(v)
 		c.dynTestAndSetZero(v)
-		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset + i.Size)
+		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset+i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -949,11 +948,11 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		x := c.builder.CreateLoad(c.rX, "")
 		x16 := c.builder.CreateZExt(x, llvm.Int16Type(), "")
 		addr := c.builder.CreateAdd(x16, llvm.ConstInt(llvm.Int16Type(), uint64(i.Value), false), "")
-		v := c.dynLoad(addr, i.Value, i.Value + 0xff)
+		v := c.dynLoad(addr, i.Value, i.Value+0xff)
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
-		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset + i.GetSize())
+		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset+i.GetSize())
 	//case 0xbc: // ldy
 	//case 0x5e: // lsr
 	//case 0x1d: // ora
@@ -1003,7 +1002,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
 	case 0x20: // jsr
-		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset + 2), false)
+		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset+2), false)
 		c.pushWordToStack(pc)
 		c.cycle(6, c.program.Labels[i.LabelName])
 		id := c.labelAsEntryPoint(i.LabelName)
@@ -1057,9 +1056,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
 		if i.Payload[0] == 0xa5 {
-			c.cycle(3, i.Offset + i.GetSize())
+			c.cycle(3, i.Offset+i.GetSize())
 		} else {
-			c.cycle(4, i.Offset + i.GetSize())
+			c.cycle(4, i.Offset+i.GetSize())
 		}
 	case 0xc6, 0xce: // dec (zpg, abs)
 		oldValue := c.load(i.Value)
@@ -1069,9 +1068,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
 		if i.Payload[0] == 0xc6 {
-			c.cycle(5, i.Offset + i.GetSize())
+			c.cycle(5, i.Offset+i.GetSize())
 		} else {
-			c.cycle(6, i.Offset + i.GetSize())
+			c.cycle(6, i.Offset+i.GetSize())
 		}
 	case 0x46, 0x4e: // lsr (zpg, abs)
 		oldValue := c.load(i.Value)
@@ -1081,9 +1080,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetCarryLShr(oldValue)
 		if i.Payload[0] == 0x46 {
-			c.cycle(5, i.Offset + i.GetSize())
+			c.cycle(5, i.Offset+i.GetSize())
 		} else {
-			c.cycle(6, i.Offset + i.GetSize())
+			c.cycle(6, i.Offset+i.GetSize())
 		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
@@ -1130,23 +1129,23 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		if i.Payload[0] == 0x85 {
-			c.cycle(3, i.Offset + i.GetSize())
+			c.cycle(3, i.Offset+i.GetSize())
 		} else {
-			c.cycle(4, i.Offset + i.GetSize())
+			c.cycle(4, i.Offset+i.GetSize())
 		}
 	case 0x86, 0x8e: // stx (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
 		if i.Payload[0] == 0x86 {
-			c.cycle(3, i.Offset + i.GetSize())
+			c.cycle(3, i.Offset+i.GetSize())
 		} else {
-			c.cycle(4, i.Offset + i.GetSize())
+			c.cycle(4, i.Offset+i.GetSize())
 		}
 	case 0x84, 0x8c: // sty (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
 		if i.Payload[0] == 0x84 {
-			c.cycle(3, i.Offset + i.GetSize())
+			c.cycle(3, i.Offset+i.GetSize())
 		} else {
-			c.cycle(4, i.Offset + i.GetSize())
+			c.cycle(4, i.Offset+i.GetSize())
 		}
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
@@ -1259,7 +1258,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 
 		// done. X_X
 		c.selectBlock(staDoneBlock)
-		c.cycle(6, i.Offset + i.GetSize())
+		c.cycle(6, i.Offset+i.GetSize())
 
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
@@ -1383,7 +1382,6 @@ func (c *Compilation) createWordRegister(name string) llvm.Value {
 func (c *Compilation) createBitRegister(name string) llvm.Value {
 	return c.createNamedGlobal(llvm.Int1Type(), name)
 }
-
 
 func (c *Compilation) declareReadFn(name string) llvm.Value {
 	readByteType := llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false)
@@ -1577,7 +1575,6 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	}
 
 	c.addInterruptCode()
-
 
 	if flags&DumpModulePreFlag != 0 {
 		c.mod.Dump()

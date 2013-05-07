@@ -20,7 +20,7 @@ type Program struct {
 	Labels    map[string]int
 	Errors    []error
 	ChrRom    [][]byte
-	Mirroring     Mirroring
+	Mirroring Mirroring
 
 	offset  int
 	offsets map[int]Node

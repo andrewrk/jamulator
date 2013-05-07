@@ -10,17 +10,17 @@ import (
 )
 
 var (
-	astFlag bool
-	assembleFlag bool
+	astFlag         bool
+	assembleFlag    bool
 	disassembleFlag bool
-	unRomFlag bool
-	compileFlag bool
-	romFlag bool
-	disableOptFlag bool
-	dumpFlag bool
-	dumpPreFlag bool
-	debugFlag bool
-	recompileFlag bool
+	unRomFlag       bool
+	compileFlag     bool
+	romFlag         bool
+	disableOptFlag  bool
+	dumpFlag        bool
+	dumpPreFlag     bool
+	debugFlag       bool
+	recompileFlag   bool
 )
 
 // TODO: change this to use commands

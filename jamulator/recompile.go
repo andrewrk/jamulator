@@ -1,12 +1,12 @@
 package jamulator
 
 import (
-	"fmt"
-	"path"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
-	"io/ioutil"
+	"path"
 	"strings"
 )
 
