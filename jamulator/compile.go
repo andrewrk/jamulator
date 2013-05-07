@@ -49,11 +49,13 @@ type Compilation struct {
 
 	labeledData   map[string]llvm.Value
 	labeledBlocks map[string]llvm.BasicBlock
+	// used for the entry jump table so we can do JSR
+	labelIds      map[string]int
+	nextLabelId   int
+
 	currentValue  *bytes.Buffer
 	currentLabel  string
 	mode          int
-	// map label name to basic block
-	basicBlocks  map[string]llvm.BasicBlock
 	currentBlock *llvm.BasicBlock
 	// label names to look for
 	nmiLabelName   string
@@ -418,6 +420,15 @@ func (c *Compilation) pullFromStack() llvm.Value {
 	return c.builder.CreateLoad(ptr, "")
 }
 
+func (c *Compilation) pullWordFromStack() llvm.Value {
+	low := c.pullFromStack()
+	high := c.pullFromStack()
+	low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
+	high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
+	word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
+	return c.builder.CreateAnd(word, low16, "")
+}
+
 func (c *Compilation) pushToStack(v llvm.Value) {
 	// write the value to the address at current stack pointer
 	sp := c.builder.CreateLoad(c.rSP, "")
@@ -434,10 +445,77 @@ func (c *Compilation) pushToStack(v llvm.Value) {
 	c.builder.CreateStore(spMinusOne, c.rSP)
 }
 
-func (c *Compilation) cycle(count int, pc int, size int) {
+func (c *Compilation) pushWordToStack(word llvm.Value) {
+	high16 := c.builder.CreateLShr(word, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
+	high := c.builder.CreateTrunc(high16, llvm.Int8Type(), "")
+	c.pushToStack(high)
+	low16 := c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0xff, false), "")
+	low := c.builder.CreateTrunc(low16, llvm.Int8Type(), "")
+	c.pushToStack(low)
+}
+
+func (c *Compilation) pullStatusReg() {
+	status := c.pullFromStack()
+	// and
+	s7 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x80, false), "")
+	s6 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x40, false), "")
+	s4 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x10, false), "")
+	s3 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x08, false), "")
+	s2 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x04, false), "")
+	s1 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x02, false), "")
+	s0 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x01, false), "")
+	// icmp
+	zero := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	s7 = c.builder.CreateICmp(llvm.IntNE, s7, zero, "")
+	s6 = c.builder.CreateICmp(llvm.IntNE, s6, zero, "")
+	s4 = c.builder.CreateICmp(llvm.IntNE, s4, zero, "")
+	s3 = c.builder.CreateICmp(llvm.IntNE, s3, zero, "")
+	s2 = c.builder.CreateICmp(llvm.IntNE, s2, zero, "")
+	s1 = c.builder.CreateICmp(llvm.IntNE, s1, zero, "")
+	s0 = c.builder.CreateICmp(llvm.IntNE, s0, zero, "")
+	// store
+	c.builder.CreateStore(s7, c.rSNeg)
+	c.builder.CreateStore(s6, c.rSOver)
+	c.builder.CreateStore(s4, c.rSBrk)
+	c.builder.CreateStore(s3, c.rSDec)
+	c.builder.CreateStore(s2, c.rSInt)
+	c.builder.CreateStore(s1, c.rSZero)
+	c.builder.CreateStore(s0, c.rSCarry)
+}
+
+func (c *Compilation) pushStatusReg() {
+	// zextend
+	s7z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSNeg, ""), llvm.Int8Type(), "")
+	s6z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSOver, ""), llvm.Int8Type(), "")
+	s4z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSBrk, ""), llvm.Int8Type(), "")
+	s3z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSDec, ""), llvm.Int8Type(), "")
+	s2z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSInt, ""), llvm.Int8Type(), "")
+	s1z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSZero, ""), llvm.Int8Type(), "")
+	s0z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSCarry, ""), llvm.Int8Type(), "")
+	// shift
+	s7z = c.builder.CreateShl(s7z, llvm.ConstInt(llvm.Int8Type(), 7, false), "")
+	s6z = c.builder.CreateShl(s6z, llvm.ConstInt(llvm.Int8Type(), 6, false), "")
+	s4z = c.builder.CreateShl(s4z, llvm.ConstInt(llvm.Int8Type(), 4, false), "")
+	s3z = c.builder.CreateShl(s3z, llvm.ConstInt(llvm.Int8Type(), 3, false), "")
+	s2z = c.builder.CreateShl(s2z, llvm.ConstInt(llvm.Int8Type(), 2, false), "")
+	s1z = c.builder.CreateShl(s1z, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
+	// or
+	s0z = c.builder.CreateOr(s0z, s1z, "")
+	s0z = c.builder.CreateOr(s0z, s2z, "")
+	s0z = c.builder.CreateOr(s0z, s3z, "")
+	s0z = c.builder.CreateOr(s0z, s4z, "")
+	s0z = c.builder.CreateOr(s0z, s6z, "")
+	s0z = c.builder.CreateOr(s0z, s7z, "")
+	c.pushToStack(s0z)
+}
+
+
+func (c *Compilation) cycle(count int, pc int) {
 	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
 
-	c.builder.CreateStore(llvm.ConstInt(llvm.Int16Type(), uint64(pc + size), false), c.rPC)
+	if pc >= 0 {
+		c.builder.CreateStore(llvm.ConstInt(llvm.Int16Type(), uint64(pc), false), c.rPC)
+	}
 
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
 	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
@@ -464,7 +542,7 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 	c.builder.CreateCall(c.printfFn, args, "")
 }
 
-func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int, instrSize int) {
+func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int) {
 	branchBlock := c.labeledBlocks[labelName]
 	thenBlock := c.createBlock("then")
 	elseBlock := c.createBlock("else")
@@ -474,18 +552,18 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.selectBlock(thenBlock)
 	addr := c.program.Labels[labelName]
 	if instrAddr&0xff00 == addr&0xff00 {
-		c.cycle(3, instrAddr, instrSize)
+		c.cycle(3, addr)
 	} else {
-		c.cycle(4, instrAddr, instrSize)
+		c.cycle(4, addr)
 	}
 	c.builder.CreateBr(branchBlock)
 	// the else block is when the code does *not* branch.
 	// in this case, the cycle count is 2.
 	c.selectBlock(elseBlock)
-	c.cycle(2, instrAddr, instrSize)
+	c.cycle(2, instrAddr + 2) // branch instructions are 2 bytes
 }
 
-func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, offset int, size int) {
+func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, pc int) {
 	// if address & 0xff00 != (address + x) & 0xff00
 	baseAddrMasked := baseAddr & 0xff00
 	baseAddrMaskedValue := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddrMasked), false)
@@ -499,11 +577,11 @@ func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value,
 	ldaDoneBlock := c.createBlock("LDA_done")
 	pageBoundaryCrossedBlock := c.createIf(eq)
 	// executed if page boundary is not crossed
-	c.cycle(4, offset, size)
+	c.cycle(4, pc)
 	c.builder.CreateBr(ldaDoneBlock)
 	// executed if page boundary crossed
 	c.selectBlock(pageBoundaryCrossedBlock)
-	c.cycle(5, offset, size)
+	c.cycle(5, pc)
 	c.builder.CreateBr(ldaDoneBlock)
 	// done
 	c.selectBlock(ldaDoneBlock)
@@ -517,40 +595,40 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rX)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xa0: // ldy
 		c.builder.CreateStore(v, c.rY)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xa9: // lda
 		c.builder.CreateStore(v, c.rA)
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0x69: // adc
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateAnd(a, v, "")
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xc9: // cmp
 		c.createCompare(c.rA, v)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xe0: // cpx
 		c.createCompare(c.rX, v)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xc0: // cpy
 		c.createCompare(c.rY, v)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0x49: // eor
 	case 0x09: // ora
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateOr(a, v, "")
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0xe9: // sbc
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
@@ -565,13 +643,16 @@ func (c *Compilation) createCompare(register llvm.Value, value llvm.Value) {
 	c.dynTestAndSetCarrySubtraction(reg, value)
 }
 
-func (c *Compilation) pullWordFromStack() llvm.Value {
-	low := c.pullFromStack()
-	high := c.pullFromStack()
-	low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
-	high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
-	word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
-	return c.builder.CreateAnd(word, low16, "")
+func (c *Compilation) labelAsEntryPoint(labelName string) (id int) {
+	id, ok := c.labelIds[labelName]
+	if ok {
+		return
+	}
+	id = c.nextLabelId
+	c.nextLabelId += 1
+
+	c.labelIds[labelName] = id
+	return
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
@@ -582,72 +663,73 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	//case 0x18: // clc
 	case 0xd8: // cld
 		c.clearDec()
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x58: // cli
 		c.clearInt()
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0xb8: // clv
 	case 0xca: // dex
 		c.increment(c.rX, -1)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x88: // dey
 		c.increment(c.rY, -1)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xe8: // inx
 		c.increment(c.rX, 1)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xc8: // iny
 		c.increment(c.rY, 1)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0x4a: // lsr
 	case 0xea: // nop
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	//case 0x48: // pha
 	//case 0x08: // php
 	//case 0x68: // pla
 	case 0x28: // plp
 		c.pullStatusReg()
-		c.cycle(4, i.Offset, i.Size)
+		c.cycle(4, i.Offset + i.Size)
 	//case 0x2a: // rol
 	//case 0x6a: // ror
 	case 0x40: // rti
 		c.pullStatusReg()
 		pc := c.pullWordFromStack()
 		c.builder.CreateStore(pc, c.rPC)
-		c.cycle(6, i.Offset, i.Size)
+		c.cycle(6, -1) // -1 because we already stored the PC
 		c.builder.CreateRetVoid()
 		c.currentBlock = nil
 	case 0x60: // rts
 		pc := c.pullWordFromStack()
 		pc = c.builder.CreateAdd(pc, llvm.ConstInt(llvm.Int16Type(), 1, false), "")
 		c.builder.CreateStore(pc, c.rPC)
+		c.cycle(6, -1)
 		c.builder.CreateRetVoid()
 		c.currentBlock = nil
 	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x78: // sei
 		c.setInt()
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xaa: // tax
 		c.transfer(c.rA, c.rX)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xa8: // tay
 		c.transfer(c.rA, c.rY)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xba: // tsx
 		c.transfer(c.rSP, c.rX)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x8a: // txa
 		c.transfer(c.rX, c.rA)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x9a: // txs
 		c.transfer(c.rX, c.rSP)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x98: // tya
 		c.transfer(c.rY, c.rA)
-		c.cycle(2, i.Offset, i.Size)
+		c.cycle(2, i.Offset + i.Size)
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
 	}
@@ -681,7 +763,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetNeg(v)
 		c.dynTestAndSetZero(v)
-		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset, i.Size)
+		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset + i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -742,7 +824,7 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(v, c.rA)
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
-		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset, i.GetSize())
+		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset + i.GetSize())
 	//case 0xbc: // ldy
 	//case 0x5e: // lsr
 	//case 0x1d: // ora
@@ -787,11 +869,16 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0xee: // inc
 	case 0x4c: // jmp
 		// branch instruction - cycle before execution
-		c.cycle(3, i.Offset, i.Size)
+		c.cycle(3, c.program.Labels[i.LabelName])
 		destBlock := c.labeledBlocks[i.LabelName]
 		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
-	//case 0x20: // jsr
+	case 0x20: // jsr
+		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset + 2), false)
+		c.pushWordToStack(pc)
+		c.cycle(6, c.program.Labels[i.LabelName])
+		id := c.labelAsEntryPoint(i.LabelName)
+		c.builder.CreateCall(c.mainFn, []llvm.Value{llvm.ConstInt(llvm.Int8Type(), uint64(id), false)}, "")
 	//case 0xad: // lda
 	//case 0xae: // ldx
 	//case 0xac: // ldy
@@ -806,25 +893,25 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 
 	case 0xf0: // beq
 		isZero := c.builder.CreateLoad(c.rSZero, "")
-		c.createBranch(isZero, i.LabelName, i.Offset, i.Size)
+		c.createBranch(isZero, i.LabelName, i.Offset)
 	case 0x90: // bcc
 		isCarry := c.builder.CreateLoad(c.rSCarry, "")
 		notCarry := c.builder.CreateNot(isCarry, "")
-		c.createBranch(notCarry, i.LabelName, i.Offset, i.Size)
+		c.createBranch(notCarry, i.LabelName, i.Offset)
 	case 0xb0: // bcs
 		isCarry := c.builder.CreateLoad(c.rSCarry, "")
-		c.createBranch(isCarry, i.LabelName, i.Offset, i.Size)
+		c.createBranch(isCarry, i.LabelName, i.Offset)
 	case 0x30: // bmi
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
-		c.createBranch(isNeg, i.LabelName, i.Offset, i.Size)
+		c.createBranch(isNeg, i.LabelName, i.Offset)
 	case 0xd0: // bne
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		notZero := c.builder.CreateNot(isZero, "")
-		c.createBranch(notZero, i.LabelName, i.Offset, i.Size)
+		c.createBranch(notZero, i.LabelName, i.Offset)
 	case 0x10: // bpl
 		isNeg := c.builder.CreateLoad(c.rSNeg, "")
 		notNeg := c.builder.CreateNot(isNeg, "")
-		c.createBranch(notNeg, i.LabelName, i.Offset, i.Size)
+		c.createBranch(notNeg, i.LabelName, i.Offset)
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
@@ -841,9 +928,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
 		if i.Payload[0] == 0xa5 {
-			c.cycle(3, i.Offset, i.GetSize())
+			c.cycle(3, i.Offset + i.GetSize())
 		} else {
-			c.cycle(4, i.Offset, i.GetSize())
+			c.cycle(4, i.Offset + i.GetSize())
 		}
 	case 0xc6, 0xce: // dec (zpg, abs)
 		oldValue := c.load(i.Value)
@@ -853,9 +940,9 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
 		if i.Payload[0] == 0xc6 {
-			c.cycle(5, i.Offset, i.GetSize())
+			c.cycle(5, i.Offset + i.GetSize())
 		} else {
-			c.cycle(6, i.Offset, i.GetSize())
+			c.cycle(6, i.Offset + i.GetSize())
 		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
@@ -904,23 +991,23 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		if i.Payload[0] == 0x85 {
-			c.cycle(3, i.Offset, i.GetSize())
+			c.cycle(3, i.Offset + i.GetSize())
 		} else {
-			c.cycle(4, i.Offset, i.GetSize())
+			c.cycle(4, i.Offset + i.GetSize())
 		}
 	case 0x86, 0x8e: // stx (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
 		if i.Payload[0] == 0x86 {
-			c.cycle(3, i.Offset, i.GetSize())
+			c.cycle(3, i.Offset + i.GetSize())
 		} else {
-			c.cycle(4, i.Offset, i.GetSize())
+			c.cycle(4, i.Offset + i.GetSize())
 		}
 	case 0x84, 0x8c: // sty (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
 		if i.Payload[0] == 0x84 {
-			c.cycle(3, i.Offset, i.GetSize())
+			c.cycle(3, i.Offset + i.GetSize())
 		} else {
-			c.cycle(4, i.Offset, i.GetSize())
+			c.cycle(4, i.Offset + i.GetSize())
 		}
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
@@ -1033,7 +1120,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 
 		// done. X_X
 		c.selectBlock(staDoneBlock)
-		c.cycle(6, i.Offset, i.GetSize())
+		c.cycle(6, i.Offset + i.GetSize())
 
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
@@ -1224,71 +1311,10 @@ func (c *Compilation) createRegisters() {
 func (c *Compilation) addInterruptCode() {
 	c.builder.SetInsertPointBefore(c.nmiBlock.FirstInstruction())
 	// * push PC high onto stack
-	pc := c.builder.CreateLoad(c.rPC, "")
-	pcHigh16 := c.builder.CreateLShr(pc, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
-	pcHigh := c.builder.CreateTrunc(pcHigh16, llvm.Int8Type(), "")
-	c.pushToStack(pcHigh)
 	// * push PC low onto stack
-	pcLow16 := c.builder.CreateAnd(pc, llvm.ConstInt(llvm.Int16Type(), 0xff, false), "")
-	pcLow := c.builder.CreateTrunc(pcLow16, llvm.Int8Type(), "")
-	c.pushToStack(pcLow)
+	c.pushWordToStack(c.builder.CreateLoad(c.rPC, ""))
 	// * push processor status onto stack
 	c.pushStatusReg()
-}
-
-func (c *Compilation) pullStatusReg() {
-	status := c.pullFromStack()
-	// and
-	s7 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x80, false), "")
-	s6 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x40, false), "")
-	s4 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x10, false), "")
-	s3 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x08, false), "")
-	s2 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x04, false), "")
-	s1 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x02, false), "")
-	s0 := c.builder.CreateAnd(status, llvm.ConstInt(llvm.Int8Type(), 0x01, false), "")
-	// icmp
-	zero := llvm.ConstInt(llvm.Int8Type(), 0, false)
-	s7 = c.builder.CreateICmp(llvm.IntNE, s7, zero, "")
-	s6 = c.builder.CreateICmp(llvm.IntNE, s6, zero, "")
-	s4 = c.builder.CreateICmp(llvm.IntNE, s4, zero, "")
-	s3 = c.builder.CreateICmp(llvm.IntNE, s3, zero, "")
-	s2 = c.builder.CreateICmp(llvm.IntNE, s2, zero, "")
-	s1 = c.builder.CreateICmp(llvm.IntNE, s1, zero, "")
-	s0 = c.builder.CreateICmp(llvm.IntNE, s0, zero, "")
-	// store
-	c.builder.CreateStore(s7, c.rSNeg)
-	c.builder.CreateStore(s6, c.rSOver)
-	c.builder.CreateStore(s4, c.rSBrk)
-	c.builder.CreateStore(s3, c.rSDec)
-	c.builder.CreateStore(s2, c.rSInt)
-	c.builder.CreateStore(s1, c.rSZero)
-	c.builder.CreateStore(s0, c.rSCarry)
-}
-
-func (c *Compilation) pushStatusReg() {
-	// zextend
-	s7z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSNeg, ""), llvm.Int8Type(), "")
-	s6z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSOver, ""), llvm.Int8Type(), "")
-	s4z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSBrk, ""), llvm.Int8Type(), "")
-	s3z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSDec, ""), llvm.Int8Type(), "")
-	s2z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSInt, ""), llvm.Int8Type(), "")
-	s1z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSZero, ""), llvm.Int8Type(), "")
-	s0z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSCarry, ""), llvm.Int8Type(), "")
-	// shift
-	s7z = c.builder.CreateShl(s7z, llvm.ConstInt(llvm.Int8Type(), 7, false), "")
-	s6z = c.builder.CreateShl(s6z, llvm.ConstInt(llvm.Int8Type(), 6, false), "")
-	s4z = c.builder.CreateShl(s4z, llvm.ConstInt(llvm.Int8Type(), 4, false), "")
-	s3z = c.builder.CreateShl(s3z, llvm.ConstInt(llvm.Int8Type(), 3, false), "")
-	s2z = c.builder.CreateShl(s2z, llvm.ConstInt(llvm.Int8Type(), 2, false), "")
-	s1z = c.builder.CreateShl(s1z, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
-	// or
-	s0z = c.builder.CreateOr(s0z, s1z, "")
-	s0z = c.builder.CreateOr(s0z, s2z, "")
-	s0z = c.builder.CreateOr(s0z, s3z, "")
-	s0z = c.builder.CreateOr(s0z, s4z, "")
-	s0z = c.builder.CreateOr(s0z, s6z, "")
-	s0z = c.builder.CreateOr(s0z, s7z, "")
-	c.pushToStack(s0z)
 }
 
 func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
@@ -1302,6 +1328,8 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	defer c.builder.Dispose()
 	c.labeledData = map[string]llvm.Value{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
+	c.labelIds = map[string]int{}
+	c.nextLabelId = 4
 
 	// 2KB memory
 	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
@@ -1368,12 +1396,15 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.selectBlock(entry)
 	c.builder.SetInsertPointAtEnd(entry)
 	badInterruptBlock := c.createBlock("BadInterrupt")
-	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, 3)
+	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, 3 + (4 - c.nextLabelId))
 	c.selectBlock(badInterruptBlock)
 	c.createPanic()
 	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 1, false), *c.nmiBlock)
 	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 2, false), *c.resetBlock)
 	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 3, false), *c.irqBlock)
+	for labelName, labelId := range c.labelIds {
+		sw.AddCase(llvm.ConstInt(llvm.Int8Type(), uint64(labelId), false), c.labeledBlocks[labelName])
+	}
 
 	c.addInterruptCode()
 
