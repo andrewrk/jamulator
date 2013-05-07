@@ -32,21 +32,6 @@ type Compilation struct {
 	rSCarry         llvm.Value // carry
 	runtimePanicMsg llvm.Value // we print this when a runtime error occurs
 
-	// ABI
-	mainFn         llvm.Value
-	printfFn       llvm.Value
-	putCharFn      llvm.Value
-	exitFn         llvm.Value
-	cycleFn        llvm.Value
-	ppuStatusFn    llvm.Value
-	ppuCtrlFn      llvm.Value
-	ppuMaskFn      llvm.Value
-	ppuAddrFn      llvm.Value
-	setPpuDataFn   llvm.Value
-	oamAddrFn      llvm.Value
-	setOamDataFn   llvm.Value
-	setPpuScrollFn llvm.Value
-
 	labeledData   map[string]llvm.Value
 	labeledBlocks map[string]llvm.BasicBlock
 	// used for the entry jump table so we can do JSR
@@ -64,6 +49,47 @@ type Compilation struct {
 	nmiBlock       *llvm.BasicBlock
 	resetBlock     *llvm.BasicBlock
 	irqBlock       *llvm.BasicBlock
+
+	// ABI
+	mainFn         llvm.Value
+	printfFn       llvm.Value
+	putCharFn      llvm.Value
+	exitFn         llvm.Value
+	cycleFn        llvm.Value
+	// PPU
+	ppuStatusFn    llvm.Value
+	ppuCtrlFn      llvm.Value
+	ppuMaskFn      llvm.Value
+	ppuAddrFn      llvm.Value
+	setPpuDataFn   llvm.Value
+	oamAddrFn      llvm.Value
+	setOamDataFn   llvm.Value
+	setPpuScrollFn llvm.Value
+	ppuWriteDma    llvm.Value
+	// APU
+	apuWriteSquare1CtrlFn llvm.Value
+	apuWriteSquare1SweepsFn llvm.Value
+	apuWriteSquare1LowFn llvm.Value
+	apuWriteSquare1HighFn llvm.Value
+	apuWriteSquare2CtrlFn llvm.Value
+	apuWriteSquare2SweepsFn llvm.Value
+	apuWriteSquare2LowFn llvm.Value
+	apuWriteSquare2HighFn llvm.Value
+	apuWriteTriangleCtrlFn llvm.Value
+	apuWriteTriangleLowFn llvm.Value
+	apuWriteTriangleHighFn llvm.Value
+	apuWriteNoiseBaseFn llvm.Value
+	apuWriteNoisePeriodFn llvm.Value
+	apuWriteNoiseLengthFn llvm.Value
+	apuWriteDmcFlagsFn llvm.Value
+	apuWriteDmcDirectLoadFn llvm.Value
+	apuWriteDmcSampleAddressFn llvm.Value
+	apuWriteDmcSampleLengthFn llvm.Value
+	apuWriteCtrlFlags1Fn llvm.Value
+	apuWriteCtrlFlags2Fn llvm.Value
+	// pads
+	padWrite1Fn llvm.Value
+	padWrite2Fn llvm.Value
 }
 
 type Compiler interface {
@@ -293,6 +319,56 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 			c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{i8}, "")
 		default:
 			panic("unreachable")
+		}
+	case 0x4000 <= addr && addr <= 0x4017:
+		switch addr {
+		default:
+			c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
+		case 0x4000:
+			c.builder.CreateCall(c.apuWriteSquare1CtrlFn, []llvm.Value{i8}, "")
+		case 0x4001:
+			c.builder.CreateCall(c.apuWriteSquare1SweepsFn, []llvm.Value{i8}, "")
+		case 0x4002:
+			c.builder.CreateCall(c.apuWriteSquare1LowFn, []llvm.Value{i8}, "")
+		case 0x4003:
+			c.builder.CreateCall(c.apuWriteSquare1HighFn, []llvm.Value{i8}, "")
+		case 0x4004:
+			c.builder.CreateCall(c.apuWriteSquare2CtrlFn, []llvm.Value{i8}, "")
+		case 0x4005:
+			c.builder.CreateCall(c.apuWriteSquare2SweepsFn, []llvm.Value{i8}, "")
+		case 0x4006:
+			c.builder.CreateCall(c.apuWriteSquare2LowFn, []llvm.Value{i8}, "")
+		case 0x4007:
+			c.builder.CreateCall(c.apuWriteSquare2HighFn, []llvm.Value{i8}, "")
+		case 0x4008:
+			c.builder.CreateCall(c.apuWriteTriangleCtrlFn, []llvm.Value{i8}, "")
+		case 0x400a:
+			c.builder.CreateCall(c.apuWriteTriangleLowFn, []llvm.Value{i8}, "")
+		case 0x400b:
+			c.builder.CreateCall(c.apuWriteTriangleHighFn, []llvm.Value{i8}, "")
+		case 0x400c:
+			c.builder.CreateCall(c.apuWriteNoiseBaseFn, []llvm.Value{i8}, "")
+		case 0x400e:
+			c.builder.CreateCall(c.apuWriteNoisePeriodFn, []llvm.Value{i8}, "")
+		case 0x400f:
+			c.builder.CreateCall(c.apuWriteNoiseLengthFn, []llvm.Value{i8}, "")
+		case 0x4010:
+			c.builder.CreateCall(c.apuWriteDmcFlagsFn, []llvm.Value{i8}, "")
+		case 0x4011:
+			c.builder.CreateCall(c.apuWriteDmcDirectLoadFn, []llvm.Value{i8}, "")
+		case 0x4012:
+			c.builder.CreateCall(c.apuWriteDmcSampleAddressFn, []llvm.Value{i8}, "")
+		case 0x4013:
+			c.builder.CreateCall(c.apuWriteDmcSampleLengthFn, []llvm.Value{i8}, "")
+		case 0x4014:
+			c.builder.CreateCall(c.ppuWriteDma, []llvm.Value{i8}, "")
+		case 0x4015:
+			c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{i8}, "")
+		case 0x4016:
+			c.builder.CreateCall(c.padWrite1Fn, []llvm.Value{i8}, "")
+		case 0x4017:
+			c.builder.CreateCall(c.padWrite2Fn, []llvm.Value{i8}, "")
+			c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{i8}, "")
 		}
 	}
 
@@ -1308,6 +1384,21 @@ func (c *Compilation) createBitRegister(name string) llvm.Value {
 	return c.createNamedGlobal(llvm.Int1Type(), name)
 }
 
+
+func (c *Compilation) declareReadFn(name string) llvm.Value {
+	readByteType := llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false)
+	fn := llvm.AddFunction(c.mod, name, readByteType)
+	fn.SetLinkage(llvm.ExternalLinkage)
+	return fn
+}
+
+func (c *Compilation) declareWriteFn(name string) llvm.Value {
+	writeByteType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false)
+	fn := llvm.AddFunction(c.mod, name, writeByteType)
+	fn.SetLinkage(llvm.ExternalLinkage)
+	return fn
+}
+
 func (c *Compilation) createFunctionDeclares() {
 	// declare i32 @putchar(i32)
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
@@ -1331,29 +1422,42 @@ func (c *Compilation) createFunctionDeclares() {
 	c.cycleFn = llvm.AddFunction(c.mod, "rom_cycle", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
 	c.cycleFn.SetLinkage(llvm.ExternalLinkage)
 
-	c.ppuStatusFn = llvm.AddFunction(c.mod, "rom_ppustatus", llvm.FunctionType(llvm.Int8Type(), []llvm.Type{}, false))
-	c.ppuStatusFn.SetLinkage(llvm.ExternalLinkage)
+	// PPU
+	c.ppuStatusFn = c.declareReadFn("rom_ppustatus")
+	c.ppuCtrlFn = c.declareWriteFn("rom_ppuctrl")
+	c.ppuMaskFn = c.declareWriteFn("rom_ppumask")
+	c.ppuAddrFn = c.declareWriteFn("rom_ppuaddr")
+	c.setPpuDataFn = c.declareWriteFn("rom_setppudata")
+	c.oamAddrFn = c.declareWriteFn("rom_oamaddr")
+	c.setOamDataFn = c.declareWriteFn("rom_setoamdata")
+	c.setPpuScrollFn = c.declareWriteFn("rom_setppuscroll")
+	c.ppuWriteDma = c.declareWriteFn("rom_ppu_writedma")
 
-	c.ppuCtrlFn = llvm.AddFunction(c.mod, "rom_ppuctrl", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.ppuCtrlFn.SetLinkage(llvm.ExternalLinkage)
+	// APU
+	c.apuWriteSquare1CtrlFn = c.declareWriteFn("rom_apu_write_square1control")
+	c.apuWriteSquare1SweepsFn = c.declareWriteFn("rom_apu_write_square1sweeps")
+	c.apuWriteSquare1LowFn = c.declareWriteFn("rom_apu_write_square1low")
+	c.apuWriteSquare1HighFn = c.declareWriteFn("rom_apu_write_square1high")
+	c.apuWriteSquare2CtrlFn = c.declareWriteFn("rom_apu_write_square2control")
+	c.apuWriteSquare2SweepsFn = c.declareWriteFn("rom_apu_write_square2sweeps")
+	c.apuWriteSquare2LowFn = c.declareWriteFn("rom_apu_write_square2low")
+	c.apuWriteSquare2HighFn = c.declareWriteFn("rom_apu_write_square2high")
+	c.apuWriteTriangleCtrlFn = c.declareWriteFn("rom_apu_write_trianglecontrol")
+	c.apuWriteTriangleLowFn = c.declareWriteFn("rom_apu_write_trianglelow")
+	c.apuWriteTriangleHighFn = c.declareWriteFn("rom_apu_write_trianglehigh")
+	c.apuWriteNoiseBaseFn = c.declareWriteFn("rom_apu_write_noisebase")
+	c.apuWriteNoisePeriodFn = c.declareWriteFn("rom_apu_write_noiseperiod")
+	c.apuWriteNoiseLengthFn = c.declareWriteFn("rom_apu_write_noiselength")
+	c.apuWriteDmcFlagsFn = c.declareWriteFn("rom_apu_write_dmcflags")
+	c.apuWriteDmcDirectLoadFn = c.declareWriteFn("rom_apu_write_dmcdirectload")
+	c.apuWriteDmcSampleAddressFn = c.declareWriteFn("rom_apu_write_dmcsampleaddress")
+	c.apuWriteDmcSampleLengthFn = c.declareWriteFn("rom_apu_write_dmcsamplelength")
+	c.apuWriteCtrlFlags1Fn = c.declareWriteFn("rom_apu_write_controlflags1")
+	c.apuWriteCtrlFlags2Fn = c.declareWriteFn("rom_apu_write_controlflags2")
 
-	c.ppuMaskFn = llvm.AddFunction(c.mod, "rom_ppumask", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.ppuMaskFn.SetLinkage(llvm.ExternalLinkage)
-
-	c.ppuAddrFn = llvm.AddFunction(c.mod, "rom_ppuaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.ppuAddrFn.SetLinkage(llvm.ExternalLinkage)
-
-	c.setPpuDataFn = llvm.AddFunction(c.mod, "rom_setppudata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.setPpuDataFn.SetLinkage(llvm.ExternalLinkage)
-
-	c.oamAddrFn = llvm.AddFunction(c.mod, "rom_oamaddr", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.oamAddrFn.SetLinkage(llvm.ExternalLinkage)
-
-	c.setOamDataFn = llvm.AddFunction(c.mod, "rom_setoamdata", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.setOamDataFn.SetLinkage(llvm.ExternalLinkage)
-
-	c.setPpuScrollFn = llvm.AddFunction(c.mod, "rom_setppuscroll", llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false))
-	c.setPpuScrollFn.SetLinkage(llvm.ExternalLinkage)
+	// pads
+	c.padWrite1Fn = c.declareWriteFn("rom_pad_write1")
+	c.padWrite2Fn = c.declareWriteFn("rom_pad_write2")
 }
 
 func (c *Compilation) createRegisters() {

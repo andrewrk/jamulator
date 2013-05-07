@@ -47,38 +47,6 @@ void rom_cycle(uint8_t cycles) {
     }
 }
 
-uint8_t rom_ppustatus() {
-    return Ppu_readStatus(p);
-}
-
-void rom_ppuctrl(uint8_t b) {
-    Ppu_writeControl(p, b);
-}
-
-void rom_ppumask(uint8_t b) {
-    Ppu_writeMask(p, b);
-}
-
-void rom_ppuaddr(uint8_t b) {
-    Ppu_writeAddress(p, b);
-}
-
-void rom_setppudata(uint8_t b) {
-    Ppu_writeData(p, b);
-}
-
-void rom_oamaddr(uint8_t b) {
-    Ppu_writeOamAddress(p, b);
-}
-
-void rom_setoamdata(uint8_t b) {
-    Ppu_writeOamData(p, b);
-}
-
-void rom_setppuscroll(uint8_t b) {
-    Ppu_writeScroll(p, b);
-}
-
 void reshape_video(int width, int height) {
     int x_offset = 0;
     int y_offset = 0;
@@ -202,3 +170,59 @@ int main() {
     Ppu_dispose(p);
 }
 
+uint8_t rom_ppustatus() {
+    return Ppu_readStatus(p);
+}
+
+void rom_ppuctrl(uint8_t b) {
+    Ppu_writeControl(p, b);
+}
+
+void rom_ppumask(uint8_t b) {
+    Ppu_writeMask(p, b);
+}
+
+void rom_ppuaddr(uint8_t b) {
+    Ppu_writeAddress(p, b);
+}
+
+void rom_setppudata(uint8_t b) {
+    Ppu_writeData(p, b);
+}
+
+void rom_oamaddr(uint8_t b) {
+    Ppu_writeOamAddress(p, b);
+}
+
+void rom_setoamdata(uint8_t b) {
+    Ppu_writeOamData(p, b);
+}
+
+void rom_setppuscroll(uint8_t b) {
+    Ppu_writeScroll(p, b);
+}
+void rom_ppu_writedma(uint8_t b){}
+
+void rom_apu_write_square1control(uint8_t b){}
+void rom_apu_write_square1sweeps(uint8_t b){}
+void rom_apu_write_square1low(uint8_t b){}
+void rom_apu_write_square1high(uint8_t b){}
+void rom_apu_write_square2control(uint8_t b){}
+void rom_apu_write_square2sweeps(uint8_t b){}
+void rom_apu_write_square2low(uint8_t b){}
+void rom_apu_write_square2high(uint8_t b){}
+void rom_apu_write_trianglecontrol(uint8_t b){}
+void rom_apu_write_trianglelow(uint8_t b){}
+void rom_apu_write_trianglehigh(uint8_t b){}
+void rom_apu_write_noisebase(uint8_t b){}
+void rom_apu_write_noiseperiod(uint8_t b){}
+void rom_apu_write_noiselength(uint8_t b){}
+void rom_apu_write_dmcflags(uint8_t b){}
+void rom_apu_write_dmcdirectload(uint8_t b){}
+void rom_apu_write_dmcsampleaddress(uint8_t b){}
+void rom_apu_write_dmcsamplelength(uint8_t b){}
+void rom_apu_write_controlflags1(uint8_t b){}
+void rom_apu_write_controlflags2(uint8_t b){}
+
+void rom_pad_write1(uint8_t b){}
+void rom_pad_write2(uint8_t b){}

@@ -41,3 +41,30 @@ void rom_setppudata(uint8_t);
 void rom_oamaddr(uint8_t);
 void rom_setoamdata(uint8_t);
 void rom_setppuscroll(uint8_t);
+void rom_ppu_writedma(uint8_t);
+
+// APU hooks
+void rom_apu_write_square1control(uint8_t);
+void rom_apu_write_square1sweeps(uint8_t);
+void rom_apu_write_square1low(uint8_t);
+void rom_apu_write_square1high(uint8_t);
+void rom_apu_write_square2control(uint8_t);
+void rom_apu_write_square2sweeps(uint8_t);
+void rom_apu_write_square2low(uint8_t);
+void rom_apu_write_square2high(uint8_t);
+void rom_apu_write_trianglecontrol(uint8_t);
+void rom_apu_write_trianglelow(uint8_t);
+void rom_apu_write_trianglehigh(uint8_t);
+void rom_apu_write_noisebase(uint8_t);
+void rom_apu_write_noiseperiod(uint8_t);
+void rom_apu_write_noiselength(uint8_t);
+void rom_apu_write_dmcflags(uint8_t);
+void rom_apu_write_dmcdirectload(uint8_t);
+void rom_apu_write_dmcsampleaddress(uint8_t);
+void rom_apu_write_dmcsamplelength(uint8_t);
+void rom_apu_write_controlflags1(uint8_t);
+void rom_apu_write_controlflags2(uint8_t);
+
+// controller hooks
+void rom_pad_write1(uint8_t);
+void rom_pad_write2(uint8_t);
