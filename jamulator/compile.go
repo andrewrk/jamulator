@@ -230,6 +230,12 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 	c.builder.CreateStore(isZero, c.rSZero)
 }
 
+func (c *Compilation) dynTestAndSetCarryLShr(val llvm.Value) {
+	masked := c.builder.CreateAnd(val, llvm.ConstInt(llvm.Int8Type(), 0x1, false), "")
+	isCarry := c.builder.CreateICmp(llvm.IntNE, masked, llvm.ConstInt(llvm.Int8Type(), 0, false), "")
+	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
 func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.Value) {
 	// set the carry bit if result is positive or zero
 	isCarry := c.builder.CreateICmp(llvm.IntUGE, left, right, "")
@@ -610,6 +616,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateAnd(a, v, "")
+		c.builder.CreateStore(newA, c.rA)
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
 		c.cycle(2, i.Offset + i.Size)
@@ -626,6 +633,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 	case 0x09: // ora
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateOr(a, v, "")
+		c.builder.CreateStore(newA, c.rA)
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
 		c.cycle(2, i.Offset + i.Size)
@@ -678,7 +686,13 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	case 0xc8: // iny
 		c.increment(c.rY, 1)
 		c.cycle(2, i.Offset + i.Size)
-	//case 0x4a: // lsr
+	case 0x4a: // lsr
+		a := c.builder.CreateLoad(c.rA, "")
+		a = c.builder.CreateLShr(a, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
+		c.builder.CreateStore(a, c.rA)
+		c.dynTestAndSetZero(a)
+		c.dynTestAndSetCarryLShr(a)
+		c.cycle(2, i.Offset + i.Size)
 	case 0xea: // nop
 		c.cycle(2, i.Offset + i.Size)
 	//case 0x48: // pha
