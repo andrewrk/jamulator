@@ -687,11 +687,12 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.increment(c.rY, 1)
 		c.cycle(2, i.Offset + i.Size)
 	case 0x4a: // lsr
-		a := c.builder.CreateLoad(c.rA, "")
-		a = c.builder.CreateLShr(a, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
-		c.builder.CreateStore(a, c.rA)
-		c.dynTestAndSetZero(a)
-		c.dynTestAndSetCarryLShr(a)
+		oldValue := c.builder.CreateLoad(c.rA, "")
+		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		newValue := c.builder.CreateLShr(oldValue, c1, "")
+		c.builder.CreateStore(newValue, c.rA)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetCarryLShr(oldValue)
 		c.cycle(2, i.Offset + i.Size)
 	case 0xea: // nop
 		c.cycle(2, i.Offset + i.Size)
@@ -956,6 +957,18 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(6, i.Offset + i.GetSize())
 		}
+	case 0x46, 0x4e: // lsr (zpg, abs)
+		oldValue := c.load(i.Value)
+		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		newValue := c.builder.CreateLShr(oldValue, c1, "")
+		c.store(i.Value, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetCarryLShr(oldValue)
+		if i.Payload[0] == 0x46 {
+			c.cycle(5, i.Offset + i.GetSize())
+		} else {
+			c.cycle(6, i.Offset + i.GetSize())
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -976,7 +989,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xe6: // inc zpg
 	//case 0xa6: // ldx zpg
 	//case 0xa4: // ldy zpg
-	//case 0x46: // lsr zpg
 	//case 0x05: // ora zpg
 	//case 0x26: // rol zpg
 	//case 0x66: // ror zpg
@@ -995,7 +1007,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x20: // jsr abs
 	//case 0xae: // ldx abs
 	//case 0xac: // ldy abs
-	//case 0x4e: // lsr abs
 	//case 0x0d: // ora abs
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
