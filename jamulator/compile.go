@@ -51,7 +51,7 @@ type Compilation struct {
 	labeledBlocks map[string]llvm.BasicBlock
 	// used for the entry jump table so we can do JSR
 	labelIds      map[string]int
-	nextLabelId   int
+	entryLabelCount   int
 
 	currentValue  *bytes.Buffer
 	currentLabel  string
@@ -643,16 +643,14 @@ func (c *Compilation) createCompare(register llvm.Value, value llvm.Value) {
 	c.dynTestAndSetCarrySubtraction(reg, value)
 }
 
-func (c *Compilation) labelAsEntryPoint(labelName string) (id int) {
+func (c *Compilation) labelAsEntryPoint(labelName string) int {
 	id, ok := c.labelIds[labelName]
 	if ok {
-		return
+		return id
 	}
-	id = c.nextLabelId
-	c.nextLabelId += 1
-
-	c.labelIds[labelName] = id
-	return
+	c.entryLabelCount += 1
+	c.labelIds[labelName] = c.entryLabelCount
+	return c.entryLabelCount
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
@@ -878,7 +876,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		c.pushWordToStack(pc)
 		c.cycle(6, c.program.Labels[i.LabelName])
 		id := c.labelAsEntryPoint(i.LabelName)
-		c.builder.CreateCall(c.mainFn, []llvm.Value{llvm.ConstInt(llvm.Int8Type(), uint64(id), false)}, "")
+		c.builder.CreateCall(c.mainFn, []llvm.Value{llvm.ConstInt(llvm.Int32Type(), uint64(id), false)}, "")
 	//case 0xad: // lda
 	//case 0xae: // ldx
 	//case 0xac: // ldy
@@ -1329,7 +1327,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.labeledData = map[string]llvm.Value{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
 	c.labelIds = map[string]int{}
-	c.nextLabelId = 4
+	c.entryLabelCount = 3 // irq, reset, nmi
 
 	// 2KB memory
 	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
@@ -1359,7 +1357,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.createRegisters()
 
 	// main function / entry point
-	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false)
+	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
 	c.mainFn = llvm.AddFunction(c.mod, "rom_start", mainType)
 	c.mainFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(c.mainFn, "Entry")
@@ -1388,22 +1386,25 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 		return c, nil
 	}
 	if c.irqBlock == nil {
-		c.Errors = append(c.Errors, "missing irq entry point")
-		return c, nil
+		c.Warnings = append(c.Warnings, "missing irq entry point; inserting dummy.")
+		tmp := llvm.AddBasicBlock(c.mainFn, "IRQ_Routine")
+		c.irqBlock = &tmp
+		c.builder.SetInsertPointAtEnd(*c.irqBlock)
+		c.builder.CreateUnreachable()
 	}
 
 	// entry jump table
 	c.selectBlock(entry)
 	c.builder.SetInsertPointAtEnd(entry)
 	badInterruptBlock := c.createBlock("BadInterrupt")
-	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, 3 + (4 - c.nextLabelId))
+	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, c.entryLabelCount)
 	c.selectBlock(badInterruptBlock)
 	c.createPanic()
-	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 1, false), *c.nmiBlock)
-	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 2, false), *c.resetBlock)
-	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 3, false), *c.irqBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 1, false), *c.nmiBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 2, false), *c.resetBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 3, false), *c.irqBlock)
 	for labelName, labelId := range c.labelIds {
-		sw.AddCase(llvm.ConstInt(llvm.Int8Type(), uint64(labelId), false), c.labeledBlocks[labelName])
+		sw.AddCase(llvm.ConstInt(llvm.Int32Type(), uint64(labelId), false), c.labeledBlocks[labelName])
 	}
 
 	c.addInterruptCode()

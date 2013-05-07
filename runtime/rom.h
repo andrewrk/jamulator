@@ -26,7 +26,7 @@ void rom_read_chr(uint8_t* dest);
 // or the program exits.
 // when an interrupt occurs, call rom_start with the interrupt
 // index.
-void rom_start(uint8_t interrupt);
+void rom_start(uint32_t interrupt);
 
 // called after every instruction with the number of
 // cpu cycles that have passed.
