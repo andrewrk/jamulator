@@ -629,7 +629,13 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 	case 0xc0: // cpy
 		c.createCompare(c.rY, v)
 		c.cycle(2, i.Offset + i.Size)
-	//case 0x49: // eor
+	case 0x49: // eor
+		a := c.builder.CreateLoad(c.rA, "")
+		newA := c.builder.CreateXor(a, v, "")
+		c.builder.CreateStore(newA, c.rA)
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		c.cycle(2, i.Offset + i.Size)
 	case 0x09: // ora
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateOr(a, v, "")
