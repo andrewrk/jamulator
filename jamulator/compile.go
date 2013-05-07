@@ -593,6 +593,29 @@ func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value,
 	c.selectBlock(ldaDoneBlock)
 }
 
+func (c *Compilation) dynTestAndSetCarryAddition(a llvm.Value, v llvm.Value, carry llvm.Value) {
+	a32 := c.builder.CreateZExt(a, llvm.Int32Type(), "")
+	carry32 := c.builder.CreateZExt(carry, llvm.Int32Type(), "")
+	v32 := c.builder.CreateZExt(v, llvm.Int32Type(), "")
+	aPlusV32 := c.builder.CreateAdd(a32, v32, "")
+	newA32 := c.builder.CreateAdd(aPlusV32, carry32, "")
+	isCarry := c.builder.CreateICmp(llvm.IntUGE, newA32, llvm.ConstInt(llvm.Int32Type(), 0x100, false), "")
+	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
+func (c *Compilation) dynTestAndSetOverflowAddition(a llvm.Value, b llvm.Value, r llvm.Value) {
+	x80 := llvm.ConstInt(llvm.Int8Type(), 0x80, false)
+	x0 := llvm.ConstInt(llvm.Int8Type(), 0x0, false)
+	aXorB := c.builder.CreateXor(a, b, "")
+	aXorBMasked := c.builder.CreateAnd(aXorB, x80, "")
+	aXorR := c.builder.CreateXor(a, r, "")
+	aXorRMasked := c.builder.CreateAnd(aXorR, x80, "")
+	isOverA := c.builder.CreateICmp(llvm.IntEQ, aXorBMasked, x0, "")
+	isOverR := c.builder.CreateICmp(llvm.IntEQ, aXorRMasked, x80, "")
+	isOver := c.builder.CreateAnd(isOverA, isOverR, "")
+	c.builder.CreateStore(isOver, c.rSOver)
+}
+
 func (i *ImmediateInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
@@ -612,7 +635,18 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.testAndSetZero(i.Value)
 		c.testAndSetNeg(i.Value)
 		c.cycle(2, i.Offset + i.Size)
-	//case 0x69: // adc
+	case 0x69: // adc
+		a := c.builder.CreateLoad(c.rA, "")
+		aPlusV := c.builder.CreateAdd(a, v, "")
+		carryBit := c.builder.CreateLoad(c.rSCarry, "")
+		carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+		newA := c.builder.CreateAdd(aPlusV, carry, "")
+		c.dynTestAndSetNeg(newA)
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetOverflowAddition(a, v, newA)
+		c.dynTestAndSetCarryAddition(a, v, carry)
+
+		c.cycle(2, i.Offset + i.Size)
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateAnd(a, v, "")
