@@ -821,6 +821,25 @@ func (c *Compilation) absoluteIndexedLoad(destPtr llvm.Value, baseAddr int, inde
 	c.cyclesForAbsoluteIndexed(baseAddr, index16, pc)
 }
 
+func (c *Compilation) cyclesForIndirectY(baseAddr, addr llvm.Value, pc int) {
+	// if address & 0xff00 != (address + y) & 0xff00
+	xff00 := llvm.ConstInt(llvm.Int16Type(), uint64(0xff00), false)
+	baseAddrMasked := c.builder.CreateAnd(baseAddr, xff00, "")
+	addrMasked := c.builder.CreateAnd(addr, xff00, "")
+	eq := c.builder.CreateICmp(llvm.IntEQ, baseAddrMasked, addrMasked, "")
+	loadDoneBlock := c.createBlock("LoadDone")
+	pageBoundaryCrossedBlock := c.createIf(eq)
+	// executed if page boundary is not crossed
+	c.cycle(5, pc)
+	c.builder.CreateBr(loadDoneBlock)
+	// executed if page boundary crossed
+	c.selectBlock(pageBoundaryCrossedBlock)
+	c.cycle(6, pc)
+	c.builder.CreateBr(loadDoneBlock)
+	// done
+	c.selectBlock(loadDoneBlock)
+}
+
 func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, pc int) {
 	// if address & 0xff00 != (address + x) & 0xff00
 	baseAddrMasked := baseAddr & 0xff00

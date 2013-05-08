@@ -487,7 +487,16 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 	//case 0x31: // and
 	//case 0xd1: // cmp
 	//case 0x51: // eor
-	//case 0xb1: // lda
+	case 0xb1: // lda
+		baseAddr := c.loadWord(i.Value)
+		rY := c.builder.CreateLoad(c.rY, "")
+		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
+		addr := c.builder.CreateAdd(baseAddr, rYw, "")
+		val := c.dynLoad(addr, 0, 0xffff)
+		c.builder.CreateStore(val, c.rA)
+		c.dynTestAndSetNeg(val)
+		c.dynTestAndSetZero(val)
+		c.cyclesForIndirectY(baseAddr, addr, i.Offset+i.GetSize())
 	//case 0x11: // ora
 	//case 0xf1: // sbc
 	case 0x91: // sta
