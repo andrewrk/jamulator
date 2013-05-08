@@ -120,7 +120,10 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	case 0x28: // plp
 		c.pullStatusReg()
 		c.cycle(4, i.Offset+i.Size)
-	//case 0x2a: // rol
+	case 0x2a: // rol
+		a := c.builder.CreateLoad(c.rA, "")
+		c.builder.CreateStore(c.performRol(a), c.rA)
+		c.cycle(2, i.Offset+i.GetSize())
 	case 0x6a: // ror
 		a := c.builder.CreateLoad(c.rA, "")
 		c.builder.CreateStore(c.performRor(a), c.rA)
@@ -257,7 +260,11 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.cycle(7, i.Offset+i.GetSize())
 	//case 0x5e: // lsr abs x
 	//case 0x1d: // ora abs x
-	//case 0x3e: // rol abs x
+	case 0x3e: // rol abs x
+		oldValue := c.dynLoadIndexed(i.Value, c.rX)
+		newValue := c.performRol(oldValue)
+		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.cycle(7, i.Offset+i.GetSize())
 	case 0x7e: // ror abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.performRor(oldValue)

@@ -275,6 +275,14 @@ func (c *Compilation) dynTestAndSetCarryLShr(val llvm.Value) {
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) dynTestAndSetCarryShl(val llvm.Value) {
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	x80 := llvm.ConstInt(llvm.Int8Type(), 0x80, false)
+	masked := c.builder.CreateAnd(val, x80, "")
+	isCarry := c.builder.CreateICmp(llvm.IntNE, masked, c0, "")
+	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
 func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.Value) {
 	// set the carry bit if result is positive or zero
 	isCarry := c.builder.CreateICmp(llvm.IntUGE, left, right, "")
@@ -292,6 +300,18 @@ func (c *Compilation) performRor(val llvm.Value) llvm.Value {
 	c.dynTestAndSetZero(newValue)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetCarryLShr(val)
+	return newValue
+}
+
+func (c *Compilation) performRol(val llvm.Value) llvm.Value {
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	shifted := c.builder.CreateShl(val, c1, "")
+	carryBit := c.builder.CreateLoad(c.rSCarry, "")
+	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+	newValue := c.builder.CreateAnd(shifted, carry, "")
+	c.dynTestAndSetZero(newValue)
+	c.dynTestAndSetNeg(newValue)
+	c.dynTestAndSetCarryShl(val)
 	return newValue
 }
 
