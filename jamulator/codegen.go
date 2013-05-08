@@ -114,9 +114,17 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.cycle(2, i.Offset+i.Size)
 	case 0xea: // nop
 		c.cycle(2, i.Offset+i.Size)
-	//case 0x48: // pha
+	case 0x48: // pha
+		a := c.builder.CreateLoad(c.rA, "")
+		c.pushToStack(a)
+		c.cycle(3, i.Offset+i.Size)
+	case 0x68: // pla
+		v := c.pullFromStack()
+		c.builder.CreateStore(v, c.rA)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+		c.cycle(4, i.Offset+i.Size)
 	//case 0x08: // php
-	//case 0x68: // pla
 	case 0x28: // plp
 		c.pullStatusReg()
 		c.cycle(4, i.Offset+i.Size)
@@ -167,7 +175,7 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.transfer(c.rY, c.rA)
 		c.cycle(2, i.Offset+i.Size)
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s implied lacks Compile() implementation", i.OpName))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
 }
 
