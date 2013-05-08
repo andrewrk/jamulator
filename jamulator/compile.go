@@ -270,7 +270,8 @@ func (c *Compilation) dynTestAndSetZero(v llvm.Value) {
 
 func (c *Compilation) dynTestAndSetCarryLShr(val llvm.Value) {
 	masked := c.builder.CreateAnd(val, llvm.ConstInt(llvm.Int8Type(), 0x1, false), "")
-	isCarry := c.builder.CreateICmp(llvm.IntNE, masked, llvm.ConstInt(llvm.Int8Type(), 0, false), "")
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	isCarry := c.builder.CreateICmp(llvm.IntNE, masked, c0, "")
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 

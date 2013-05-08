@@ -255,7 +255,20 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x5e: // lsr abs x
 	//case 0x1d: // ora abs x
 	//case 0x3e: // rol abs x
-	//case 0x7e: // ror abs x
+	case 0x7e: // ror abs x
+		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		c7 := llvm.ConstInt(llvm.Int8Type(), 7, false)
+		oldValue := c.dynLoadIndexed(i.Value, c.rX)
+		shifted := c.builder.CreateLShr(oldValue, c1, "")
+		carryBit := c.builder.CreateLoad(c.rSCarry, "")
+		carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+		carryShifted := c.builder.CreateShl(carry, c7, "")
+		newValue := c.builder.CreateAnd(shifted, carryShifted, "")
+		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
+		c.dynTestAndSetCarryLShr(oldValue)
+		c.cycle(7, i.Offset+i.GetSize())
 	//case 0xfd: // sbc abs x
 
 	//case 0x75: // adc zpg x
