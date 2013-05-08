@@ -437,6 +437,13 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
+	case 0xc5, 0xcd: // cmp (zpg, abs)
+		c.createCompare(c.rA, c.load(i.Value))
+		if i.Payload[0] == 0xc5 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -450,7 +457,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x25: // and zpg
 	//case 0x06: // asl zpg
 	//case 0x24: // bit zpg
-	//case 0xc5: // cmp zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
 	//case 0x05: // ora zpg
@@ -462,7 +468,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x2d: // and abs
 	//case 0x0e: // asl abs
 	//case 0x2c: // bit abs
-	//case 0xcd: // cmp abs
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
 	//case 0x4c: // jmp abs
