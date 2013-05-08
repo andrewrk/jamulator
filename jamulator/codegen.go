@@ -25,16 +25,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.testAndSetNeg(i.Value)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x69: // adc
-		a := c.builder.CreateLoad(c.rA, "")
-		aPlusV := c.builder.CreateAdd(a, v, "")
-		carryBit := c.builder.CreateLoad(c.rSCarry, "")
-		carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
-		newA := c.builder.CreateAdd(aPlusV, carry, "")
-		c.dynTestAndSetNeg(newA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetOverflowAddition(a, v, newA)
-		c.dynTestAndSetCarryAddition(a, v, carry)
-
+		c.performAdc(v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
@@ -230,7 +221,10 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
-	//case 0x79: // adc abs y
+	case 0x79: // adc abs y
+		v := c.dynLoadIndexed(i.Value, c.rY)
+		c.performAdc(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
 	//case 0x39: // and abs y
 	//case 0xd9: // cmp abs y
 	//case 0x59: // eor abs y
@@ -251,7 +245,14 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0xb6: // ldx zpg y
 	//case 0x96: // stx zpg y
 
-	//case 0x7d: // adc abs x
+	case 0x7d: // adc abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performAdc(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0x75: // adc zpg x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performAdc(v)
+		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x3d: // and abs x
 	//case 0x1e: // asl abs x
 	//case 0xdd: // cmp abs x
@@ -280,7 +281,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.cycle(7, i.Offset+i.GetSize())
 	//case 0xfd: // sbc abs x
 
-	//case 0x75: // adc zpg x
 	//case 0x35: // and zpg x
 	//case 0x16: // asl zpg x
 	//case 0xd5: // cmp zpg x
@@ -444,6 +444,14 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
+	case 0x65, 0x6d: // adc (zpg, abs)
+		c.performAdc(c.load(i.Value))
+		if i.Payload[0] == 0x65 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
+
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -453,7 +461,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x50: // bvc rel
 	//case 0x70: // bvs rel
 
-	//case 0x65: // adc zpg
 	//case 0x25: // and zpg
 	//case 0x06: // asl zpg
 	//case 0x24: // bit zpg
@@ -464,7 +471,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x66: // ror zpg
 	//case 0xe5: // sbc zpg
 
-	//case 0x6d: // adc abs
 	//case 0x2d: // and abs
 	//case 0x0e: // asl abs
 	//case 0x2c: // bit abs

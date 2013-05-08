@@ -315,6 +315,19 @@ func (c *Compilation) performRol(val llvm.Value) llvm.Value {
 	return newValue
 }
 
+func (c *Compilation) performAdc(val llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	aPlusV := c.builder.CreateAdd(a, val, "")
+	carryBit := c.builder.CreateLoad(c.rSCarry, "")
+	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+	newA := c.builder.CreateAdd(aPlusV, carry, "")
+	c.builder.CreateStore(newA, c.rA)
+	c.dynTestAndSetNeg(newA)
+	c.dynTestAndSetZero(newA)
+	c.dynTestAndSetOverflowAddition(a, val, newA)
+	c.dynTestAndSetCarryAddition(a, val, carry)
+}
+
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
 	// TODO: less runtime checks depending on minAddr and maxAddr
 
@@ -873,6 +886,12 @@ func (c *Compilation) cyclesForIndirectY(baseAddr, addr llvm.Value, pc int) {
 	c.builder.CreateBr(loadDoneBlock)
 	// done
 	c.selectBlock(loadDoneBlock)
+}
+
+func (c *Compilation) cyclesForAbsoluteIndexedPtr(baseAddr int, indexPtr llvm.Value, pc int) {
+	index := c.builder.CreateLoad(indexPtr, "")
+	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
+	c.cyclesForAbsoluteIndexed(baseAddr, index16, pc)
 }
 
 func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, pc int) {
