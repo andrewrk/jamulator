@@ -235,9 +235,17 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x3d: // and abs x
 	//case 0x1e: // asl abs x
 	//case 0xdd: // cmp abs x
-	//case 0xde: // dec abs x
+	case 0xde: // dec abs x
+		oldValue := c.dynLoadIndexed(i.Value, c.rX)
+		newValue := c.incrementVal(oldValue, -1)
+		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.cycle(7, i.Offset+i.GetSize())
 	//case 0x5d: // eor abs x
-	//case 0xfe: // inc abs x
+	case 0xfe: // inc abs x
+		oldValue := c.dynLoadIndexed(i.Value, c.rX)
+		newValue := c.incrementVal(oldValue, 1)
+		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.cycle(7, i.Offset+i.GetSize())
 	//case 0x5e: // lsr abs x
 	//case 0x1d: // ora abs x
 	//case 0x3e: // rol abs x
