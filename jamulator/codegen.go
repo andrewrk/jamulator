@@ -77,7 +77,12 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	switch i.OpCode {
 	//case 0x0a: // asl
 	//case 0x00: // brk
-	//case 0x18: // clc
+	case 0x18: // clc
+		c.clearCarry()
+		c.cycle(2, i.Offset+i.Size)
+	case 0x38: // sec
+		c.setCarry()
+		c.cycle(2, i.Offset+i.Size)
 	case 0xd8: // cld
 		c.clearDec()
 		c.cycle(2, i.Offset+i.Size)
@@ -129,7 +134,6 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.cycle(6, -1)
 		c.builder.CreateRetVoid()
 		c.currentBlock = nil
-	//case 0x38: // sec
 	case 0xf8: // sed
 		c.setDec()
 		c.cycle(2, i.Offset+i.Size)
@@ -499,6 +503,6 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
-	c.Errors = append(c.Errors, "IndirectInstruction lacks Compile() implementation")
+	c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 }
 

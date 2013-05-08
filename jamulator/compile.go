@@ -227,6 +227,14 @@ func (c *Compilation) clearInt() {
 	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSInt)
 }
 
+func (c *Compilation) setCarry() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 1, false), c.rSCarry)
+}
+
+func (c *Compilation) clearCarry() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSCarry)
+}
+
 func (c *Compilation) testAndSetNeg(v int) {
 	if v&0x80 == 0x80 {
 		c.setNeg()
