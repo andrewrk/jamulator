@@ -397,7 +397,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
 	//case 0x45: // eor zpg
-	//case 0xe6: // inc zpg
 	//case 0xa6: // ldx zpg
 	//case 0xa4: // ldy zpg
 	//case 0x05: // ora zpg
@@ -413,7 +412,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
 	//case 0x4d: // eor abs
-	//case 0xee: // inc abs
 	//case 0x4c: // jmp abs
 	//case 0x20: // jsr abs
 	//case 0xae: // ldx abs
@@ -422,6 +420,14 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
 	//case 0xed: // sbc abs
+	case 0xe6, 0xee: // inc (zpg, abs)
+		ptr := c.wramPtr(i.Value)
+		c.increment(ptr, 1)
+		if i.Payload[0] == 0xe6 {
+			c.cycle(5, i.Offset+i.GetSize())
+		} else {
+			c.cycle(6, i.Offset+i.GetSize())
+		}
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		if i.Payload[0] == 0x85 {
@@ -444,7 +450,7 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s direct lacks Compile() implementation", i.OpName))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
 }
 

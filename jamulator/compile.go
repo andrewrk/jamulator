@@ -403,19 +403,26 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	panic("unreachable")
 }
 
+func (c *Compilation) wramPtr(addr int) llvm.Value {
+	// 2KB working RAM. mask because mirrored
+	if addr < 0 || addr >= 0x2000 {
+		c.Errors = append(c.Errors, fmt.Sprintf("$%04x is not in wram", addr))
+	}
+	maskedAddr := addr & (0x800 - 1)
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int8Type(), 0, false),
+		llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
+	}
+	return c.builder.CreateGEP(c.wram, indexes, "")
+}
+
 func (c *Compilation) load(addr int) llvm.Value {
 	switch {
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
 		return llvm.ConstNull(llvm.Int8Type())
 	case 0x0000 <= addr && addr < 0x2000:
-		// 2KB working RAM. mask because mirrored
-		maskedAddr := addr & (0x800 - 1)
-		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int8Type(), 0, false),
-			llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
-		}
-		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		ptr := c.wramPtr(addr)
 		v := c.builder.CreateLoad(ptr, "")
 		//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
 		return v
@@ -435,8 +442,8 @@ func (c *Compilation) load(addr int) llvm.Value {
 	panic("unreachable")
 }
 
-func (c *Compilation) increment(reg llvm.Value, delta int) {
-	v := c.builder.CreateLoad(reg, "")
+func (c *Compilation) increment(ptr llvm.Value, delta int) {
+	v := c.builder.CreateLoad(ptr, "")
 	var newValue llvm.Value
 	if delta < 0 {
 		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(-delta), false)
@@ -445,7 +452,7 @@ func (c *Compilation) increment(reg llvm.Value, delta int) {
 		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
 		newValue = c.builder.CreateAdd(v, c1, "")
 	}
-	c.builder.CreateStore(newValue, reg)
+	c.builder.CreateStore(newValue, ptr)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetZero(newValue)
 }
