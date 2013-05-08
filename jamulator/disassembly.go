@@ -145,10 +145,14 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		default:
 			d.markAsInstruction(addr + 3)
 		}
-	case absXAddr:
+	case absXAddr, absYAddr:
 		w, err := d.elemAsWord(elem.Next())
 		if err != nil {
 			return err
+		}
+		regName := "X"
+		if opCodeInfo.addrMode == absYAddr {
+			regName = "Y"
 		}
 		targetAddr := int(w)
 		if targetAddr >= 0x8000 {
@@ -157,7 +161,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
 			i.LabelName = d.getLabelAt(targetAddr)
-			i.RegisterName = "X"
+			i.RegisterName = regName
 			i.Size = 3
 			i.OpCode = opCode
 			elem.Value = i
@@ -166,29 +170,11 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
 			i.Payload = []byte{opCode, 0, 0}
-			i.Value = int(w)
-			i.RegisterName = "X"
+			i.Value = targetAddr
+			i.RegisterName = regName
 			binary.LittleEndian.PutUint16(i.Payload[1:], w)
 			elem.Value = i
 		}
-		d.list.Remove(elem.Next())
-		d.list.Remove(elem.Next())
-
-		// next thing is definitely an instruction
-		d.markAsInstruction(addr + 3)
-	case absYAddr:
-		w, err := d.elemAsWord(elem.Next())
-		if err != nil {
-			return err
-		}
-		i := new(DirectIndexedInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.Payload = []byte{opCode, 0, 0}
-		i.Value = int(w)
-		i.RegisterName = "Y"
-		binary.LittleEndian.PutUint16(i.Payload[1:], w)
-		elem.Value = i
 		d.list.Remove(elem.Next())
 		d.list.Remove(elem.Next())
 
