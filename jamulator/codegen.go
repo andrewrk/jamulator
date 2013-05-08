@@ -397,6 +397,18 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(6, i.Offset+i.GetSize())
 		}
+	case 0x45, 0x4d: // eor (zpg, abs)
+		a := c.builder.CreateLoad(c.rA, "")
+		mem := c.load(i.Value)
+		newA := c.builder.CreateXor(a, mem, "")
+		c.builder.CreateStore(newA, c.rA)
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		if i.Payload[0] == 0x45 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -413,7 +425,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xc5: // cmp zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
-	//case 0x45: // eor zpg
 	//case 0x05: // ora zpg
 	//case 0x26: // rol zpg
 	//case 0x66: // ror zpg
@@ -426,7 +437,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xcd: // cmp abs
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
-	//case 0x4d: // eor abs
 	//case 0x4c: // jmp abs
 	//case 0x20: // jsr abs
 	//case 0x0d: // ora abs
