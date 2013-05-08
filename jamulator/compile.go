@@ -268,6 +268,86 @@ func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
+	// TODO: less runtime checks depending on minAddr and maxAddr
+
+	// runtime memory check
+	storeDoneBlock := c.createBlock("StoreDone")
+	x2000 := llvm.ConstInt(llvm.Int16Type(), 0x2000, false)
+	inWRam := c.builder.CreateICmp(llvm.IntULT, addr, x2000, "")
+	notInWRamBlock := c.createIf(inWRam)
+	// this generated code runs if the write is happening in the WRAM range
+	maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		maskedAddr,
+	}
+	ptr := c.builder.CreateGEP(c.wram, indexes, "")
+	c.builder.CreateStore(val, ptr)
+	c.builder.CreateBr(storeDoneBlock)
+	// this generated code runs if the write is > WRAM range
+	c.selectBlock(notInWRamBlock)
+	x4000 := llvm.ConstInt(llvm.Int16Type(), 0x4000, false)
+	inPpuRam := c.builder.CreateICmp(llvm.IntULT, addr, x4000, "")
+	notInPpuRamBlock := c.createIf(inPpuRam)
+	// this generated code runs if the write is in the PPU RAM range
+	maskedAddr = c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x8-1, false), "")
+	badPpuAddrBlock := c.createBlock("BadPPUAddr")
+	sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 7)
+	// this generated code runs if the write is in a bad PPU RAM addr
+	c.selectBlock(badPpuAddrBlock)
+	c.createPanic()
+
+	ppuCtrlBlock := c.createBlock("ppuctrl")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0, false), ppuCtrlBlock)
+	c.selectBlock(ppuCtrlBlock)
+	c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	ppuMaskBlock := c.createBlock("ppumask")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 1, false), ppuMaskBlock)
+	c.selectBlock(ppuMaskBlock)
+	c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	oamAddrBlock := c.createBlock("oamaddr")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 3, false), oamAddrBlock)
+	c.selectBlock(oamAddrBlock)
+	c.builder.CreateCall(c.oamAddrFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	oamDataBlock := c.createBlock("oamdata")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), oamDataBlock)
+	c.selectBlock(oamDataBlock)
+	c.builder.CreateCall(c.setOamDataFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	ppuScrollBlock := c.createBlock("ppuscroll")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 5, false), ppuScrollBlock)
+	c.selectBlock(ppuScrollBlock)
+	c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	ppuAddrBlock := c.createBlock("ppuaddr")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 6, false), ppuAddrBlock)
+	c.selectBlock(ppuAddrBlock)
+	c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	ppuDataBlock := c.createBlock("ppudata")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuDataBlock)
+	c.selectBlock(ppuDataBlock)
+	c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	// this generated code runs if the write is > PPU RAM range
+	c.selectBlock(notInPpuRamBlock)
+	c.createPanic()
+
+	// done. X_X
+	c.selectBlock(storeDoneBlock)
+}
+
 func (c *Compilation) store(addr int, i8 llvm.Value) {
 	//c.debugPrintf(fmt.Sprintf("static store $%04x %s\n", addr, "#$%02x"), []llvm.Value{i8})
 	// homebrew ABI
@@ -434,6 +514,17 @@ func (c *Compilation) load(addr int) llvm.Value {
 		}
 	}
 	panic("unreachable")
+}
+
+// loads a little endian word
+func (c *Compilation) loadWord(addr int) llvm.Value {
+	ptrByte1 := c.load(addr)
+	ptrByte2 := c.load(addr + 1)
+	ptrByte1w := c.builder.CreateZExt(ptrByte1, llvm.Int16Type(), "")
+	ptrByte2w := c.builder.CreateZExt(ptrByte2, llvm.Int16Type(), "")
+	shiftAmt := llvm.ConstInt(llvm.Int16Type(), 8, false)
+	word := c.builder.CreateShl(ptrByte2w, shiftAmt, "")
+	return c.builder.CreateOr(word, ptrByte1w, "")
 }
 
 func (c *Compilation) incrementVal(v llvm.Value, delta int) llvm.Value {

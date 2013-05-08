@@ -210,56 +210,55 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	switch i.Payload[0] {
-	// abs y
-	//case 0x79: // adc
-	//case 0x39: // and
-	//case 0xd9: // cmp
-	//case 0x59: // eor
-	case 0xb9: // lda
+	//case 0x79: // adc abs y
+	//case 0x39: // and abs y
+	//case 0xd9: // cmp abs y
+	//case 0x59: // eor abs y
+	case 0xb9: // lda abs y
 		c.absoluteIndexedLoad(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
-	case 0xbe: // ldx
+	case 0xbe: // ldx abs y
 		c.absoluteIndexedLoad(c.rX, i.Value, c.rY, i.Offset+i.GetSize())
-	//case 0x19: // ora
-	//case 0xf9: // sbc
-	//case 0x99: // sta
-	// zpg y
-	//case 0xb6: // ldx
-	//case 0x96: // stx
-	// abs x
-	//case 0x7d: // adc
-	//case 0x3d: // and
-	//case 0x1e: // asl
-	//case 0xdd: // cmp
-	//case 0xde: // dec
-	//case 0x5d: // eor
-	//case 0xfe: // inc
-	case 0xbd: // lda
+	case 0xbd: // lda abs x
 		c.absoluteIndexedLoad(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
-	case 0xbc: // ldy
+	case 0xbc: // ldy abs x
 		c.absoluteIndexedLoad(c.rY, i.Value, c.rX, i.Offset+i.GetSize())
-	//case 0x5e: // lsr
-	//case 0x1d: // ora
-	//case 0x3e: // rol
-	//case 0x7e: // ror
-	//case 0xfd: // sbc
-	//case 0x9d: // sta
-	// zpg x
-	//case 0x75: // adc
-	//case 0x35: // and
-	//case 0x16: // asl
-	//case 0xd5: // cmp
-	//case 0xd6: // dec
-	//case 0x55: // eor
-	//case 0xf6: // inc
-	//case 0xb5: // lda
-	//case 0xb4: // ldy
-	//case 0x56: // lsr
-	//case 0x15: // ora
-	//case 0x36: // rol
-	//case 0x76: // ror
-	//case 0xf5: // sbc
-	//case 0x95: // sta
-	//case 0x94: // sty
+	//case 0x19: // ora abs y
+	//case 0xf9: // sbc abs y
+	//case 0x99: // sta abs y
+	//case 0x9d: // sta abs x
+
+	//case 0xb6: // ldx zpg y
+	//case 0x96: // stx zpg y
+
+	//case 0x7d: // adc abs x
+	//case 0x3d: // and abs x
+	//case 0x1e: // asl abs x
+	//case 0xdd: // cmp abs x
+	//case 0xde: // dec abs x
+	//case 0x5d: // eor abs x
+	//case 0xfe: // inc abs x
+	//case 0x5e: // lsr abs x
+	//case 0x1d: // ora abs x
+	//case 0x3e: // rol abs x
+	//case 0x7e: // ror abs x
+	//case 0xfd: // sbc abs x
+
+	//case 0x75: // adc zpg x
+	//case 0x35: // and zpg x
+	//case 0x16: // asl zpg x
+	//case 0xd5: // cmp zpg x
+	//case 0xd6: // dec zpg x
+	//case 0x55: // eor zpg x
+	//case 0xf6: // inc zpg x
+	//case 0xb5: // lda zpg x
+	//case 0xb4: // ldy zpg x
+	//case 0x56: // lsr zpg x
+	//case 0x15: // ora zpg x
+	//case 0x36: // rol zpg x
+	//case 0x76: // ror zpg x
+	//case 0xf5: // sbc zpg x
+	//case 0x95: // sta zpg x
+	//case 0x94: // sty zpg x
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
@@ -467,98 +466,13 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 	//case 0x11: // ora
 	//case 0xf1: // sbc
 	case 0x91: // sta
-		ptrByte1 := c.load(i.Value)
-		ptrByte2 := c.load(i.Value + 1)
-		ptrByte1w := c.builder.CreateZExt(ptrByte1, llvm.Int16Type(), "")
-		ptrByte2w := c.builder.CreateZExt(ptrByte2, llvm.Int16Type(), "")
-		shiftAmt := llvm.ConstInt(llvm.Int16Type(), 8, false)
-		word := c.builder.CreateShl(ptrByte2w, shiftAmt, "")
-		word = c.builder.CreateOr(word, ptrByte1w, "")
+		baseAddr := c.loadWord(i.Value)
 		rY := c.builder.CreateLoad(c.rY, "")
 		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
-		word = c.builder.CreateAdd(word, rYw, "")
+		addr := c.builder.CreateAdd(baseAddr, rYw, "")
 		rA := c.builder.CreateLoad(c.rA, "")
-
-		// debug statement, TODO remove this
-		//c.debugPrintf("dyn store %04x\n", []llvm.Value{word})
-
-		// runtime memory check
-		staDoneBlock := c.createBlock("STA_done")
-		x2000 := llvm.ConstInt(llvm.Int16Type(), 0x2000, false)
-		inWRam := c.builder.CreateICmp(llvm.IntULT, word, x2000, "")
-		notInWRamBlock := c.createIf(inWRam)
-		// this generated code runs if the write is happening in the WRAM range
-		maskedAddr := c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
-		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int16Type(), 0, false),
-			maskedAddr,
-		}
-		ptr := c.builder.CreateGEP(c.wram, indexes, "")
-		c.builder.CreateStore(rA, ptr)
-		c.builder.CreateBr(staDoneBlock)
-		// this generated code runs if the write is > WRAM range
-		c.selectBlock(notInWRamBlock)
-		x4000 := llvm.ConstInt(llvm.Int16Type(), 0x4000, false)
-		inPpuRam := c.builder.CreateICmp(llvm.IntULT, word, x4000, "")
-		notInPpuRamBlock := c.createIf(inPpuRam)
-		// this generated code runs if the write is in the PPU RAM range
-		maskedAddr = c.builder.CreateAnd(word, llvm.ConstInt(llvm.Int16Type(), 0x8-1, false), "")
-		badPpuAddrBlock := c.createBlock("BadPPUAddr")
-		sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 7)
-		// this generated code runs if the write is in a bad PPU RAM addr
-		c.selectBlock(badPpuAddrBlock)
-		c.createPanic()
-
-		ppuCtrlBlock := c.createBlock("ppuctrl")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0, false), ppuCtrlBlock)
-		c.selectBlock(ppuCtrlBlock)
-		c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		ppuMaskBlock := c.createBlock("ppumask")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 1, false), ppuMaskBlock)
-		c.selectBlock(ppuMaskBlock)
-		c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		oamAddrBlock := c.createBlock("oamaddr")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 3, false), oamAddrBlock)
-		c.selectBlock(oamAddrBlock)
-		c.builder.CreateCall(c.oamAddrFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		oamDataBlock := c.createBlock("oamdata")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), oamDataBlock)
-		c.selectBlock(oamDataBlock)
-		c.builder.CreateCall(c.setOamDataFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		ppuScrollBlock := c.createBlock("ppuscroll")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 5, false), ppuScrollBlock)
-		c.selectBlock(ppuScrollBlock)
-		c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		ppuAddrBlock := c.createBlock("ppuaddr")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 6, false), ppuAddrBlock)
-		c.selectBlock(ppuAddrBlock)
-		c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		ppuDataBlock := c.createBlock("ppudata")
-		sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuDataBlock)
-		c.selectBlock(ppuDataBlock)
-		c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{rA}, "")
-		c.builder.CreateBr(staDoneBlock)
-
-		// this generated code runs if the write is > PPU RAM range
-		c.selectBlock(notInPpuRamBlock)
-		c.createPanic()
-
-		// done. X_X
-		c.selectBlock(staDoneBlock)
+		c.dynStore(addr, 0, 0xffff, rA)
 		c.cycle(6, i.Offset+i.GetSize())
-
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
 	}
