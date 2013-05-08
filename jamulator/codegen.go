@@ -121,7 +121,10 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.pullStatusReg()
 		c.cycle(4, i.Offset+i.Size)
 	//case 0x2a: // rol
-	//case 0x6a: // ror
+	case 0x6a: // ror
+		a := c.builder.CreateLoad(c.rA, "")
+		c.builder.CreateStore(c.performRor(a), c.rA)
+		c.cycle(2, i.Offset+i.GetSize())
 	case 0x40: // rti
 		c.pullStatusReg()
 		pc := c.pullWordFromStack()
@@ -256,18 +259,9 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x1d: // ora abs x
 	//case 0x3e: // rol abs x
 	case 0x7e: // ror abs x
-		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
-		c7 := llvm.ConstInt(llvm.Int8Type(), 7, false)
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
-		shifted := c.builder.CreateLShr(oldValue, c1, "")
-		carryBit := c.builder.CreateLoad(c.rSCarry, "")
-		carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
-		carryShifted := c.builder.CreateShl(carry, c7, "")
-		newValue := c.builder.CreateAnd(shifted, carryShifted, "")
+		newValue := c.performRor(oldValue)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
-		c.dynTestAndSetZero(newValue)
-		c.dynTestAndSetNeg(newValue)
-		c.dynTestAndSetCarryLShr(oldValue)
 		c.cycle(7, i.Offset+i.GetSize())
 	//case 0xfd: // sbc abs x
 

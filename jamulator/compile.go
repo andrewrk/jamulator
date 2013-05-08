@@ -281,6 +281,20 @@ func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) performRor(val llvm.Value) llvm.Value {
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	c7 := llvm.ConstInt(llvm.Int8Type(), 7, false)
+	shifted := c.builder.CreateLShr(val, c1, "")
+	carryBit := c.builder.CreateLoad(c.rSCarry, "")
+	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+	carryShifted := c.builder.CreateShl(carry, c7, "")
+	newValue := c.builder.CreateAnd(shifted, carryShifted, "")
+	c.dynTestAndSetZero(newValue)
+	c.dynTestAndSetNeg(newValue)
+	c.dynTestAndSetCarryLShr(val)
+	return newValue
+}
+
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
 	// TODO: less runtime checks depending on minAddr and maxAddr
 
