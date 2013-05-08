@@ -689,6 +689,7 @@ func (sw SourceWriter) Visit(n Node) {
 	switch t := n.(type) {
 	case Renderer:
 		sw.writer.WriteString(t.Render())
+		sw.writer.WriteString("\n")
 	}
 }
 
@@ -699,51 +700,51 @@ func (sw SourceWriter) Error() string {
 }
 
 func (i *ImmediateInstruction) Render() string {
-	return fmt.Sprintf("%s #$%02x\n", i.OpName, i.Value)
+	return fmt.Sprintf("    %s #$%02x", i.OpName, i.Value)
 }
 
 func (i *ImpliedInstruction) Render() string {
-	return fmt.Sprintf("%s\n", i.OpName)
+	return fmt.Sprintf("    %s", i.OpName)
 }
 
 func (i *DirectInstruction) Render() string {
-	return fmt.Sprintf("%s $%02x\n", i.OpName, i.Value)
+	return fmt.Sprintf("    %s $%02x", i.OpName, i.Value)
 }
 
 func (i *DirectWithLabelInstruction) Render() string {
-	return fmt.Sprintf("%s %s\n", i.OpName, i.LabelName)
+	return fmt.Sprintf("    %s %s", i.OpName, i.LabelName)
 }
 
 func (i *DirectIndexedInstruction) Render() string {
-	return fmt.Sprintf("%s $%02x, %s\n", i.OpName, i.Value, i.RegisterName)
+	return fmt.Sprintf("    %s $%02x, %s", i.OpName, i.Value, i.RegisterName)
 }
 
 func (i *DirectWithLabelIndexedInstruction) Render() string {
-	return fmt.Sprintf("%s %s, %s\n", i.OpName, i.LabelName, i.RegisterName)
+	return fmt.Sprintf("    %s %s, %s", i.OpName, i.LabelName, i.RegisterName)
 }
 
 func (i *IndirectInstruction) Render() string {
-	return fmt.Sprintf("%s ($%02x)\n", i.OpName, i.Value)
+	return fmt.Sprintf("    %s ($%02x)", i.OpName, i.Value)
 }
 
 func (i *IndirectXInstruction) Render() string {
-	return fmt.Sprintf("%s ($%02x, X)\n", i.OpName, i.Value)
+	return fmt.Sprintf("    %s ($%02x, X)", i.OpName, i.Value)
 }
 
 func (i *IndirectYInstruction) Render() string {
-	return fmt.Sprintf("%s ($%02x), Y\n", i.OpName, i.Value)
+	return fmt.Sprintf("    %s ($%02x), Y", i.OpName, i.Value)
 }
 
 func (i *OrgPseudoOp) Render() string {
 	if i.Fill == 0xff {
-		return fmt.Sprintf("org $%04x\n", i.Value)
+		return fmt.Sprintf("org $%04x", i.Value)
 	}
-	return fmt.Sprintf("org $%04x, $%02x\n", i.Value, i.Fill)
+	return fmt.Sprintf("  org $%04x, $%02x", i.Value, i.Fill)
 }
 
 func (s *DataStatement) Render() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("dc.b ")
+	buf.WriteString("    dc.b ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *StringDataItem:
@@ -757,13 +758,12 @@ func (s *DataStatement) Render() string {
 			buf.WriteString(", ")
 		}
 	}
-	buf.WriteString("\n")
 	return buf.String()
 }
 
 func (s *DataWordStatement) Render() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("dc.w ")
+	buf.WriteString("    dc.w ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *LabelCall:
@@ -775,7 +775,6 @@ func (s *DataWordStatement) Render() string {
 			buf.WriteString(", ")
 		}
 	}
-	buf.WriteString("\n")
 	return buf.String()
 }
 
@@ -785,7 +784,6 @@ func (s *LabeledStatement) Render() string {
 	buf.WriteString(":")
 
 	if s.Stmt == nil {
-		buf.WriteString("\n")
 		return buf.String()
 	}
 	buf.WriteString(" ")
