@@ -235,6 +235,10 @@ func (c *Compilation) clearCarry() {
 	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSCarry)
 }
 
+func (c *Compilation) clearOverflow() {
+	c.builder.CreateStore(llvm.ConstInt(llvm.Int1Type(), 0, false), c.rSOver)
+}
+
 func (c *Compilation) testAndSetNeg(v int) {
 	if v&0x80 == 0x80 {
 		c.setNeg()

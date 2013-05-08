@@ -89,7 +89,9 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	case 0x58: // cli
 		c.clearInt()
 		c.cycle(2, i.Offset+i.Size)
-	//case 0xb8: // clv
+	case 0xb8: // clv
+		c.clearOverflow()
+		c.cycle(2, i.Offset+i.Size)
 	case 0xca: // dex
 		c.increment(c.rX, -1)
 		c.cycle(2, i.Offset+i.Size)
