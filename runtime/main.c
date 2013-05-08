@@ -170,8 +170,15 @@ int main() {
     Ppu_dispose(p);
 }
 
-uint8_t rom_ppustatus() {
+uint8_t rom_ppu_read_status() {
     return Ppu_readStatus(p);
+}
+
+uint8_t rom_ppu_read_oamdata(){
+    return Ppu_readOamData(p);
+}
+uint8_t rom_ppu_read_data(){
+    return Ppu_readData(p);
 }
 
 void rom_ppuctrl(uint8_t b) {

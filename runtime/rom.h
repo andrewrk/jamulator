@@ -33,7 +33,9 @@ void rom_start(uint32_t interrupt);
 void rom_cycle(uint8_t);
 
 // PPU hooks
-uint8_t rom_ppustatus();
+uint8_t rom_ppu_read_status();
+uint8_t rom_ppu_read_oamdata();
+uint8_t rom_ppu_read_data();
 void rom_ppuctrl(uint8_t);
 void rom_ppumask(uint8_t);
 void rom_ppuaddr(uint8_t);

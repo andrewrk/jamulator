@@ -57,7 +57,9 @@ type Compilation struct {
 	exitFn    llvm.Value
 	cycleFn   llvm.Value
 	// PPU
-	ppuStatusFn    llvm.Value
+	ppuReadStatusFn    llvm.Value
+	ppuReadOamDataFn    llvm.Value
+	ppuReadDataFn    llvm.Value
 	ppuCtrlFn      llvm.Value
 	ppuMaskFn      llvm.Value
 	ppuAddrFn      llvm.Value
@@ -330,6 +332,7 @@ func (c *Compilation) performAdc(val llvm.Value) {
 
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
 	// TODO: less runtime checks depending on minAddr and maxAddr
+	c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")
 
 	// runtime memory check
 	storeDoneBlock := c.createBlock("StoreDone")
@@ -511,9 +514,7 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Value {
 	// returns the byte at addr, with runtime checks for the range between minAddr and maxAddr
 	// currently only can do WRAM stuff
-	// TODO: support the full address range
-	switch {
-	case maxAddr < 0x0800:
+	if maxAddr < 0x0800 {
 		// no runtime checks needed.
 		indexes := []llvm.Value{
 			llvm.ConstInt(llvm.Int8Type(), 0, false),
@@ -521,8 +522,9 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
 		return c.builder.CreateLoad(ptr, "")
-	case maxAddr < 0x4000:
-		// address masking needed.
+	}
+	if maxAddr < 0x2000 {
+		// address masking needed, but it's definitely in WRAM
 		maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
 		indexes := []llvm.Value{
 			llvm.ConstInt(llvm.Int8Type(), 0, false),
@@ -530,11 +532,66 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
 		return c.builder.CreateLoad(ptr, "")
-	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("dynLoad $%04x < x < $%04x currently only supports max address below $4000", minAddr, maxAddr))
-		return llvm.ConstInt(llvm.Int8Type(), 0, false)
 	}
-	panic("unreachable")
+	if minAddr != 0 || maxAddr != 0xffff {
+		c.Warnings = append(c.Warnings, "TODO: dynLoad is unoptimized")
+	}
+	result := c.builder.CreateAlloca(llvm.Int8Type(), "load_result")
+	loadDoneBlock := c.createBlock("LoadDone")
+	x2000 := llvm.ConstInt(llvm.Int16Type(), 0x2000, false)
+	inWRam := c.builder.CreateICmp(llvm.IntULT, addr, x2000, "")
+	notInWRamBlock := c.createIf(inWRam)
+	// this generated code runs if the write is happening in the WRAM range
+	maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		maskedAddr,
+	}
+	ptr := c.builder.CreateGEP(c.wram, indexes, "")
+	v := c.builder.CreateLoad(ptr, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+	// this generated code runs if the write is > WRAM range
+	c.selectBlock(notInWRamBlock)
+	x4000 := llvm.ConstInt(llvm.Int16Type(), 0x4000, false)
+	inPpuRam := c.builder.CreateICmp(llvm.IntULT, addr, x4000, "")
+	notInPpuRamBlock := c.createIf(inPpuRam)
+	// this generated code runs if the write is in the PPU RAM range
+	maskedAddr = c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x8-1, false), "")
+	badPpuAddrBlock := c.createBlock("BadPPUAddr")
+	sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 3)
+	// this generated code runs if the write is in a bad PPU RAM addr
+	c.selectBlock(badPpuAddrBlock)
+	c.createPanic()
+
+	ppuReadStatusBlock := c.createBlock("ppu_read_status")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 2, false), ppuReadStatusBlock)
+	c.selectBlock(ppuReadStatusBlock)
+	v = c.builder.CreateCall(c.ppuReadStatusFn, []llvm.Value{}, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+
+	ppuReadOamDataBlock := c.createBlock("ppu_read_oamdata")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), ppuReadOamDataBlock)
+	c.selectBlock(ppuReadOamDataBlock)
+	v = c.builder.CreateCall(c.ppuReadOamDataFn, []llvm.Value{}, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+
+	ppuReadDataBlock := c.createBlock("ppu_read_data")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuReadDataBlock)
+	c.selectBlock(ppuReadDataBlock)
+	v = c.builder.CreateCall(c.ppuReadDataFn, []llvm.Value{}, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+
+	// this generated code runs if the write is > PPU RAM range
+	c.selectBlock(notInPpuRamBlock)
+	c.createPanic()
+
+	// done. X_X
+	c.selectBlock(loadDoneBlock)
+	return c.builder.CreateLoad(result, "")
 }
 
 func (c *Compilation) wramPtr(addr int) llvm.Value {
@@ -558,16 +615,19 @@ func (c *Compilation) load(addr int) llvm.Value {
 	case 0x0000 <= addr && addr < 0x2000:
 		ptr := c.wramPtr(addr)
 		v := c.builder.CreateLoad(ptr, "")
-		//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
 		return v
 	case 0x2000 <= addr && addr < 0x4000:
 		// PPU registers. mask because mirrored
 		switch addr & (0x8 - 1) {
 		case 2:
 			c.debugPrint("ppu_read_status\n")
-			v := c.builder.CreateCall(c.ppuStatusFn, []llvm.Value{}, "")
-			//c.debugPrintf(fmt.Sprintf("static load $%04x %s\n", addr, "#$%02x"), []llvm.Value{v})
-			return v
+			return c.builder.CreateCall(c.ppuReadStatusFn, []llvm.Value{}, "")
+		case 4:
+			c.debugPrint("ppu_read_oamdata\n")
+			return c.builder.CreateCall(c.ppuReadOamDataFn, []llvm.Value{}, "")
+		case 7:
+			c.debugPrint("ppu_read_data\n")
+			return c.builder.CreateCall(c.ppuReadDataFn, []llvm.Value{}, "")
 		default:
 			c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
 			return llvm.ConstNull(llvm.Int8Type())
@@ -1112,7 +1172,9 @@ func (c *Compilation) createFunctionDeclares() {
 	c.cycleFn.SetLinkage(llvm.ExternalLinkage)
 
 	// PPU
-	c.ppuStatusFn = c.declareReadFn("rom_ppustatus")
+	c.ppuReadStatusFn = c.declareReadFn("rom_ppu_read_status")
+	c.ppuReadOamDataFn = c.declareReadFn("rom_ppu_read_oamdata")
+	c.ppuReadDataFn = c.declareReadFn("rom_ppu_read_data")
 	c.ppuCtrlFn = c.declareWriteFn("rom_ppuctrl")
 	c.ppuMaskFn = c.declareWriteFn("rom_ppumask")
 	c.ppuAddrFn = c.declareWriteFn("rom_ppuaddr")
