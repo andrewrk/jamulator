@@ -175,19 +175,13 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.ResolveRender(c))
 	switch i.OpCode {
 	case 0xbd: // lda l, X
-		dataPtr := c.labeledData[i.LabelName]
-		index := c.builder.CreateLoad(c.rX, "")
-		index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
-		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int16Type(), 0, false),
-			index16,
-		}
-		ptr := c.builder.CreateGEP(dataPtr, indexes, "")
-		v := c.builder.CreateLoad(ptr, "")
-		c.builder.CreateStore(v, c.rA)
-		c.dynTestAndSetNeg(v)
-		c.dynTestAndSetZero(v)
-		c.cyclesForAbsoluteIndexed(c.program.Labels[i.LabelName], index16, i.Offset+i.Size)
+		c.absoluteIndexedLoadData(c.rA, i.LabelName, c.rX, i.Offset+i.Size)
+	case 0xb9: // lda l, Y
+		c.absoluteIndexedLoadData(c.rA, i.LabelName, c.rY, i.Offset+i.Size)
+	case 0xbe: // ldx l, Y
+		c.absoluteIndexedLoadData(c.rX, i.LabelName, c.rY, i.Offset+i.Size)
+	case 0xbc: // ldy l, X
+		c.absoluteIndexedLoadData(c.rY, i.LabelName, c.rX, i.Offset+i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -195,7 +189,6 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0xde: // dec l, X
 	//case 0x5d: // eor l, X
 	//case 0xfe: // inc l, X
-	//case 0xbc: // ldy l, X
 	//case 0x5e: // lsr l, X
 	//case 0x1d: // ora l, X
 	//case 0x3e: // rol l, X
@@ -207,8 +200,6 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0x39: // and l, Y
 	//case 0xd9: // cmp l, Y
 	//case 0x59: // eor l, Y
-	//case 0xb9: // lda l, Y
-	//case 0xbe: // ldx l, Y
 	//case 0x19: // ora l, Y
 	//case 0xf9: // sbc l, Y
 	//case 0x99: // sta l, Y

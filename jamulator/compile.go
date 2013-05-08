@@ -655,6 +655,31 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.cycle(2, instrAddr+2) // branch instructions are 2 bytes
 }
 
+func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName string, indexPtr llvm.Value, pc int) {
+	dataPtr, ok := c.labeledData[dataLabelName]
+	if !ok {
+		_, ok := c.labeledBlocks[dataLabelName]
+		if ok {
+			c.Errors = append(c.Errors, fmt.Sprintf("label %s is instruction; expected data", dataLabelName))
+		} else {
+			c.Errors = append(c.Errors, fmt.Sprintf("unknown label %s", dataLabelName))
+		}
+		return
+	}
+	index := c.builder.CreateLoad(indexPtr, "")
+	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
+	indexes := []llvm.Value{
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		index16,
+	}
+	ptr := c.builder.CreateGEP(dataPtr, indexes, "")
+	v := c.builder.CreateLoad(ptr, "")
+	c.builder.CreateStore(v, destPtr)
+	c.dynTestAndSetNeg(v)
+	c.dynTestAndSetZero(v)
+	c.cyclesForAbsoluteIndexed(c.program.Labels[dataLabelName], index16, pc)
+}
+
 func (c *Compilation) absoluteIndexedLoad(destPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
@@ -678,17 +703,17 @@ func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value,
 	maskedAddrPlusX := c.builder.CreateAnd(addrPlusX, xff00, "")
 
 	eq := c.builder.CreateICmp(llvm.IntEQ, baseAddrMaskedValue, maskedAddrPlusX, "")
-	ldaDoneBlock := c.createBlock("LDA_done")
+	loadDoneBlock := c.createBlock("LoadDone")
 	pageBoundaryCrossedBlock := c.createIf(eq)
 	// executed if page boundary is not crossed
 	c.cycle(4, pc)
-	c.builder.CreateBr(ldaDoneBlock)
+	c.builder.CreateBr(loadDoneBlock)
 	// executed if page boundary crossed
 	c.selectBlock(pageBoundaryCrossedBlock)
 	c.cycle(5, pc)
-	c.builder.CreateBr(ldaDoneBlock)
+	c.builder.CreateBr(loadDoneBlock)
 	// done
-	c.selectBlock(ldaDoneBlock)
+	c.selectBlock(loadDoneBlock)
 }
 
 func (c *Compilation) dynTestAndSetCarryAddition(a llvm.Value, v llvm.Value, carry llvm.Value) {

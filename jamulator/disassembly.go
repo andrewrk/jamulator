@@ -75,6 +75,10 @@ func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
 
 func (d *Disassembly) getLabelAt(addr int) string {
 	elem := d.elemAtAddr(addr)
+	if elem == nil {
+		// cannot get/make label; there is already code there
+		return ""
+	}
 	stmt, ok := elem.Value.(*LabeledStatement)
 	if ok {
 		return stmt.LabelName
@@ -91,6 +95,12 @@ func (d *Disassembly) getLabelAt(addr int) string {
 	i.LabelName = fmt.Sprintf("Label_%04x", addr)
 	d.list.InsertBefore(i, elem)
 	return i.LabelName
+}
+
+func (d *Disassembly) removeElemAt(addr int) {
+	elem := d.elemAtAddr(addr)
+	d.list.Remove(elem)
+	delete(d.offsets, addr)
 }
 
 func (d *Disassembly) markAsInstruction(addr int) error {
@@ -133,8 +143,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			elem.Value = i
 		}
 
-		d.list.Remove(elem.Next())
-		d.list.Remove(elem.Next())
+		d.removeElemAt(addr + 1)
+		d.removeElemAt(addr + 2)
 
 		switch opCode {
 		case 0x4c: // jmp
@@ -155,8 +165,14 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			regName = "Y"
 		}
 		targetAddr := int(w)
-		if targetAddr >= 0x8000 {
-			// destination is in PRG ROM
+		inPrgROM := targetAddr >= 0x8000
+		var labelName string
+		if inPrgROM {
+			labelName = d.getLabelAt(targetAddr)
+			// if labelName is blank string, we were unable to get a label
+			// at that address, and so we should fall back to direct indexed.
+		}
+		if inPrgROM && len(labelName) > 0 {
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
@@ -175,8 +191,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			binary.LittleEndian.PutUint16(i.Payload[1:], w)
 			elem.Value = i
 		}
-		d.list.Remove(elem.Next())
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
+		d.removeElemAt(addr + 2)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 3)
@@ -191,7 +208,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.OpCode = opCode
 		i.Value = int(v)
 		elem.Value = i
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
@@ -225,8 +243,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(w)
 		binary.LittleEndian.PutUint16(i.Payload[1:], w)
 		elem.Value = i
-		d.list.Remove(elem.Next())
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
+		d.removeElemAt(addr + 2)
 
 		if opCode == 0x6c {
 			// JMP
@@ -245,7 +264,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
@@ -260,7 +280,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
@@ -277,7 +298,8 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		targetAddr := addr + 2 + int(int8(v))
 		i.LabelName = d.getLabelAt(targetAddr)
 		elem.Value = i
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
 
 		// mark both targets of the branch as instructions
 		d.markAsInstruction(addr + 2)
@@ -293,11 +315,16 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
-		d.list.Remove(elem.Next())
+
+		d.removeElemAt(addr + 1)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
-	case zeroXIndexAddr:
+	case zeroXIndexAddr, zeroYIndexAddr:
+		regName := "X"
+		if opCodeInfo.addrMode == zeroYIndexAddr {
+			regName = "Y"
+		}
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil {
 			return err
@@ -307,25 +334,10 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Offset = addr
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
-		i.RegisterName = "X"
+		i.RegisterName = regName
 		elem.Value = i
-		d.list.Remove(elem.Next())
 
-		// next thing is definitely an instruction
-		d.markAsInstruction(addr + 2)
-	case zeroYIndexAddr:
-		v, err := d.elemAsByte(elem.Next())
-		if err != nil {
-			return err
-		}
-		i := new(DirectIndexedInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.Payload = []byte{opCode, v}
-		i.Value = int(v)
-		i.RegisterName = "Y"
-		elem.Value = i
-		d.list.Remove(elem.Next())
+		d.removeElemAt(addr + 1)
 
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
@@ -395,7 +407,7 @@ func (d *Disassembly) elemAtAddr(addr int) *list.Element {
 	if len(d.rom.PrgRom) == 1 && addr < 0xc000 {
 		return d.offsets[addr+0x4000]
 	}
-	panic(fmt.Sprintf("tried to get element at $%04x but none exists\n", addr))
+	return nil
 }
 
 func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
@@ -425,7 +437,7 @@ func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
 		newStmt.dataList = WordList{&tmp}
 	}
 	elem1.Value = newStmt
-	d.list.Remove(elem2)
+	d.removeElemAt(addr + 1)
 
 	if targetAddr >= 0x8000 {
 		// target in PRG ROM
