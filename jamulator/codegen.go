@@ -59,7 +59,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.cycle(2, i.Offset+i.Size)
 	//case 0xe9: // sbc
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s immediate lacks Compile() implementation", i.OpName))
+		c.Errors = append(c.Errors, fmt.Sprintf("unrecognized instruction: %s", i.Render()))
 	}
 }
 
@@ -215,7 +215,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0xf9: // sbc l, Y
 	//case 0x99: // sta l, Y
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s <label>, %s lacks Compile() implementation", i.OpName, i.RegisterName))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
 }
 

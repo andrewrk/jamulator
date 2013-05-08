@@ -36,14 +36,14 @@ void rom_cycle(uint8_t);
 uint8_t rom_ppu_read_status();
 uint8_t rom_ppu_read_oamdata();
 uint8_t rom_ppu_read_data();
-void rom_ppuctrl(uint8_t);
-void rom_ppumask(uint8_t);
-void rom_ppuaddr(uint8_t);
-void rom_setppudata(uint8_t);
-void rom_oamaddr(uint8_t);
-void rom_setoamdata(uint8_t);
-void rom_setppuscroll(uint8_t);
-void rom_ppu_writedma(uint8_t);
+void rom_ppu_write_control(uint8_t);
+void rom_ppu_write_mask(uint8_t);
+void rom_ppu_write_oamaddress(uint8_t);
+void rom_ppu_write_oamdata(uint8_t);
+void rom_ppu_write_scroll(uint8_t);
+void rom_ppu_write_address(uint8_t);
+void rom_ppu_write_data(uint8_t);
+void rom_ppu_write_dma(uint8_t);
 
 // APU hooks
 void rom_apu_write_square1control(uint8_t);

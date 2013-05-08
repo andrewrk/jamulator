@@ -331,8 +331,9 @@ func (c *Compilation) performAdc(val llvm.Value) {
 }
 
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
-	// TODO: less runtime checks depending on minAddr and maxAddr
-	c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")
+	if minAddr != 0 || maxAddr != 0xffff {
+		c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")
+	}
 
 	// runtime memory check
 	storeDoneBlock := c.createBlock("StoreDone")
@@ -1175,14 +1176,14 @@ func (c *Compilation) createFunctionDeclares() {
 	c.ppuReadStatusFn = c.declareReadFn("rom_ppu_read_status")
 	c.ppuReadOamDataFn = c.declareReadFn("rom_ppu_read_oamdata")
 	c.ppuReadDataFn = c.declareReadFn("rom_ppu_read_data")
-	c.ppuCtrlFn = c.declareWriteFn("rom_ppuctrl")
-	c.ppuMaskFn = c.declareWriteFn("rom_ppumask")
-	c.ppuAddrFn = c.declareWriteFn("rom_ppuaddr")
-	c.setPpuDataFn = c.declareWriteFn("rom_setppudata")
-	c.oamAddrFn = c.declareWriteFn("rom_oamaddr")
-	c.setOamDataFn = c.declareWriteFn("rom_setoamdata")
-	c.setPpuScrollFn = c.declareWriteFn("rom_setppuscroll")
-	c.ppuWriteDma = c.declareWriteFn("rom_ppu_writedma")
+	c.ppuCtrlFn = c.declareWriteFn("rom_ppu_write_control")
+	c.ppuMaskFn = c.declareWriteFn("rom_ppu_write_mask")
+	c.ppuAddrFn = c.declareWriteFn("rom_ppu_write_address")
+	c.setPpuDataFn = c.declareWriteFn("rom_ppu_write_data")
+	c.oamAddrFn = c.declareWriteFn("rom_ppu_write_oamaddress")
+	c.setOamDataFn = c.declareWriteFn("rom_ppu_write_oamdata")
+	c.setPpuScrollFn = c.declareWriteFn("rom_ppu_write_scroll")
+	c.ppuWriteDma = c.declareWriteFn("rom_ppu_write_dma")
 
 	// APU
 	c.apuWriteSquare1CtrlFn = c.declareWriteFn("rom_apu_write_square1control")
