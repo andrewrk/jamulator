@@ -285,13 +285,7 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
 	case 0x0000 <= addr && addr < 0x2000:
-		// 2KB working RAM. mask because mirrored
-		maskedAddr := addr & (0x800 - 1)
-		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int8Type(), 0, false),
-			llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
-		}
-		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		ptr := c.wramPtr(addr)
 		c.builder.CreateStore(i8, ptr)
 	case 0x2000 <= addr && addr < 0x4000:
 		// PPU registers. mask because mirrored
@@ -442,16 +436,26 @@ func (c *Compilation) load(addr int) llvm.Value {
 	panic("unreachable")
 }
 
-func (c *Compilation) increment(ptr llvm.Value, delta int) {
-	v := c.builder.CreateLoad(ptr, "")
-	var newValue llvm.Value
+func (c *Compilation) incrementVal(v llvm.Value, delta int) llvm.Value {
 	if delta < 0 {
 		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(-delta), false)
-		newValue = c.builder.CreateSub(v, c1, "")
-	} else {
-		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
-		newValue = c.builder.CreateAdd(v, c1, "")
+		return c.builder.CreateSub(v, c1, "")
 	}
+	c1 := llvm.ConstInt(llvm.Int8Type(), uint64(delta), false)
+	return c.builder.CreateAdd(v, c1, "")
+}
+
+func (c *Compilation) incrementMem(addr int, delta int) {
+	oldValue := c.load(addr)
+	newValue := c.incrementVal(oldValue, delta)
+	c.store(addr, newValue)
+	c.dynTestAndSetZero(newValue)
+	c.dynTestAndSetNeg(newValue)
+}
+
+func (c *Compilation) increment(ptr llvm.Value, delta int) {
+	oldValue := c.builder.CreateLoad(ptr, "")
+	newValue := c.incrementVal(oldValue, delta)
 	c.builder.CreateStore(newValue, ptr)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetZero(newValue)
