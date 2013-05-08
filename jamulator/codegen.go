@@ -362,7 +362,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s <label> lacks Compile() implementation", i.OpName))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
 }
 

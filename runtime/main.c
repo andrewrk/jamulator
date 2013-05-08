@@ -233,3 +233,9 @@ void rom_apu_write_controlflags2(uint8_t b){}
 
 void rom_pad_write1(uint8_t b){}
 void rom_pad_write2(uint8_t b){}
+uint8_t rom_pad_read1(){
+    return 0;
+}
+uint8_t rom_pad_read2(){
+    return 0;
+}

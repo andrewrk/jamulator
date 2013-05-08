@@ -92,6 +92,8 @@ type Compilation struct {
 	// pads
 	padWrite1Fn llvm.Value
 	padWrite2Fn llvm.Value
+	padRead1Fn llvm.Value
+	padRead2Fn llvm.Value
 }
 
 type Compiler interface {
@@ -633,6 +635,10 @@ func (c *Compilation) load(addr int) llvm.Value {
 			c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
 			return llvm.ConstNull(llvm.Int8Type())
 		}
+	case addr == 0x4016:
+		return c.builder.CreateCall(c.padRead1Fn, []llvm.Value{}, "")
+	case addr == 0x4017:
+		return c.builder.CreateCall(c.padRead2Fn, []llvm.Value{}, "")
 	}
 	panic("unreachable")
 }
@@ -1210,6 +1216,8 @@ func (c *Compilation) createFunctionDeclares() {
 	// pads
 	c.padWrite1Fn = c.declareWriteFn("rom_pad_write1")
 	c.padWrite2Fn = c.declareWriteFn("rom_pad_write2")
+	c.padRead1Fn = c.declareReadFn("rom_pad_read1")
+	c.padRead2Fn = c.declareReadFn("rom_pad_read2")
 }
 
 func (c *Compilation) createRegisters() {

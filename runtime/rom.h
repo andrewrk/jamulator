@@ -70,3 +70,5 @@ void rom_apu_write_controlflags2(uint8_t);
 // controller hooks
 void rom_pad_write1(uint8_t);
 void rom_pad_write2(uint8_t);
+uint8_t rom_pad_read1();
+uint8_t rom_pad_read2();
