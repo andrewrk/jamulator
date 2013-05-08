@@ -66,7 +66,10 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 func (i *ImpliedInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
 	switch i.OpCode {
-	//case 0x0a: // asl
+	case 0x0a: // asl
+		a := c.builder.CreateLoad(c.rA, "")
+		c.builder.CreateStore(c.performAsl(a), c.rA)
+		c.cycle(2, i.Offset+i.GetSize())
 	//case 0x00: // brk
 	case 0x18: // clc
 		c.clearCarry()
@@ -510,7 +513,7 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
-	c.Errors = append(c.Errors, "IndirectXInstruction lacks Compile() implementation")
+	c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
@@ -541,7 +544,7 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 		c.dynStore(addr, 0, 0xffff, rA)
 		c.cycle(6, i.Offset+i.GetSize())
 	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s ($%02x), Y lacks Compile() implementation", i.OpName, i.Value))
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
 }
 

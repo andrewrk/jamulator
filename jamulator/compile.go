@@ -319,6 +319,15 @@ func (c *Compilation) performRol(val llvm.Value) llvm.Value {
 	return newValue
 }
 
+func (c *Compilation) performAsl(val llvm.Value) llvm.Value {
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	newValue := c.builder.CreateShl(val, c1, "")
+	c.dynTestAndSetZero(newValue)
+	c.dynTestAndSetNeg(newValue)
+	c.dynTestAndSetCarryShl(val)
+	return newValue
+}
+
 func (c *Compilation) performAdc(val llvm.Value) {
 	a := c.builder.CreateLoad(c.rA, "")
 	aPlusV := c.builder.CreateAdd(a, val, "")
