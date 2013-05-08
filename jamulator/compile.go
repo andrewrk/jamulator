@@ -655,6 +655,18 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.cycle(2, instrAddr+2) // branch instructions are 2 bytes
 }
 
+func (c *Compilation) absoluteIndexedLoad(destPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
+	index := c.builder.CreateLoad(indexPtr, "")
+	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
+	base := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddr), false)
+	addr := c.builder.CreateAdd(base, index16, "")
+	v := c.dynLoad(addr, baseAddr, baseAddr+0xff)
+	c.builder.CreateStore(v, destPtr)
+	c.dynTestAndSetZero(v)
+	c.dynTestAndSetNeg(v)
+	c.cyclesForAbsoluteIndexed(baseAddr, index16, pc)
+}
+
 func (c *Compilation) cyclesForAbsoluteIndexed(baseAddr int, index16 llvm.Value, pc int) {
 	// if address & 0xff00 != (address + x) & 0xff00
 	baseAddrMasked := baseAddr & 0xff00

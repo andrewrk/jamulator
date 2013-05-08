@@ -224,8 +224,10 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x39: // and
 	//case 0xd9: // cmp
 	//case 0x59: // eor
-	//case 0xb9: // lda
-	//case 0xbe: // ldx
+	case 0xb9: // lda
+		c.absoluteIndexedLoad(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
+	case 0xbe: // ldx
+		c.absoluteIndexedLoad(c.rX, i.Value, c.rY, i.Offset+i.GetSize())
 	//case 0x19: // ora
 	//case 0xf9: // sbc
 	//case 0x99: // sta
@@ -241,15 +243,9 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x5d: // eor
 	//case 0xfe: // inc
 	case 0xbd: // lda
-		x := c.builder.CreateLoad(c.rX, "")
-		x16 := c.builder.CreateZExt(x, llvm.Int16Type(), "")
-		addr := c.builder.CreateAdd(x16, llvm.ConstInt(llvm.Int16Type(), uint64(i.Value), false), "")
-		v := c.dynLoad(addr, i.Value, i.Value+0xff)
-		c.builder.CreateStore(v, c.rA)
-		c.dynTestAndSetZero(v)
-		c.dynTestAndSetNeg(v)
-		c.cyclesForAbsoluteIndexed(i.Value, x16, i.Offset+i.GetSize())
-	//case 0xbc: // ldy
+		c.absoluteIndexedLoad(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
+	case 0xbc: // ldy
+		c.absoluteIndexedLoad(c.rY, i.Value, c.rX, i.Offset+i.GetSize())
 	//case 0x5e: // lsr
 	//case 0x1d: // ora
 	//case 0x3e: // rol
