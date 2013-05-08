@@ -771,6 +771,16 @@ func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName 
 	c.cyclesForAbsoluteIndexed(c.program.Labels[dataLabelName], index16, pc)
 }
 
+func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
+	index := c.builder.CreateLoad(indexPtr, "")
+	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
+	base := llvm.ConstInt(llvm.Int16Type(), uint64(baseAddr), false)
+	addr := c.builder.CreateAdd(base, index16, "")
+	val := c.builder.CreateLoad(valPtr, "")
+	c.dynStore(addr, baseAddr, baseAddr+0xff, val)
+	c.cycle(5, pc)
+}
+
 func (c *Compilation) absoluteIndexedLoad(destPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")

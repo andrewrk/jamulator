@@ -224,9 +224,10 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.absoluteIndexedLoad(c.rY, i.Value, c.rX, i.Offset+i.GetSize())
 	//case 0x19: // ora abs y
 	//case 0xf9: // sbc abs y
-	//case 0x99: // sta abs y
-	//case 0x9d: // sta abs x
-
+	case 0x99: // sta abs y
+		c.absoluteIndexedStore(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
+	case 0x9d: // sta abs x
+		c.absoluteIndexedStore(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
 	//case 0xb6: // ldx zpg y
 	//case 0x96: // stx zpg y
 
