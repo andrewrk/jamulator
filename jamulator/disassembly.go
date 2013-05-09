@@ -31,6 +31,8 @@ type Disassembly struct {
 	// maps memory offset to node
 	offsets map[int]*list.Element
 	offset  int
+	dynJumps []int
+	jumpTables map[int]bool
 }
 
 func (d *Disassembly) elemAsByte(elem *list.Element) (byte, error) {
@@ -73,34 +75,196 @@ func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
 	return binary.LittleEndian.Uint16([]byte{b1, b2}), nil
 }
 
-func (d *Disassembly) getLabelAt(addr int) string {
+func (d *Disassembly) getLabelAt(addr int, name string) (string, error) {
 	elem := d.elemAtAddr(addr)
 	if elem == nil {
 		// cannot get/make label; there is already code there
-		return ""
+		return "", errors.New("cannot insert a label mid-instruction")
 	}
-	stmt, ok := elem.Value.(*LabeledStatement)
-	if ok {
-		return stmt.LabelName
-	}
-	prev := elem.Prev()
-	if prev != nil {
-		stmt, ok = prev.Value.(*LabeledStatement)
-		if ok {
-			return stmt.LabelName
-		}
+	stmt := d.elemLabelStmt(elem)
+	if stmt != nil {
+		return stmt.LabelName, nil
 	}
 	// put one there
 	i := new(LabeledStatement)
-	i.LabelName = fmt.Sprintf("Label_%04x", addr)
+	i.LabelName = name
+	if len(i.LabelName) == 0 {
+		i.LabelName = fmt.Sprintf("Label_%04x", addr)
+	}
 	d.list.InsertBefore(i, elem)
-	return i.LabelName
+	return i.LabelName, nil
 }
 
 func (d *Disassembly) removeElemAt(addr int) {
 	elem := d.elemAtAddr(addr)
 	d.list.Remove(elem)
 	delete(d.offsets, addr)
+}
+
+func (d *Disassembly) isJumpTable(addr int) bool {
+	isJmpTable, ok := d.jumpTables[addr]
+	if ok {
+		return isJmpTable
+	}
+	isJmpTable = d.detectJumpTable(addr)
+	d.jumpTables[addr] = isJmpTable
+	return isJmpTable
+}
+
+func (d *Disassembly) detectJumpTable(addr int) bool {
+	const (
+		expectAsl = iota
+		expectTay
+		expectPlaA
+		expectStaA
+		expectPlaB
+		expectStaB
+		expectInyC
+		expectLdaC
+		expectStaC
+		expectInYD
+		expectLdaD
+		expectStaD
+		expectJmp
+	)
+	state := expectAsl
+	var memA, memC int
+	for elem := d.elemAtAddr(addr); elem != nil; elem = elem.Next() {
+		switch state {
+			case expectAsl:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0x0a {
+					return false
+				}
+				state = expectTay
+			case expectTay:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0xa8 {
+					return false
+				}
+				state = expectPlaA
+			case expectPlaA:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0x68 {
+					return false
+				}
+				state = expectStaA
+			case expectStaA:
+				i, ok := elem.Value.(*DirectInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+					return false
+				}
+				memA = i.Value
+				state = expectPlaB
+			case expectPlaB:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0x68 {
+					return false
+				}
+				state = expectStaB
+			case expectStaB:
+				i, ok := elem.Value.(*DirectInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+					return false
+				}
+				if i.Value != memA + 1 {
+					return false
+				}
+				state = expectInyC
+			case expectInyC:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0xc8 {
+					return false
+				}
+				state = expectLdaC
+			case expectLdaC:
+				i, ok := elem.Value.(*IndirectYInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0xb1 {
+					return false
+				}
+				if i.Value != memA {
+					return false
+				}
+				state = expectStaC
+			case expectStaC:
+				i, ok := elem.Value.(*DirectInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+					return false
+				}
+				memC = i.Value
+				state = expectInYD
+			case expectInYD:
+				i, ok := elem.Value.(*ImpliedInstruction)
+				if !ok {
+					return false
+				}
+				if i.OpCode != 0xc8 {
+					return false
+				}
+				state = expectLdaD
+			case expectLdaD:
+				i, ok := elem.Value.(*IndirectYInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0xb1 {
+					return false
+				}
+				if i.Value != memA {
+					return false
+				}
+				state = expectStaD
+			case expectStaD:
+				i, ok := elem.Value.(*DirectInstruction)
+				if !ok {
+					return false
+				}
+				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+					return false
+				}
+				if i.Value != memC + 1 {
+					return false
+				}
+				state = expectJmp
+			case expectJmp:
+				i, ok := elem.Value.(*IndirectInstruction)
+				if !ok {
+					return false
+				}
+				if i.Value != memC {
+					return false
+				}
+				return true
+		}
+	}
+	return false
 }
 
 func (d *Disassembly) markAsInstruction(addr int) error {
@@ -111,12 +275,12 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	elem := d.elemAtAddr(addr)
 	opCode, err := d.elemAsByte(elem)
 	if err != nil {
-		return err
+		// already decoded as instruction
+		return nil
 	}
 	opCodeInfo := opCodeDataMap[opCode]
 	switch opCodeInfo.addrMode {
 	case nilAddr:
-		d.Errors = append(d.Errors, fmt.Sprintf("at $%04x bad op code: $%02x", addr, opCode))
 		return errors.New("cannot disassemble as instruction: bad op code")
 	case absAddr:
 		// convert data statements into instruction statement
@@ -132,7 +296,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i.Offset = addr
 			i.Size = 3
 			i.OpCode = opCode
-			i.LabelName = d.getLabelAt(targetAddr)
+			i.LabelName, _ = d.getLabelAt(targetAddr, "")
 			elem.Value = i
 		} else {
 			i := new(DirectInstruction)
@@ -152,7 +316,12 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			d.markAsInstruction(targetAddr)
 		case 0x20: // jsr
 			d.markAsInstruction(targetAddr)
-			d.markAsInstruction(addr + 3)
+			if d.isJumpTable(targetAddr) {
+				// mark this and remember to come back later
+				d.dynJumps = append(d.dynJumps, addr + 3)
+			} else {
+				d.markAsInstruction(addr + 3)
+			}
 		default:
 			d.markAsInstruction(addr + 3)
 		}
@@ -169,7 +338,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		inPrgROM := targetAddr >= 0x8000
 		var labelName string
 		if inPrgROM {
-			labelName = d.getLabelAt(targetAddr)
+			labelName, _ = d.getLabelAt(targetAddr, "")
 			// if labelName is blank string, we were unable to get a label
 			// at that address, and so we should fall back to direct indexed.
 		}
@@ -177,7 +346,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
-			i.LabelName = d.getLabelAt(targetAddr)
+			i.LabelName, _ = d.getLabelAt(targetAddr, "")
 			i.RegisterName = regName
 			i.Size = 3
 			i.OpCode = opCode
@@ -297,7 +466,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Size = 2
 		i.OpCode = opCode
 		targetAddr := addr + 2 + int(int8(v))
-		i.LabelName = d.getLabelAt(targetAddr)
+		i.LabelName, _ = d.getLabelAt(targetAddr, "")
 		elem.Value = i
 
 		d.removeElemAt(addr + 1)
@@ -411,47 +580,56 @@ func (d *Disassembly) elemAtAddr(addr int) *list.Element {
 	return nil
 }
 
-func (d *Disassembly) markAsDataWordLabel(addr int, name string) {
+func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error {
 	elem1 := d.elemAtAddr(addr)
 	elem2 := elem1.Next()
 	s1 := elem1.Value.(*DataStatement)
 	s2 := elem2.Value.(*DataStatement)
 	if len(s1.dataList) != 1 {
-		panic("expected DataList len 1")
+		return errors.New("expected DataList len 1")
 	}
 	if len(s2.dataList) != 1 {
-		panic("expected DataList len 1")
+		return errors.New("expected DataList len 1")
 	}
 	n1 := s1.dataList[0].(*IntegerDataItem)
 	n2 := s2.dataList[0].(*IntegerDataItem)
 
-	targetAddr := binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)})
+	targetAddr := int(binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)}))
 
 	newStmt := new(DataWordStatement)
 	newStmt.Offset = addr
 	newStmt.Size = 2
-	if targetAddr >= 0x8000 {
-		// target in PRG ROM
-		newStmt.dataList = WordList{&LabelCall{name}}
-	} else {
-		tmp := IntegerDataItem(targetAddr)
-		newStmt.dataList = WordList{&tmp}
-	}
+
 	elem1.Value = newStmt
 	d.removeElemAt(addr + 1)
 
-	if targetAddr >= 0x8000 {
-		// target in PRG ROM
-		d.insertLabelAt(int(targetAddr), name)
-		d.markAsInstruction(int(targetAddr))
+	if targetAddr < 0x8000 {
+		// target not in PRG ROM
+		tmp := IntegerDataItem(targetAddr)
+		newStmt.dataList = WordList{&tmp}
+		return nil
 	}
+
+	// target in PRG ROM
+
+	err := d.markAsInstruction(targetAddr)
+	if err != nil {
+		tmp := IntegerDataItem(targetAddr)
+		newStmt.dataList = WordList{&tmp}
+		return nil
+	}
+
+	labelName, err := d.getLabelAt(targetAddr, suggestedName)
+	newStmt.dataList = WordList{&LabelCall{labelName}}
+
+	return nil
 }
 
 func (d *Disassembly) collapseDataStatements() {
 	if d.list.Len() < 2 {
 		return
 	}
-	const MAX_DATA_LIST_LEN = 16
+	const MAX_DATA_LIST_LEN = 8
 	for e := d.list.Front().Next(); e != nil; e = e.Next() {
 		dataStmt, ok := e.Value.(*DataStatement)
 		if !ok {
@@ -603,6 +781,53 @@ func (d *Disassembly) groupAsciiStrings() {
 	}
 }
 
+func (d *Disassembly) elemLabelStmt(elem *list.Element) *LabeledStatement {
+	if elem == nil {
+		return nil
+	}
+	stmt, ok := elem.Value.(*LabeledStatement)
+	if ok {
+		return stmt
+	}
+	prev := elem.Prev()
+	if prev != nil {
+		stmt, ok = prev.Value.(*LabeledStatement)
+		if ok {
+			return stmt
+		}
+	}
+	return nil
+}
+
+func (d *Disassembly) resolveDynJumpCases() {
+	// this function is recursive, since calling markAsDataWordLabel can
+	// append more dynJumps
+	if len(d.dynJumps) == 0 {
+		return
+	}
+	// use the last item in the dynJumps list, and check a single address
+	dynJumpAddr := d.dynJumps[len(d.dynJumps) - 1]
+	elem := d.elemAtAddr(dynJumpAddr)
+	if d.elemLabelStmt(elem) != nil {
+		// this dynJump has been exhausted. remove it from the list
+		d.dynJumps = d.dynJumps[0:len(d.dynJumps) - 1]
+		d.resolveDynJumpCases()
+		return
+	}
+	_, err := d.elemAsWord(elem)
+	if err != nil {
+		// this dynJump has been exhausted. remove it from the list
+		d.dynJumps = d.dynJumps[0:len(d.dynJumps) - 1]
+		d.resolveDynJumpCases()
+		return
+	}
+	stmt := elem.Value.(*DataStatement)
+	// update the address to the next possible jump point
+	d.dynJumps[len(d.dynJumps) - 1] = dynJumpAddr + 2
+	d.markAsDataWordLabel(stmt.Offset, "")
+	d.resolveDynJumpCases()
+}
+
 func (r *Rom) Disassemble() (*Program, error) {
 	if len(r.PrgRom) != 1 && len(r.PrgRom) != 2 {
 		return nil, errors.New("only 1 or 2 prg rom banks supported")
@@ -612,6 +837,7 @@ func (r *Rom) Disassemble() (*Program, error) {
 	dis.rom = r
 	dis.list = new(list.List)
 	dis.offsets = make(map[int]*list.Element)
+	dis.jumpTables = make(map[int]bool)
 
 	dis.readAllAsData()
 
@@ -619,6 +845,9 @@ func (r *Rom) Disassemble() (*Program, error) {
 	dis.markAsDataWordLabel(0xfffa, "NMI_Routine")
 	dis.markAsDataWordLabel(0xfffc, "Reset_Routine")
 	dis.markAsDataWordLabel(0xfffe, "IRQ_Routine")
+
+	// go over the dynamic jumps that we found and mark the options as labels
+	dis.resolveDynJumpCases()
 
 	dis.identifyOrgs()
 	dis.groupAsciiStrings()
@@ -714,14 +943,14 @@ func (i *IndirectYInstruction) Render() string {
 
 func (i *OrgPseudoOp) Render() string {
 	if i.Fill == 0xff {
-		return fmt.Sprintf("org $%04x", i.Value)
+		return fmt.Sprintf("  .org $%04x", i.Value)
 	}
-	return fmt.Sprintf("  org $%04x, $%02x", i.Value, i.Fill)
+	return fmt.Sprintf("  .org $%04x, $%02x", i.Value, i.Fill)
 }
 
 func (s *DataStatement) Render() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("    dc.b ")
+	buf.WriteString("    .db ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *StringDataItem:
@@ -729,7 +958,7 @@ func (s *DataStatement) Render() string {
 			buf.WriteString(string(*t))
 			buf.WriteString("\"")
 		case *IntegerDataItem:
-			buf.WriteString(fmt.Sprintf("#$%02x", int(*t)))
+			buf.WriteString(fmt.Sprintf("$%02x", int(*t)))
 		}
 		if i < len(s.dataList)-1 {
 			buf.WriteString(", ")
@@ -740,13 +969,13 @@ func (s *DataStatement) Render() string {
 
 func (s *DataWordStatement) Render() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("    dc.w ")
+	buf.WriteString("    .dw ")
 	for i, node := range s.dataList {
 		switch t := node.(type) {
 		case *LabelCall:
 			buf.WriteString(t.LabelName)
 		case *IntegerDataItem:
-			buf.WriteString(fmt.Sprintf("#$%04x", int(*t)))
+			buf.WriteString(fmt.Sprintf("$%04x", int(*t)))
 		}
 		if i < len(s.dataList)-1 {
 			buf.WriteString(", ")

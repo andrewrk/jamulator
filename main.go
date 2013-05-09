@@ -93,7 +93,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Parsing %s\n", filename)
 		programAst, err := jamulator.ParseFile(filename)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			os.Exit(1)
 		}
 		if astFlag {
 			programAst.Print()
