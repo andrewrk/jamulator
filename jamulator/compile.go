@@ -949,6 +949,13 @@ func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, inde
 	c.cycle(5, pc)
 }
 
+func (c *Compilation) dynLoadZpgIndexed(baseAddr int, indexPtr llvm.Value) llvm.Value {
+	index := c.builder.CreateLoad(indexPtr, "")
+	base := llvm.ConstInt(llvm.Int8Type(), uint64(baseAddr), false)
+	addr := c.builder.CreateAdd(base, index, "")
+	return c.dynLoad(addr, 0, 0xff)
+}
+
 func (c *Compilation) dynLoadIndexed(baseAddr int, indexPtr llvm.Value) llvm.Value {
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")

@@ -256,7 +256,24 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.absoluteIndexedStore(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
 	case 0x9d: // sta abs x
 		c.absoluteIndexedStore(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
-	//case 0xb6: // ldx zpg y
+	case 0xb6: // ldx zpg y
+		v := c.dynLoadZpgIndexed(i.Value, c.rY)
+		c.builder.CreateStore(v, c.rX)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0xb4: // ldy zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.builder.CreateStore(v, c.rY)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0xb5: // lda zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.builder.CreateStore(v, c.rA)
+		c.dynTestAndSetZero(v)
+		c.dynTestAndSetNeg(v)
+		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x96: // stx zpg y
 
 	case 0x7d: // adc abs x
@@ -268,11 +285,11 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.performSbc(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
 	case 0x75: // adc zpg x
-		v := c.dynLoadIndexed(i.Value, c.rX)
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
 		c.performAdc(v)
 		c.cycle(4, i.Offset+i.GetSize())
 	case 0xf5: // sbc zpg x
-		v := c.dynLoadIndexed(i.Value, c.rX)
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
 		c.performSbc(v)
 		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x3d: // and abs x
@@ -308,8 +325,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0xd6: // dec zpg x
 	//case 0x55: // eor zpg x
 	//case 0xf6: // inc zpg x
-	//case 0xb5: // lda zpg x
-	//case 0xb4: // ldy zpg x
 	//case 0x56: // lsr zpg x
 	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
