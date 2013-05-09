@@ -183,7 +183,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "building rom from %s\n", filename)
 		r, err := jamulator.AssembleRomFile(filename)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "saving rom %s\n", r.Filename)
 		err = r.SaveFile(path.Dir(filename))

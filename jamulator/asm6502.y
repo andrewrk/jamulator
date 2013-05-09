@@ -440,9 +440,9 @@ processorDecl : tokProcessor tokInteger {
 	$$ = $2
 }
 
-wordList : wordList tokComma numberExpr {
+wordList : wordList tokComma numberExprOptionalPound {
 	$$ = append($1, $3)
-} | numberExpr {
+} | numberExprOptionalPound {
 	$$ = []Node{$1}
 }
 
