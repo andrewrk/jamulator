@@ -964,6 +964,14 @@ func (c *Compilation) dynLoadIndexed(baseAddr int, indexPtr llvm.Value) llvm.Val
 	return c.dynLoad(addr, baseAddr, baseAddr+0xff)
 }
 
+func (c *Compilation) dynStoreZpgIndexed(baseAddr int, indexPtr llvm.Value, val llvm.Value) {
+	index := c.builder.CreateLoad(indexPtr, "")
+	base := llvm.ConstInt(llvm.Int8Type(), uint64(baseAddr), false)
+	addr8 := c.builder.CreateAdd(base, index, "")
+	addr16 := c.builder.CreateZExt(addr8, llvm.Int16Type(), "")
+	c.dynStore(addr16, 0, 0xff, val)
+}
+
 func (c *Compilation) dynStoreIndexed(baseAddr int, indexPtr llvm.Value, val llvm.Value) {
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")

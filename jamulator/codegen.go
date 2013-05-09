@@ -243,6 +243,7 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x39: // and abs y
 	//case 0xd9: // cmp abs y
 	//case 0x59: // eor abs y
+	//case 0x19: // ora abs y
 	case 0xb9: // lda abs y
 		c.absoluteIndexedLoad(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
 	case 0xbe: // ldx abs y
@@ -251,11 +252,22 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.absoluteIndexedLoad(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
 	case 0xbc: // ldy abs x
 		c.absoluteIndexedLoad(c.rY, i.Value, c.rX, i.Offset+i.GetSize())
-	//case 0x19: // ora abs y
 	case 0x99: // sta abs y
 		c.absoluteIndexedStore(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
 	case 0x9d: // sta abs x
 		c.absoluteIndexedStore(c.rA, i.Value, c.rX, i.Offset+i.GetSize())
+	case 0x96: // stx zpg y
+		v := c.builder.CreateLoad(c.rX, "")
+		c.dynStoreZpgIndexed(i.Value, c.rY, v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x95: // sta zpg x
+		v := c.builder.CreateLoad(c.rA, "")
+		c.dynStoreZpgIndexed(i.Value, c.rX, v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x94: // sty zpg x
+		v := c.builder.CreateLoad(c.rY, "")
+		c.dynStoreZpgIndexed(i.Value, c.rX, v)
+		c.cycle(4, i.Offset+i.GetSize())
 	case 0xb6: // ldx zpg y
 		v := c.dynLoadZpgIndexed(i.Value, c.rY)
 		c.builder.CreateStore(v, c.rX)
@@ -274,8 +286,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(v)
 		c.dynTestAndSetNeg(v)
 		c.cycle(4, i.Offset+i.GetSize())
-	//case 0x96: // stx zpg y
-
 	case 0x7d: // adc abs x
 		v := c.dynLoadIndexed(i.Value, c.rX)
 		c.performAdc(v)
@@ -329,8 +339,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
 	//case 0x76: // ror zpg x
-	//case 0x95: // sta zpg x
-	//case 0x94: // sty zpg x
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
