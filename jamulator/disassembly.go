@@ -116,6 +116,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	opCodeInfo := opCodeDataMap[opCode]
 	switch opCodeInfo.addrMode {
 	case nilAddr:
+		d.Errors = append(d.Errors, fmt.Sprintf("at $%04x bad op code: $%02x", addr, opCode))
 		return errors.New("cannot disassemble as instruction: bad op code")
 	case absAddr:
 		// convert data statements into instruction statement

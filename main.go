@@ -139,7 +139,8 @@ func main() {
 			fmt.Fprintf(os.Stderr, "disassembling to %s\n", outdir)
 			err = rom.DisassembleToDir(outdir)
 			if err != nil {
-				panic(err)
+				fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+				os.Exit(1)
 			}
 			return
 		}
@@ -158,7 +159,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "disassembling %s\n", filename)
 		p, err := jamulator.DisassembleFile(filename)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			os.Exit(1)
 		}
 		if compileFlag {
 			compile(filename, p)
