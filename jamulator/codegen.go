@@ -27,6 +27,9 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 	case 0x69: // adc
 		c.performAdc(v)
 		c.cycle(2, i.Offset+i.Size)
+	case 0xe9: // sbc
+		c.performSbc(v)
+		c.cycle(2, i.Offset+i.Size)
 	case 0x29: // and
 		a := c.builder.CreateLoad(c.rA, "")
 		newA := c.builder.CreateAnd(a, v, "")
@@ -57,7 +60,6 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newA)
 		c.dynTestAndSetNeg(newA)
 		c.cycle(2, i.Offset+i.Size)
-	//case 0xe9: // sbc
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("unrecognized instruction: %s", i.Render()))
 	}
@@ -234,6 +236,10 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		v := c.dynLoadIndexed(i.Value, c.rY)
 		c.performAdc(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
+	case 0xf9: // sbc abs y
+		v := c.dynLoadIndexed(i.Value, c.rY)
+		c.performSbc(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
 	//case 0x39: // and abs y
 	//case 0xd9: // cmp abs y
 	//case 0x59: // eor abs y
@@ -246,7 +252,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	case 0xbc: // ldy abs x
 		c.absoluteIndexedLoad(c.rY, i.Value, c.rX, i.Offset+i.GetSize())
 	//case 0x19: // ora abs y
-	//case 0xf9: // sbc abs y
 	case 0x99: // sta abs y
 		c.absoluteIndexedStore(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
 	case 0x9d: // sta abs x
@@ -258,9 +263,17 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		v := c.dynLoadIndexed(i.Value, c.rX)
 		c.performAdc(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0xfd: // sbc abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performSbc(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
 	case 0x75: // adc zpg x
 		v := c.dynLoadIndexed(i.Value, c.rX)
 		c.performAdc(v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0xf5: // sbc zpg x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performSbc(v)
 		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x3d: // and abs x
 	//case 0x1e: // asl abs x
@@ -288,7 +301,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		newValue := c.performRor(oldValue)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
 		c.cycle(7, i.Offset+i.GetSize())
-	//case 0xfd: // sbc abs x
 
 	//case 0x35: // and zpg x
 	//case 0x16: // asl zpg x
@@ -302,7 +314,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
 	//case 0x76: // ror zpg x
-	//case 0xf5: // sbc zpg x
 	//case 0x95: // sta zpg x
 	//case 0x94: // sty zpg x
 	default:
@@ -467,6 +478,13 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
+	case 0xe5, 0xed: // sbc (zpg, abs)
+		c.performSbc(c.load(i.Value))
+		if i.Payload[0] == 0xe5 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
 
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
@@ -485,7 +503,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x05: // ora zpg
 	//case 0x26: // rol zpg
 	//case 0x66: // ror zpg
-	//case 0xe5: // sbc zpg
 
 	//case 0x2d: // and abs
 	//case 0x0e: // asl abs
@@ -497,7 +514,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x0d: // ora abs
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
-	//case 0xed: // sbc abs
 	case 0x85, 0x8d: // sta (zpg, abs)
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		if i.Payload[0] == 0x85 {

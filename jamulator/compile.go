@@ -293,6 +293,18 @@ func (c *Compilation) dynTestAndSetCarrySubtraction(left llvm.Value, right llvm.
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value, carry llvm.Value) {
+	// set the carry bit if result is positive or zero
+	a32 := c.builder.CreateZExt(a, llvm.Int32Type(), "")
+	carry32 := c.builder.CreateZExt(carry, llvm.Int32Type(), "")
+	v32 := c.builder.CreateZExt(v, llvm.Int32Type(), "")
+	aMinusV32 := c.builder.CreateSub(a32, v32, "")
+	newA32 := c.builder.CreateSub(aMinusV32, carry32, "")
+	c0 := llvm.ConstInt(llvm.Int32Type(), 0, false)
+	isCarry := c.builder.CreateICmp(llvm.IntSGE, newA32, c0, "")
+	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
 func (c *Compilation) performRor(val llvm.Value) llvm.Value {
 	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
 	c7 := llvm.ConstInt(llvm.Int8Type(), 7, false)
@@ -339,6 +351,19 @@ func (c *Compilation) performAdc(val llvm.Value) {
 	c.dynTestAndSetZero(newA)
 	c.dynTestAndSetOverflowAddition(a, val, newA)
 	c.dynTestAndSetCarryAddition(a, val, carry)
+}
+
+func (c *Compilation) performSbc(val llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	aMinusV := c.builder.CreateSub(a, val, "")
+	carryBit := c.builder.CreateLoad(c.rSCarry, "")
+	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
+	newA := c.builder.CreateSub(aMinusV, carry, "")
+	c.builder.CreateStore(newA, c.rA)
+	c.dynTestAndSetNeg(newA)
+	c.dynTestAndSetZero(newA)
+	c.dynTestAndSetOverflowSubtraction(a, val, carry)
+	c.dynTestAndSetCarrySubtraction3(a, val, carry)
 }
 
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
@@ -1021,6 +1046,26 @@ func (c *Compilation) dynTestAndSetOverflowAddition(a llvm.Value, b llvm.Value, 
 	isOverA := c.builder.CreateICmp(llvm.IntEQ, aXorBMasked, x0, "")
 	isOverR := c.builder.CreateICmp(llvm.IntEQ, aXorRMasked, x80, "")
 	isOver := c.builder.CreateAnd(isOverA, isOverR, "")
+	c.builder.CreateStore(isOver, c.rSOver)
+}
+
+func (c *Compilation) dynTestAndSetOverflowSubtraction(a llvm.Value, b llvm.Value, carry llvm.Value) {
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	x80 := llvm.ConstInt(llvm.Int8Type(), 0x80, false)
+
+	aMinusB := c.builder.CreateSub(a, b, "")
+	invertedCarry := c.builder.CreateSub(c1, carry, "")
+	val := c.builder.CreateSub(aMinusB, invertedCarry, "")
+
+	aXorVal := c.builder.CreateXor(a, val, "")
+	aXorValMasked := c.builder.CreateAnd(aXorVal, x80, "")
+	aXorB := c.builder.CreateXor(a, b, "")
+	aXorBMasked := c.builder.CreateAnd(aXorB, x80, "")
+	isOverVal := c.builder.CreateICmp(llvm.IntNE, aXorValMasked, c0, "")
+	isOverB := c.builder.CreateICmp(llvm.IntNE, aXorBMasked, c0, "")
+
+	isOver := c.builder.CreateAnd(isOverVal, isOverB, "")
 	c.builder.CreateStore(isOver, c.rSOver)
 }
 
