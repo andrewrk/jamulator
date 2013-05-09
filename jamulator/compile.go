@@ -869,7 +869,10 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	// if the condition is met, the cycle count is 3 or 4, depending
 	// on whether the page boundary is crossed.
 	c.selectBlock(thenBlock)
-	addr := c.program.Labels[labelName]
+	addr, ok := c.program.Labels[labelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s not defined", labelName))
+	}
 	if instrAddr&0xff00 == addr&0xff00 {
 		c.cycle(3, addr)
 	} else {
@@ -904,7 +907,11 @@ func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName 
 	c.builder.CreateStore(v, destPtr)
 	c.dynTestAndSetNeg(v)
 	c.dynTestAndSetZero(v)
-	c.cyclesForAbsoluteIndexed(c.program.Labels[dataLabelName], index16, pc)
+	labelAddr, ok := c.program.Labels[dataLabelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s not defined", dataLabelName))
+	}
+	c.cyclesForAbsoluteIndexed(labelAddr, index16, pc)
 }
 
 func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {

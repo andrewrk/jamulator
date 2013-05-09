@@ -289,14 +289,14 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			return err
 		}
 		targetAddr := int(w)
-		if targetAddr >= 0x8000 {
-			// destination is in PRG ROM
+		label, err := d.getLabelAt(targetAddr, "")
+		if err == nil {
 			i := new(DirectWithLabelInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
 			i.Size = 3
 			i.OpCode = opCode
-			i.LabelName, _ = d.getLabelAt(targetAddr, "")
+			i.LabelName = label
 			elem.Value = i
 		} else {
 			i := new(DirectInstruction)
@@ -335,18 +335,12 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			regName = "Y"
 		}
 		targetAddr := int(w)
-		inPrgROM := targetAddr >= 0x8000
-		var labelName string
-		if inPrgROM {
-			labelName, _ = d.getLabelAt(targetAddr, "")
-			// if labelName is blank string, we were unable to get a label
-			// at that address, and so we should fall back to direct indexed.
-		}
-		if inPrgROM && len(labelName) > 0 {
+		labelName, err := d.getLabelAt(targetAddr, "")
+		if err == nil {
 			i := new(DirectWithLabelIndexedInstruction)
 			i.OpName = opCodeInfo.opName
 			i.Offset = addr
-			i.LabelName, _ = d.getLabelAt(targetAddr, "")
+			i.LabelName = labelName
 			i.RegisterName = regName
 			i.Size = 3
 			i.OpCode = opCode
@@ -466,7 +460,10 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Size = 2
 		i.OpCode = opCode
 		targetAddr := addr + 2 + int(int8(v))
-		i.LabelName, _ = d.getLabelAt(targetAddr, "")
+		i.LabelName, err = d.getLabelAt(targetAddr, "")
+		if err != nil {
+			panic(err)
+		}
 		elem.Value = i
 
 		d.removeElemAt(addr + 1)
@@ -541,6 +538,10 @@ func (d *Disassembly) ToProgram() *Program {
 			p.offsets[k-0x4000] = n
 		}
 	}
+	// generate label offsets
+	p.Labels = map[string]int{}
+	p.Ast.Ast(p)
+
 	return p
 }
 
@@ -559,13 +560,6 @@ func (d *Disassembly) readAllAsData() {
 			offset += 1
 		}
 	}
-}
-
-func (d *Disassembly) insertLabelAt(addr int, name string) {
-	elem := d.elemAtAddr(addr)
-	stmt := new(LabeledStatement)
-	stmt.LabelName = name
-	d.list.InsertBefore(stmt, elem)
 }
 
 func (d *Disassembly) elemAtAddr(addr int) *list.Element {
@@ -620,6 +614,11 @@ func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error 
 	}
 
 	labelName, err := d.getLabelAt(targetAddr, suggestedName)
+	if err != nil {
+		tmp := IntegerDataItem(targetAddr)
+		newStmt.dataList = WordList{&tmp}
+		return nil
+	}
 	newStmt.dataList = WordList{&LabelCall{labelName}}
 
 	return nil

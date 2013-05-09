@@ -175,13 +175,19 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 
 func (i *DirectWithLabelIndexedInstruction) ResolveRender(c *Compilation) string {
 	// render, but replace the label with the address
-	addr := c.program.Labels[i.LabelName]
+	addr, ok := c.program.Labels[i.LabelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s not defined: %s", i.LabelName, i.Render()))
+	}
 	return fmt.Sprintf("%s $%04x, %s\n", i.OpName, addr, i.RegisterName)
 }
 
 func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 	// render, but replace the label with the address
-	addr := c.program.Labels[i.LabelName]
+	addr, ok := c.program.Labels[i.LabelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s not defined: %s", i.LabelName, i.Render()))
+	}
 	return fmt.Sprintf("%s $%04x\n", i.OpName, addr)
 }
 
@@ -305,6 +311,10 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
+	labelAddr, ok := c.program.Labels[i.LabelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s addr not defined: %s", i.LabelName, i.Render()))
+	}
 	c.debugPrint(i.ResolveRender(c))
 	switch i.OpCode {
 	//case 0x6d: // adc
@@ -319,14 +329,17 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	//case 0xee: // inc
 	case 0x4c: // jmp
 		// branch instruction - cycle before execution
-		c.cycle(3, c.program.Labels[i.LabelName])
-		destBlock := c.labeledBlocks[i.LabelName]
+		c.cycle(3, labelAddr)
+		destBlock, ok := c.labeledBlocks[i.LabelName]
+		if !ok {
+			panic(fmt.Sprintf("label %s block not defined: %s", i.LabelName, i.Render()))
+		}
 		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
 	case 0x20: // jsr
 		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset+2), false)
 		c.pushWordToStack(pc)
-		c.cycle(6, c.program.Labels[i.LabelName])
+		c.cycle(6, labelAddr)
 		id := c.labelAsEntryPoint(i.LabelName)
 		c.builder.CreateCall(c.mainFn, []llvm.Value{llvm.ConstInt(llvm.Int32Type(), uint64(id), false)}, "")
 	//case 0xad: // lda
