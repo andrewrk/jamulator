@@ -1349,7 +1349,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.createReadChrFn(p.ChrRom)
 
 	// runtime panic msg
-	text := llvm.ConstString("panic: attempted to write to invalid memory address", false)
+	text := llvm.ConstString("panic: attempted to write to invalid memory address\n", true)
 	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")
 	c.runtimePanicMsg.SetLinkage(llvm.PrivateLinkage)
 	c.runtimePanicMsg.SetInitializer(text)
