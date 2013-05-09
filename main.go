@@ -130,7 +130,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "loading %s\n", filename)
 		rom, err := jamulator.LoadFile(filename)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			os.Exit(1)
 		}
 		if unRomFlag {
 			outdir := removeExtension(filename)

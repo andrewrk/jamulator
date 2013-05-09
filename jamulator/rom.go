@@ -146,7 +146,6 @@ func LoadFile(filename string) (*Rom, error) {
 	}
 
 	r, err := Load(fd)
-	r.Filename = path.Base(filename)
 	err2 := fd.Close()
 	if err != nil {
 		return nil, err
@@ -154,6 +153,7 @@ func LoadFile(filename string) (*Rom, error) {
 	if err2 != nil {
 		return nil, err2
 	}
+	r.Filename = path.Base(filename)
 
 	return r, nil
 }
