@@ -569,60 +569,36 @@ func (d *Disassembly) identifyOrgs() {
 }
 
 func (d *Disassembly) groupAsciiStrings() {
-	if d.list.Len() < 3 {
+	const threshold = 5
+	if d.list.Len() < threshold {
 		return
 	}
-	for e := d.list.Front().Next().Next(); e != nil; e = e.Next() {
+	e := d.list.Front()
+	first := e
+	buf := new(bytes.Buffer)
+	for e != nil {
 		dataStmt, ok := e.Value.(*DataStatement)
-		if !ok {
-			continue
-		}
-		if !allAscii(dataStmt.dataList) {
-			e = e.Next()
-			if e == nil {
-				break
+		if !ok || !allAscii(dataStmt.dataList) {
+			if buf.Len() >= threshold {
+				firstStmt := first.Value.(*DataStatement)
+				firstStmt.dataList = make([]Node, 1)
+				tmp := StringDataItem(buf.String())
+				firstStmt.dataList[0] = &tmp
+				for {
+					elToDel := first.Next()
+					if elToDel == e {
+						break
+					}
+					d.list.Remove(elToDel)
+				}
 			}
+			buf = new(bytes.Buffer)
 			e = e.Next()
-			if e == nil {
-				break
-			}
+			first = e
 			continue
 		}
-		prev1, ok := e.Prev().Value.(*DataStatement)
-		if !ok {
-			continue
-		}
-		if !allAscii(prev1.dataList) {
-			e = e.Next()
-			if e == nil {
-				break
-			}
-			continue
-		}
-		prev2, ok := e.Prev().Prev().Value.(*DataStatement)
-		if !ok {
-			continue
-		}
-		if !allAscii(prev2.dataList) {
-			continue
-		}
-		// convert prev2 to string data item
-		str := ""
-		str += dataListToStr(prev2.dataList)
-		str += dataListToStr(prev1.dataList)
-		str += dataListToStr(dataStmt.dataList)
-		prev2.dataList = make([]Node, 1)
-		tmp := StringDataItem(str)
-		prev2.dataList[0] = &tmp
-
-		// delete prev1 and e
-		e = e.Prev().Prev()
-		d.list.Remove(e.Next())
-		d.list.Remove(e.Next())
+		buf.WriteString(dataListToStr(dataStmt.dataList))
 		e = e.Next()
-		if e == nil {
-			break
-		}
 	}
 }
 
