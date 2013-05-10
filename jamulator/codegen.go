@@ -243,7 +243,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		v := c.dynLoadIndexed(i.Value, c.rY)
 		c.performSbc(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
-	//case 0x39: // and abs y
 	case 0xd9: // cmp abs y
 		reg := c.builder.CreateLoad(c.rA, "")
 		mem := c.dynLoadIndexed(i.Value, c.rY)
@@ -259,8 +258,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		mem := c.dynLoadZpgIndexed(i.Value, c.rX)
 		c.performCmp(reg, mem)
 		c.cycle(4, i.Offset+i.GetSize())
-	//case 0x59: // eor abs y
-	//case 0x19: // ora abs y
 	case 0xb9: // lda abs y
 		c.absoluteIndexedLoad(c.rA, i.Value, c.rY, i.Offset+i.GetSize())
 	case 0xbe: // ldx abs y
@@ -319,8 +316,14 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		v := c.dynLoadZpgIndexed(i.Value, c.rX)
 		c.performSbc(v)
 		c.cycle(4, i.Offset+i.GetSize())
-	//case 0x3d: // and abs x
-	//case 0x1e: // asl abs x
+	case 0x1e: // asl abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performAsl(v)
+		c.cycle(7, i.Offset+i.GetSize())
+	case 0x16: // asl zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.performAsl(v)
+		c.cycle(6, i.Offset+i.GetSize())
 	case 0xde: // dec abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.incrementVal(oldValue, -1)
@@ -328,7 +331,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
 		c.cycle(7, i.Offset+i.GetSize())
-	//case 0x5d: // eor abs x
 	case 0xfe: // inc abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.incrementVal(oldValue, 1)
@@ -350,8 +352,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetZero(newValue)
 		c.dynTestAndSetNeg(newValue)
 		c.cycle(6, i.Offset+i.GetSize())
-	//case 0x5e: // lsr abs x
-	//case 0x1d: // ora abs x
 	case 0x3e: // rol abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.performRol(oldValue)
@@ -362,9 +362,15 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		newValue := c.performRor(oldValue)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
 		c.cycle(7, i.Offset+i.GetSize())
-
+	//case 0x39: // and abs y
+	//case 0x3d: // and abs x
 	//case 0x35: // and zpg x
-	//case 0x16: // asl zpg x
+
+	//case 0x5d: // eor abs x
+	//case 0x59: // eor abs y
+	//case 0x19: // ora abs y
+	//case 0x5e: // lsr abs x
+	//case 0x1d: // ora abs x
 	//case 0x55: // eor zpg x
 	//case 0x56: // lsr zpg x
 	//case 0x15: // ora zpg x
