@@ -449,20 +449,18 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
-	case 0xc6, 0xce: // dec (zpg, abs)
+	case 0xc6: // dec zpg
 		c.incrementMem(i.Value, -1)
-		if i.Payload[0] == 0xc6 {
-			c.cycle(5, i.Offset+i.GetSize())
-		} else {
-			c.cycle(6, i.Offset+i.GetSize())
-		}
-	case 0xe6, 0xee: // inc (zpg, abs)
+		c.cycle(5, i.Offset+i.GetSize())
+	case 0xce: // dec abs
+		c.incrementMem(i.Value, -1)
+		c.cycle(6, i.Offset+i.GetSize())
+	case 0xe6: // inc zpg
 		c.incrementMem(i.Value, 1)
-		if i.Payload[0] == 0xe6 {
-			c.cycle(5, i.Offset+i.GetSize())
-		} else {
-			c.cycle(6, i.Offset+i.GetSize())
-		}
+		c.cycle(5, i.Offset+i.GetSize())
+	case 0xee: // inc abs
+		c.incrementMem(i.Value, 1)
+		c.cycle(6, i.Offset+i.GetSize())
 	case 0x46, 0x4e: // lsr (zpg, abs)
 		oldValue := c.load(i.Value)
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
@@ -487,27 +485,26 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
-	case 0xc5, 0xcd: // cmp (zpg, abs)
+	case 0xc5: // cmp zpg
 		c.createCompare(c.rA, c.load(i.Value))
-		if i.Payload[0] == 0xc5 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
-	case 0x65, 0x6d: // adc (zpg, abs)
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0xcd: // cmp abs
+		c.createCompare(c.rA, c.load(i.Value))
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x65: // adc zpg
 		c.performAdc(c.load(i.Value))
-		if i.Payload[0] == 0x65 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
-	case 0xe5, 0xed: // sbc (zpg, abs)
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x6d: // adc abs
+		c.performAdc(c.load(i.Value))
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0xe5: // sbc zpg
 		c.performSbc(c.load(i.Value))
-		if i.Payload[0] == 0xe5 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0xed: // sbc abs
+		c.performSbc(c.load(i.Value))
+		c.cycle(4, i.Offset+i.GetSize())
+	//case 0x05: // ora zpg
+	//case 0x0d: // ora abs
 
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
@@ -523,7 +520,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x24: // bit zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
-	//case 0x05: // ora zpg
 	//case 0x26: // rol zpg
 	//case 0x66: // ror zpg
 
@@ -534,30 +530,26 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xcc: // cpy abs
 	//case 0x4c: // jmp abs
 	//case 0x20: // jsr abs
-	//case 0x0d: // ora abs
 	//case 0x2e: // rol abs
 	//case 0x6e: // ror abs
-	case 0x85, 0x8d: // sta (zpg, abs)
+	case 0x85: // sta zpg
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
-		if i.Payload[0] == 0x85 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
-	case 0x86, 0x8e: // stx (zpg, abs)
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x8d: // sta abs
+		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x86: // stx zpg
 		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
-		if i.Payload[0] == 0x86 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
-	case 0x84, 0x8c: // sty (zpg, abs)
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x8e: // stx abs
+		c.store(i.Value, c.builder.CreateLoad(c.rX, ""))
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x84: // sty zpg
 		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
-		if i.Payload[0] == 0x84 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x8c: // sty abs
+		c.store(i.Value, c.builder.CreateLoad(c.rY, ""))
+		c.cycle(4, i.Offset+i.GetSize())
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 	}
