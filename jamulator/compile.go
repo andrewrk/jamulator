@@ -410,9 +410,21 @@ func (c *Compilation) performEor(v llvm.Value) {
 }
 
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
-	if minAddr != 0 || maxAddr != 0xffff {
-		c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")
+	if maxAddr < 0x800 {
+		// wram. we don't even have to mask it
+		indexes := []llvm.Value{
+			llvm.ConstInt(addr.Type(), 0, false),
+			addr,
+		}
+		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		c.builder.CreateStore(val, ptr)
+		return
 	}
+
+	if minAddr != 0 || maxAddr != 0xffff {
+		c.Warnings = append(c.Warnings, fmt.Sprintf("TODO: dynStore is unoptimized for min $%04x max $%04x", minAddr, maxAddr))
+	}
+
 
 	// runtime memory check
 	storeDoneBlock := c.createBlock("StoreDone")
