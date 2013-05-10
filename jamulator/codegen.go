@@ -529,8 +529,26 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x24: // bit zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
-	//case 0x26: // rol zpg
-	//case 0x66: // ror zpg
+	case 0x26: // rol zpg
+		oldValue := c.builder.CreateLoad(c.rA, "")
+		newValue := c.performRol(oldValue)
+		c.builder.CreateStore(newValue, c.rA)
+		c.cycle(5, i.Offset+i.GetSize())
+	case 0x66: // ror zpg
+		oldValue := c.builder.CreateLoad(c.rA, "")
+		newValue := c.performRor(oldValue)
+		c.builder.CreateStore(newValue, c.rA)
+		c.cycle(5, i.Offset+i.GetSize())
+	case 0x2e: // rol abs
+		oldValue := c.builder.CreateLoad(c.rA, "")
+		newValue := c.performRol(oldValue)
+		c.builder.CreateStore(newValue, c.rA)
+		c.cycle(6, i.Offset+i.GetSize())
+	case 0x6e: // ror abs
+		oldValue := c.builder.CreateLoad(c.rA, "")
+		newValue := c.performRor(oldValue)
+		c.builder.CreateStore(newValue, c.rA)
+		c.cycle(6, i.Offset+i.GetSize())
 
 	//case 0x2d: // and abs
 	//case 0x0e: // asl abs
@@ -539,8 +557,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xcc: // cpy abs
 	//case 0x4c: // jmp abs
 	//case 0x20: // jsr abs
-	//case 0x2e: // rol abs
-	//case 0x6e: // ror abs
 	case 0x85: // sta zpg
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		c.cycle(3, i.Offset+i.GetSize())
