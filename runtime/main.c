@@ -210,6 +210,9 @@ void rom_ppu_write_scroll(uint8_t b) {
 }
 void rom_ppu_write_dma(uint8_t b){}
 
+uint8_t rom_apu_read_status() {
+    return 0;
+}
 void rom_apu_write_square1control(uint8_t b){}
 void rom_apu_write_square1sweeps(uint8_t b){}
 void rom_apu_write_square1low(uint8_t b){}

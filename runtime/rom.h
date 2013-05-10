@@ -46,6 +46,7 @@ void rom_ppu_write_data(uint8_t);
 void rom_ppu_write_dma(uint8_t);
 
 // APU hooks
+uint8_t rom_apu_read_status();
 void rom_apu_write_square1control(uint8_t);
 void rom_apu_write_square1sweeps(uint8_t);
 void rom_apu_write_square1low(uint8_t);

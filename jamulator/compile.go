@@ -69,6 +69,7 @@ type Compilation struct {
 	setPpuScrollFn llvm.Value
 	ppuWriteDma    llvm.Value
 	// APU
+	apuReadStatusFn            llvm.Value
 	apuWriteSquare1CtrlFn      llvm.Value
 	apuWriteSquare1SweepsFn    llvm.Value
 	apuWriteSquare1LowFn       llvm.Value
@@ -688,6 +689,8 @@ func (c *Compilation) load(addr int) llvm.Value {
 			c.Errors = append(c.Errors, fmt.Sprintf("reading from $%04x not implemented", addr))
 			return llvm.ConstNull(llvm.Int8Type())
 		}
+	case addr == 0x4015:
+		return c.builder.CreateCall(c.apuReadStatusFn, []llvm.Value{}, "")
 	case addr == 0x4016:
 		return c.builder.CreateCall(c.padRead1Fn, []llvm.Value{}, "")
 	case addr == 0x4017:
@@ -1285,6 +1288,7 @@ func (c *Compilation) createFunctionDeclares() {
 	c.ppuWriteDma = c.declareWriteFn("rom_ppu_write_dma")
 
 	// APU
+	c.apuReadStatusFn = c.declareReadFn("rom_apu_read_status")
 	c.apuWriteSquare1CtrlFn = c.declareWriteFn("rom_apu_write_square1control")
 	c.apuWriteSquare1SweepsFn = c.declareWriteFn("rom_apu_write_square1sweeps")
 	c.apuWriteSquare1LowFn = c.declareWriteFn("rom_apu_write_square1low")
