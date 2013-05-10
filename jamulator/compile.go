@@ -18,6 +18,7 @@ type Compilation struct {
 	mod             llvm.Module
 	builder         llvm.Builder
 	wram            llvm.Value // 2KB WRAM
+	prgRom          llvm.Value // 32KB PRG ROM
 	rX              llvm.Value // X index register
 	rY              llvm.Value // Y index register
 	rA              llvm.Value // accumulator
@@ -31,7 +32,6 @@ type Compilation struct {
 	rSZero          llvm.Value // whether the last arithmetic result is zero
 	rSCarry         llvm.Value // carry
 
-	labeledData   map[string]llvm.Value
 	labeledBlocks map[string]llvm.BasicBlock
 	stringTable   map[string]llvm.Value
 	// used for the entry jump table so we can do JSR
@@ -103,8 +103,7 @@ type Compiler interface {
 }
 
 const (
-	dataStmtMode = iota
-	basicBlocksMode
+	basicBlocksMode = iota
 	compileMode
 )
 
@@ -117,31 +116,8 @@ const (
 	IncludeDebugFlag
 )
 
-func (c *Compilation) dataStop() {
-	if len(c.currentLabel) == 0 {
-		return
-	}
-	if c.currentValue.Len() == 0 {
-		c.currentLabel = ""
-		return
-	}
-	text := llvm.ConstString(c.currentValue.String(), false)
-	strGlobal := llvm.AddGlobal(c.mod, text.Type(), c.currentLabel)
-	strGlobal.SetLinkage(llvm.PrivateLinkage)
-	strGlobal.SetInitializer(text)
-	c.labeledData[c.currentLabel] = strGlobal
-	c.currentLabel = ""
-}
-
-func (c *Compilation) dataStart(stmt *LabeledStatement) {
-	c.currentLabel = stmt.LabelName
-	c.currentValue = new(bytes.Buffer)
-}
-
 func (c *Compilation) Visit(n Node) {
 	switch c.mode {
-	case dataStmtMode:
-		c.visitForDataStmts(n)
 	case basicBlocksMode:
 		c.visitForBasicBlocks(n)
 	case compileMode:
@@ -161,42 +137,6 @@ func (c *Compilation) visitForCompile(n Node) {
 	case Compiler:
 		c.currentInstr = t
 		t.Compile(c)
-	}
-}
-
-func (c *Compilation) visitForDataStmts(n Node) {
-	switch t := n.(type) {
-	case DataList:
-	case *IntegerDataItem:
-		// trash the data
-		if len(c.currentLabel) == 0 {
-			return
-		}
-		err := c.currentValue.WriteByte(byte(*t))
-		if err != nil {
-			c.Errors = append(c.Errors, err.Error())
-			return
-		}
-	case *StringDataItem:
-		// trash the data
-		if len(c.currentLabel) == 0 {
-			return
-		}
-		_, err := c.currentValue.WriteString(string(*t))
-		if err != nil {
-			c.Errors = append(c.Errors, err.Error())
-			return
-		}
-	case *DataStatement:
-		if len(c.currentLabel) == 0 {
-			c.Warnings = append(c.Warnings, fmt.Sprintf("trashing data at 0x%04x", t.Offset))
-			return
-		}
-	case *LabeledStatement:
-		c.dataStop()
-		c.dataStart(t)
-	default:
-		c.dataStop()
 	}
 }
 
@@ -611,7 +551,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	if maxAddr < 0x0800 {
 		// no runtime checks needed.
 		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			llvm.ConstInt(addr.Type(), 0, false),
 			addr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
@@ -621,10 +561,21 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		// address masking needed, but it's definitely in WRAM
 		maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
 		indexes := []llvm.Value{
-			llvm.ConstInt(llvm.Int8Type(), 0, false),
+			llvm.ConstInt(maskedAddr.Type(), 0, false),
 			maskedAddr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
+		return c.builder.CreateLoad(ptr, "")
+	}
+	if minAddr >= 0x8000 && maxAddr <= 0xffff {
+		// PRG ROM load
+		x8000 := llvm.ConstInt(addr.Type(), 0x8000, false)
+		offsetAddr := c.builder.CreateSub(addr, x8000, "")
+		indexes := []llvm.Value{
+			llvm.ConstInt(offsetAddr.Type(), 0, false),
+			offsetAddr,
+		}
+		ptr := c.builder.CreateGEP(c.prgRom, indexes, "")
 		return c.builder.CreateLoad(ptr, "")
 	}
 	if minAddr != 0 || maxAddr != 0xffff {
@@ -999,43 +950,6 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.cycle(2, instrAddr+2) // branch instructions are 2 bytes
 }
 
-func (c *Compilation) loadIndexedData(dataLabelName string, indexPtr llvm.Value) llvm.Value {
-	dataPtr, ok := c.labeledData[dataLabelName]
-	if !ok {
-		_, ok := c.labeledBlocks[dataLabelName]
-		if ok {
-			c.Errors = append(c.Errors, fmt.Sprintf("label %s is instruction; expected data", dataLabelName))
-		} else {
-			c.Errors = append(c.Errors, fmt.Sprintf("unknown label %s", dataLabelName))
-		}
-		return llvm.ConstInt(llvm.Int8Type(), 0, false)
-	}
-	index := c.builder.CreateLoad(indexPtr, "")
-	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
-	indexes := []llvm.Value{
-		llvm.ConstInt(llvm.Int16Type(), 0, false),
-		index16,
-	}
-	ptr := c.builder.CreateGEP(dataPtr, indexes, "")
-	return c.builder.CreateLoad(ptr, "")
-}
-
-func (c *Compilation) cyclesForLabelIndexed(labelName string, indexPtr llvm.Value, pc int) {
-	labelAddr, ok := c.program.Labels[labelName]
-	if !ok {
-		panic(fmt.Sprintf("label %s not defined", labelName))
-	}
-	c.cyclesForAbsoluteIndexedPtr(labelAddr, indexPtr, pc)
-}
-
-func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName string, indexPtr llvm.Value, pc int) {
-	v := c.loadIndexedData(dataLabelName, indexPtr)
-	c.builder.CreateStore(v, destPtr)
-	c.dynTestAndSetNeg(v)
-	c.dynTestAndSetZero(v)
-	c.cyclesForLabelIndexed(dataLabelName, indexPtr, pc)
-}
-
 func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
@@ -1192,13 +1106,11 @@ func (c *Compilation) labelAsEntryPoint(labelName string) int {
 }
 
 func (s *LabeledStatement) Compile(c *Compilation) {
-	// if we've already processed it as data, move on
-	_, ok := c.labeledData[s.LabelName]
-	if ok {
+	bb, ok := c.labeledBlocks[s.LabelName]
+	if !ok {
+		// we're not doing codegen for this block. skip.
 		return
 	}
-
-	bb := c.labeledBlocks[s.LabelName]
 	if c.currentBlock != nil {
 		c.builder.CreateBr(bb)
 	}
@@ -1207,12 +1119,6 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 }
 
 func (s *LabeledStatement) CompileLabels(c *Compilation) {
-	// if we've already processed it as data, move on
-	_, ok := c.labeledData[s.LabelName]
-	if ok {
-		return
-	}
-
 	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
 	c.labeledBlocks[s.LabelName] = bb
 
@@ -1245,6 +1151,28 @@ func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	*s = call.LabelName
 }
 
+func (c *Compilation) createPrgRomGlobal(prgRom [][]byte) {
+	if len(prgRom) > 2 {
+		panic("only 1-2 prg rom banks are supported")
+	}
+	dataLen := 0x8000
+	prgDataValues := make([]llvm.Value, 0, dataLen)
+	int8type := llvm.Int8Type()
+	for len(prgDataValues) < dataLen {
+		for _, bank := range prgRom {
+			for _, b := range bank {
+				lb := llvm.ConstInt(int8type, uint64(b), false)
+				prgDataValues = append(prgDataValues, lb)
+			}
+		}
+	}
+	prgDataConst := llvm.ConstArray(llvm.ArrayType(int8type, len(prgDataValues)), prgDataValues)
+	c.prgRom = llvm.AddGlobal(c.mod, prgDataConst.Type(), "rom_prg_data")
+	c.prgRom.SetLinkage(llvm.PrivateLinkage)
+	c.prgRom.SetInitializer(prgDataConst)
+	c.prgRom.SetGlobalConstant(true)
+}
+
 func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	//uint8_t rom_chr_bank_count;
 	bankCountConst := llvm.ConstInt(llvm.Int8Type(), uint64(len(chrRom)), false)
@@ -1266,6 +1194,7 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	chrDataGlobal := llvm.AddGlobal(c.mod, chrDataConst.Type(), "rom_chr_data")
 	chrDataGlobal.SetLinkage(llvm.PrivateLinkage)
 	chrDataGlobal.SetInitializer(chrDataConst)
+	chrDataGlobal.SetGlobalConstant(true)
 	// declare void @memcpy(void* dest, void* source, i32 size)
 	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType, bytePointerType, llvm.Int32Type()}, false)
@@ -1418,7 +1347,6 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.mod = llvm.NewModule("asm_module")
 	c.builder = llvm.NewBuilder()
 	defer c.builder.Dispose()
-	c.labeledData = map[string]llvm.Value{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
 	c.stringTable = map[string]llvm.Value{}
 	c.labelIds = map[string]int{}
@@ -1437,10 +1365,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	mirroringGlobal.SetInitializer(mirroringConst)
 
 	c.createReadChrFn(p.ChrRom)
-
-	// first pass to generate data declarations
-	c.mode = dataStmtMode
-	p.Ast.Ast(c)
+	c.createPrgRomGlobal(p.PrgRom)
 
 	c.createFunctionDeclares()
 	c.createRegisters()

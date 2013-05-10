@@ -854,6 +854,7 @@ func (r *Rom) Disassemble() (*Program, error) {
 
 	p := dis.ToProgram()
 	p.ChrRom = r.ChrRom
+	p.PrgRom = r.PrgRom
 	p.Mirroring = r.Mirroring
 
 	if len(dis.Errors) > 0 {

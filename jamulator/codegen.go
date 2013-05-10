@@ -2,6 +2,7 @@ package jamulator
 
 import (
 	"fmt"
+	"encoding/binary"
 	"github.com/axw/gollvm/llvm"
 )
 
@@ -170,15 +171,6 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 	}
 }
 
-func (i *DirectWithLabelIndexedInstruction) ResolveRender(c *Compilation) string {
-	// render, but replace the label with the address
-	addr, ok := c.program.Labels[i.LabelName]
-	if !ok {
-		panic(fmt.Sprintf("label %s not defined: %s", i.LabelName, i.Render()))
-	}
-	return fmt.Sprintf("%s $%04x, %s\n", i.OpName, addr, i.RegisterName)
-}
-
 func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 	// render, but replace the label with the address
 	addr, ok := c.program.Labels[i.LabelName]
@@ -189,52 +181,22 @@ func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.ResolveRender(c))
-	switch i.OpCode {
-	case 0xbd: // lda l, X
-		c.absoluteIndexedLoadData(c.rA, i.LabelName, c.rX, i.Offset+i.Size)
-	case 0xb9: // lda l, Y
-		c.absoluteIndexedLoadData(c.rA, i.LabelName, c.rY, i.Offset+i.Size)
-	case 0xbe: // ldx l, Y
-		c.absoluteIndexedLoadData(c.rX, i.LabelName, c.rY, i.Offset+i.Size)
-	case 0xbc: // ldy l, X
-		c.absoluteIndexedLoadData(c.rY, i.LabelName, c.rX, i.Offset+i.Size)
-	case 0x5d: // eor l, X
-		v := c.loadIndexedData(i.LabelName, c.rX)
-		c.performEor(v)
-		c.cyclesForLabelIndexed(i.LabelName, c.rX, i.Offset+i.Size)
-	case 0x59: // eor l, Y
-		v := c.loadIndexedData(i.LabelName, c.rY)
-		c.performEor(v)
-		c.cyclesForLabelIndexed(i.LabelName, c.rY, i.Offset+i.Size)
-	case 0xfd: // sbc l, X
-		v := c.loadIndexedData(i.LabelName, c.rX)
-		c.performSbc(v)
-		c.cyclesForLabelIndexed(i.LabelName, c.rX, i.Offset+i.Size)
-	case 0xf9: // sbc l, Y
-		v := c.loadIndexedData(i.LabelName, c.rY)
-		c.performSbc(v)
-		c.cyclesForLabelIndexed(i.LabelName, c.rY, i.Offset+i.Size)
-	//case 0x7d: // adc l, X
-	//case 0x3d: // and l, X
-	//case 0x1e: // asl l, X
-	//case 0xdd: // cmp l, X
-	//case 0xde: // dec l, X
-	//case 0xfe: // inc l, X
-	//case 0x5e: // lsr l, X
-	//case 0x1d: // ora l, X
-	//case 0x3e: // rol l, X
-	//case 0x7e: // ror l, X
-	//case 0x9d: // sta l, X
-
-	//case 0x79: // adc l, Y
-	//case 0x39: // and l, Y
-	//case 0xd9: // cmp l, Y
-	//case 0x19: // ora l, Y
-	//case 0x99: // sta l, Y
-	default:
-		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
+	// resolve the instruction into a DirectIndexedInstruction
+	// and then call Compile on that.
+	addr, ok := c.program.Labels[i.LabelName]
+	if !ok {
+		c.Errors = append(c.Errors, fmt.Sprintf("unknown label %s", i.LabelName))
+		return
 	}
+	resolvedInstr := new(DirectIndexedInstruction)
+	resolvedInstr.OpName = i.OpName
+	resolvedInstr.Value = addr
+	resolvedInstr.RegisterName = i.RegisterName
+	resolvedInstr.Line = i.Line
+	resolvedInstr.Offset = i.Offset
+	resolvedInstr.Payload = []byte{i.OpCode, 0, 0}
+	binary.LittleEndian.PutUint16(resolvedInstr.Payload[1:], uint16(addr))
+	resolvedInstr.Compile(c)
 }
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {

@@ -1,7 +1,6 @@
+* detect when control flows into data and make that an error
 * disassembler: detect the pacman-style jump table. (another example in nestest.nes)
 * use the linked list program format for everything instead of the AST slice thing
-* detect when control flows into data and make that an error
-* change memory model to include all the PRG ROM
 * solve the BIT thing (search smb1 disassembly for bit instruction opcode)
 * change JSR model to use a jump table so we can dynamically jump based on runtime PC value
 * make SMB1 work
