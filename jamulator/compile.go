@@ -386,6 +386,14 @@ func (c *Compilation) performBit(val llvm.Value) {
 	c.builder.CreateStore(isOver, c.rSOver)
 }
 
+func (c *Compilation) performAnd(v llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	newA := c.builder.CreateAnd(a, v, "")
+	c.builder.CreateStore(newA, c.rA)
+	c.dynTestAndSetZero(newA)
+	c.dynTestAndSetNeg(newA)
+}
+
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
 	if minAddr != 0 || maxAddr != 0xffff {
 		c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")

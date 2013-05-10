@@ -31,11 +31,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.performSbc(v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x29: // and
-		a := c.builder.CreateLoad(c.rA, "")
-		newA := c.builder.CreateAnd(a, v, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
+		c.performAnd(v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0xc9: // cmp
 		reg := c.builder.CreateLoad(c.rA, "")
@@ -362,10 +358,18 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		newValue := c.performRor(oldValue)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
 		c.cycle(7, i.Offset+i.GetSize())
-	//case 0x39: // and abs y
-	//case 0x3d: // and abs x
-	//case 0x35: // and zpg x
-
+	case 0x39: // and abs y
+		v := c.dynLoadIndexed(i.Value, c.rY)
+		c.performAnd(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
+	case 0x3d: // and abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performAnd(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0x35: // and zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.performAnd(v)
+		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x5d: // eor abs x
 	//case 0x59: // eor abs y
 	//case 0x19: // ora abs y
@@ -554,18 +558,12 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
-	case 0x25, 0x2d: // and (zpg, abs)
-		a := c.builder.CreateLoad(c.rA, "")
-		mem := c.load(i.Value)
-		newA := c.builder.CreateAnd(a, mem, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
-		if i.Payload[0] == 0x25 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
+	case 0x25: // and zpg
+		c.performAnd(c.load(i.Value))
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x2d: // and abs
+		c.performAnd(c.load(i.Value))
+		c.cycle(4, i.Offset+i.GetSize())
 	case 0x24: // bit zpg
 		c.performBit(c.load(i.Value))
 		c.cycle(3, i.Offset+i.GetSize())
