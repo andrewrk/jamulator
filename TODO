@@ -1,14 +1,15 @@
+* disassembler: detect the pacman-style jump table. (another example in nestest.nes)
+* use the linked list program format for everything instead of the AST slice thing
+* detect when control flows into data and make that an error
+* change memory model to include all the PRG ROM
+* solve the BIT thing (search smb1 disassembly for bit instruction opcode)
+* change JSR model to use a jump table so we can dynamically jump based on runtime PC value
 * make SMB1 work
-  - solve the BIT thing
-  - more instruction codegen
-  - change memory model to include all the PRG ROM
-  - change JSR model to use a jump table so we can dynamically jump based on runtime PC value
 * get rid of jamfile; use .ines* declarations
-* use the disassembly program format for everything instead of the AST thing
 * change the interrupt model so that cycle returns an id
+* update assembler to be able to handle smb1 disassembly
 * namespace everything in ppu.h
 * update CLI to use commands instead of flags for commands
-* update assembler to be able to handle smb1 disassembly
 
 * optimize dynStore
 * optimize dynLoad
