@@ -33,6 +33,7 @@ type Compilation struct {
 	rSCarry         llvm.Value // carry
 
 	labeledBlocks map[string]llvm.BasicBlock
+	labeledData   map[string]bool
 	stringTable   map[string]llvm.Value
 	// used for the entry jump table so we can do JSR
 	labelIds        map[string]int
@@ -40,6 +41,7 @@ type Compilation struct {
 
 	currentValue *bytes.Buffer
 	currentLabel string
+	currentExpecting int
 	mode         int
 	currentBlock *llvm.BasicBlock
 	currentInstr Compiler
@@ -103,7 +105,8 @@ type Compiler interface {
 }
 
 const (
-	basicBlocksMode = iota
+	dataStmtMode = iota
+	basicBlocksMode
 	compileMode
 )
 
@@ -116,12 +119,54 @@ const (
 	IncludeDebugFlag
 )
 
+const (
+	cfExpectNone = iota
+	cfExpectData
+	cfExpectInstr
+)
+
 func (c *Compilation) Visit(n Node) {
 	switch c.mode {
+	case dataStmtMode:
+		c.visitForControlFlow(n)
 	case basicBlocksMode:
 		c.visitForBasicBlocks(n)
 	case compileMode:
 		c.visitForCompile(n)
+	}
+}
+
+func (c *Compilation) ctrlFlowGotData(n Node) {
+	switch c.currentExpecting {
+	case cfExpectInstr:
+		// TODO: we need some of the logic from disassembly here
+		//c.Errors = append(c.Errors, fmt.Sprintf("expected instruction, got data: %s", n.(Renderer).Render()))
+		c.currentExpecting = cfExpectData
+	case cfExpectNone:
+		c.labeledData[c.currentLabel] = true
+		c.currentExpecting = cfExpectData
+	}
+}
+
+func (c *Compilation) visitForControlFlow(n Node) {
+	switch t := n.(type) {
+	case *LabeledStatement:
+		c.currentLabel = t.LabelName
+		c.currentExpecting = cfExpectNone
+	case *DataStatement:
+		c.ctrlFlowGotData(n)
+	case *DataWordStatement:
+		c.ctrlFlowGotData(n)
+	case Compiler:
+		switch c.currentExpecting {
+		case cfExpectData:
+			// TODO: we need some of the logic from disassembly here
+			//c.Errors = append(c.Errors, fmt.Sprintf("expected data, got instruction: %s", n.(Renderer).Render()))
+			c.currentExpecting = cfExpectInstr
+			return
+		case cfExpectNone:
+			c.currentExpecting = cfExpectInstr
+		}
 	}
 }
 
@@ -1119,6 +1164,12 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 }
 
 func (s *LabeledStatement) CompileLabels(c *Compilation) {
+	// if it's a "data block" ignore it
+	_, ok := c.labeledData[s.LabelName]
+	if ok {
+		return
+	}
+
 	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
 	c.labeledBlocks[s.LabelName] = bb
 
@@ -1347,6 +1398,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.mod = llvm.NewModule("asm_module")
 	c.builder = llvm.NewBuilder()
 	defer c.builder.Dispose()
+	c.labeledData = map[string]bool{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
 	c.stringTable = map[string]llvm.Value{}
 	c.labelIds = map[string]int{}
@@ -1366,6 +1418,15 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 
 	c.createReadChrFn(p.ChrRom)
 	c.createPrgRomGlobal(p.PrgRom)
+
+	// first pass to figure out which blocks are "data" and which are "code"
+	c.mode = dataStmtMode
+	c.currentLabel = ""
+	c.currentExpecting = cfExpectNone
+	p.Ast.Ast(c)
+	if len(c.Errors) > 0 {
+		return c, nil
+	}
 
 	c.createFunctionDeclares()
 	c.createRegisters()
