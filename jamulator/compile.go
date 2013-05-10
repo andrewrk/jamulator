@@ -612,9 +612,9 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
 		return c.builder.CreateLoad(ptr, "")
 	}
+	x8000 := llvm.ConstInt(addr.Type(), 0x8000, false)
 	if minAddr >= 0x8000 && maxAddr <= 0xffff {
 		// PRG ROM load
-		x8000 := llvm.ConstInt(addr.Type(), 0x8000, false)
 		offsetAddr := c.builder.CreateSub(addr, x8000, "")
 		indexes := []llvm.Value{
 			llvm.ConstInt(offsetAddr.Type(), 0, false),
@@ -677,6 +677,20 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 
 	// this generated code runs if the write is > PPU RAM range
 	c.selectBlock(notInPpuRamBlock)
+	inPrgRom := c.builder.CreateICmp(llvm.IntUGE, addr, x8000, "")
+	notInPrgRomBlock := c.createIf(inPrgRom)
+	// this generated code runs if the write is in the PRG ROM range
+	offsetAddr := c.builder.CreateSub(addr, x8000, "")
+	indexes = []llvm.Value{
+		llvm.ConstInt(offsetAddr.Type(), 0, false),
+		offsetAddr,
+	}
+	ptr = c.builder.CreateGEP(c.prgRom, indexes, "")
+	v = c.builder.CreateLoad(ptr, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+	// this generated code runs if the write is not in the PRG ROM range
+	c.selectBlock(notInPrgRomBlock)
 	c.createPanic("invalid load address: $%04x\n", []llvm.Value{addr})
 
 	// done. X_X
