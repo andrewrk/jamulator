@@ -29,9 +29,9 @@ type Disassembly struct {
 	rom  *Rom
 	list *list.List
 	// maps memory offset to node
-	offsets map[int]*list.Element
-	offset  int
-	dynJumps []int
+	offsets    map[int]*list.Element
+	offset     int
+	dynJumps   []int
 	jumpTables map[int]bool
 }
 
@@ -131,137 +131,137 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 	var memA, memC int
 	for elem := d.elemAtAddr(addr); elem != nil; elem = elem.Next() {
 		switch state {
-			case expectAsl:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0x0a {
-					return false
-				}
-				state = expectTay
-			case expectTay:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0xa8 {
-					return false
-				}
-				state = expectPlaA
-			case expectPlaA:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0x68 {
-					return false
-				}
-				state = expectStaA
-			case expectStaA:
-				i, ok := elem.Value.(*DirectInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
-					return false
-				}
-				memA = i.Value
-				state = expectPlaB
-			case expectPlaB:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0x68 {
-					return false
-				}
-				state = expectStaB
-			case expectStaB:
-				i, ok := elem.Value.(*DirectInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
-					return false
-				}
-				if i.Value != memA + 1 {
-					return false
-				}
-				state = expectInyC
-			case expectInyC:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0xc8 {
-					return false
-				}
-				state = expectLdaC
-			case expectLdaC:
-				i, ok := elem.Value.(*IndirectYInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0xb1 {
-					return false
-				}
-				if i.Value != memA {
-					return false
-				}
-				state = expectStaC
-			case expectStaC:
-				i, ok := elem.Value.(*DirectInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
-					return false
-				}
-				memC = i.Value
-				state = expectInYD
-			case expectInYD:
-				i, ok := elem.Value.(*ImpliedInstruction)
-				if !ok {
-					return false
-				}
-				if i.OpCode != 0xc8 {
-					return false
-				}
-				state = expectLdaD
-			case expectLdaD:
-				i, ok := elem.Value.(*IndirectYInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0xb1 {
-					return false
-				}
-				if i.Value != memA {
-					return false
-				}
-				state = expectStaD
-			case expectStaD:
-				i, ok := elem.Value.(*DirectInstruction)
-				if !ok {
-					return false
-				}
-				if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
-					return false
-				}
-				if i.Value != memC + 1 {
-					return false
-				}
-				state = expectJmp
-			case expectJmp:
-				i, ok := elem.Value.(*IndirectInstruction)
-				if !ok {
-					return false
-				}
-				if i.Value != memC {
-					return false
-				}
-				return true
+		case expectAsl:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0x0a {
+				return false
+			}
+			state = expectTay
+		case expectTay:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0xa8 {
+				return false
+			}
+			state = expectPlaA
+		case expectPlaA:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0x68 {
+				return false
+			}
+			state = expectStaA
+		case expectStaA:
+			i, ok := elem.Value.(*DirectInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+				return false
+			}
+			memA = i.Value
+			state = expectPlaB
+		case expectPlaB:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0x68 {
+				return false
+			}
+			state = expectStaB
+		case expectStaB:
+			i, ok := elem.Value.(*DirectInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+				return false
+			}
+			if i.Value != memA+1 {
+				return false
+			}
+			state = expectInyC
+		case expectInyC:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0xc8 {
+				return false
+			}
+			state = expectLdaC
+		case expectLdaC:
+			i, ok := elem.Value.(*IndirectYInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0xb1 {
+				return false
+			}
+			if i.Value != memA {
+				return false
+			}
+			state = expectStaC
+		case expectStaC:
+			i, ok := elem.Value.(*DirectInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+				return false
+			}
+			memC = i.Value
+			state = expectInYD
+		case expectInYD:
+			i, ok := elem.Value.(*ImpliedInstruction)
+			if !ok {
+				return false
+			}
+			if i.OpCode != 0xc8 {
+				return false
+			}
+			state = expectLdaD
+		case expectLdaD:
+			i, ok := elem.Value.(*IndirectYInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0xb1 {
+				return false
+			}
+			if i.Value != memA {
+				return false
+			}
+			state = expectStaD
+		case expectStaD:
+			i, ok := elem.Value.(*DirectInstruction)
+			if !ok {
+				return false
+			}
+			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+				return false
+			}
+			if i.Value != memC+1 {
+				return false
+			}
+			state = expectJmp
+		case expectJmp:
+			i, ok := elem.Value.(*IndirectInstruction)
+			if !ok {
+				return false
+			}
+			if i.Value != memC {
+				return false
+			}
+			return true
 		}
 	}
 	return false
@@ -318,7 +318,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 			d.markAsInstruction(targetAddr)
 			if d.isJumpTable(targetAddr) {
 				// mark this and remember to come back later
-				d.dynJumps = append(d.dynJumps, addr + 3)
+				d.dynJumps = append(d.dynJumps, addr+3)
 			} else {
 				d.markAsInstruction(addr + 3)
 			}
@@ -805,24 +805,24 @@ func (d *Disassembly) resolveDynJumpCases() {
 		return
 	}
 	// use the last item in the dynJumps list, and check a single address
-	dynJumpAddr := d.dynJumps[len(d.dynJumps) - 1]
+	dynJumpAddr := d.dynJumps[len(d.dynJumps)-1]
 	elem := d.elemAtAddr(dynJumpAddr)
 	if d.elemLabelStmt(elem) != nil {
 		// this dynJump has been exhausted. remove it from the list
-		d.dynJumps = d.dynJumps[0:len(d.dynJumps) - 1]
+		d.dynJumps = d.dynJumps[0 : len(d.dynJumps)-1]
 		d.resolveDynJumpCases()
 		return
 	}
 	_, err := d.elemAsWord(elem)
 	if err != nil {
 		// this dynJump has been exhausted. remove it from the list
-		d.dynJumps = d.dynJumps[0:len(d.dynJumps) - 1]
+		d.dynJumps = d.dynJumps[0 : len(d.dynJumps)-1]
 		d.resolveDynJumpCases()
 		return
 	}
 	stmt := elem.Value.(*DataStatement)
 	// update the address to the next possible jump point
-	d.dynJumps[len(d.dynJumps) - 1] = dynJumpAddr + 2
+	d.dynJumps[len(d.dynJumps)-1] = dynJumpAddr + 2
 	d.markAsDataWordLabel(stmt.Offset, "")
 	d.resolveDynJumpCases()
 }

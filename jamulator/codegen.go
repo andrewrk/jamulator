@@ -686,4 +686,3 @@ func (i *IndirectInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
 	c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 }
-

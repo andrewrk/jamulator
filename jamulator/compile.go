@@ -57,17 +57,17 @@ type Compilation struct {
 	exitFn    llvm.Value
 	cycleFn   llvm.Value
 	// PPU
-	ppuReadStatusFn    llvm.Value
-	ppuReadOamDataFn    llvm.Value
+	ppuReadStatusFn  llvm.Value
+	ppuReadOamDataFn llvm.Value
 	ppuReadDataFn    llvm.Value
-	ppuCtrlFn      llvm.Value
-	ppuMaskFn      llvm.Value
-	ppuAddrFn      llvm.Value
-	setPpuDataFn   llvm.Value
-	oamAddrFn      llvm.Value
-	setOamDataFn   llvm.Value
-	setPpuScrollFn llvm.Value
-	ppuWriteDma    llvm.Value
+	ppuCtrlFn        llvm.Value
+	ppuMaskFn        llvm.Value
+	ppuAddrFn        llvm.Value
+	setPpuDataFn     llvm.Value
+	oamAddrFn        llvm.Value
+	setOamDataFn     llvm.Value
+	setPpuScrollFn   llvm.Value
+	ppuWriteDma      llvm.Value
 	// APU
 	apuReadStatusFn            llvm.Value
 	apuWriteSquare1CtrlFn      llvm.Value
@@ -93,8 +93,8 @@ type Compilation struct {
 	// pads
 	padWrite1Fn llvm.Value
 	padWrite2Fn llvm.Value
-	padRead1Fn llvm.Value
-	padRead2Fn llvm.Value
+	padRead1Fn  llvm.Value
+	padRead2Fn  llvm.Value
 }
 
 type Compiler interface {
@@ -1122,7 +1122,6 @@ func (c *Compilation) labelAsEntryPoint(labelName string) int {
 	c.labelIds[labelName] = c.entryLabelCount
 	return c.entryLabelCount
 }
-
 
 func (s *LabeledStatement) Compile(c *Compilation) {
 	// if we've already processed it as data, move on
