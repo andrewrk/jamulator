@@ -792,8 +792,24 @@ func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
 
 func (c *Compilation) createPanic(msg string, args []llvm.Value) {
 	renderer := c.currentInstr.(Renderer)
-	c.printf(fmt.Sprintf("current instruction: %s\n", renderer.Render()), []llvm.Value{})
 	c.printf(msg, args)
+	c.printf(fmt.Sprintf("current instruction: %s\n", renderer.Render()), []llvm.Value{})
+	c.printf("A: $%02x  X: $%02x  Y: $%02x  SP: $%02x  PC: $%04x\n", []llvm.Value{
+		c.builder.CreateLoad(c.rA, ""),
+		c.builder.CreateLoad(c.rX, ""),
+		c.builder.CreateLoad(c.rY, ""),
+		c.builder.CreateLoad(c.rSP, ""),
+		c.builder.CreateLoad(c.rPC, ""),
+	})
+	c.printf("N: %d  V: %d  -  B: %d  D: %d  I: %d  Z: %d  C: %d\n", []llvm.Value{
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSNeg, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSOver, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSBrk, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSDec, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSInt, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSZero, ""), llvm.Int8Type(), ""),
+		c.builder.CreateZExt(c.builder.CreateLoad(c.rSCarry, ""), llvm.Int8Type(), ""),
+	})
 	exitCode := llvm.ConstInt(llvm.Int32Type(), 1, false)
 	c.builder.CreateCall(c.exitFn, []llvm.Value{exitCode}, "")
 	c.builder.CreateUnreachable()
