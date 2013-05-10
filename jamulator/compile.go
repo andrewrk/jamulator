@@ -1235,6 +1235,7 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	bankCountGlobal := llvm.AddGlobal(c.mod, bankCountConst.Type(), "rom_chr_bank_count")
 	bankCountGlobal.SetLinkage(llvm.ExternalLinkage)
 	bankCountGlobal.SetInitializer(bankCountConst)
+	bankCountGlobal.SetGlobalConstant(true)
 
 	//uint8_t* rom_chr_data;
 	dataLen := 0x2000 * len(chrRom)
