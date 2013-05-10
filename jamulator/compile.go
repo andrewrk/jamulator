@@ -30,10 +30,10 @@ type Compilation struct {
 	rSInt           llvm.Value // irq interrupt disable
 	rSZero          llvm.Value // whether the last arithmetic result is zero
 	rSCarry         llvm.Value // carry
-	runtimePanicMsg llvm.Value // we print this when a runtime error occurs
 
 	labeledData   map[string]llvm.Value
 	labeledBlocks map[string]llvm.BasicBlock
+	stringTable   map[string]llvm.Value
 	// used for the entry jump table so we can do JSR
 	labelIds        map[string]int
 	entryLabelCount int
@@ -42,6 +42,7 @@ type Compilation struct {
 	currentLabel string
 	mode         int
 	currentBlock *llvm.BasicBlock
+	currentInstr Compiler
 	// label names to look for
 	nmiLabelName   string
 	resetLabelName string
@@ -158,6 +159,7 @@ func (c *Compilation) visitForBasicBlocks(n Node) {
 func (c *Compilation) visitForCompile(n Node) {
 	switch t := n.(type) {
 	case Compiler:
+		c.currentInstr = t
 		t.Compile(c)
 	}
 }
@@ -451,7 +453,7 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 7)
 	// this generated code runs if the write is in a bad PPU RAM addr
 	c.selectBlock(badPpuAddrBlock)
-	c.createPanic()
+	c.createPanic("invalid store address: $%04x\n", []llvm.Value{addr})
 
 	ppuCtrlBlock := c.createBlock("ppuctrl")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0, false), ppuCtrlBlock)
@@ -497,7 +499,7 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 
 	// this generated code runs if the write is > PPU RAM range
 	c.selectBlock(notInPpuRamBlock)
-	c.createPanic()
+	c.createPanic("invalid store address: $%04x\n", []llvm.Value{addr})
 
 	// done. X_X
 	c.selectBlock(storeDoneBlock)
@@ -654,7 +656,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	sw := c.builder.CreateSwitch(maskedAddr, badPpuAddrBlock, 3)
 	// this generated code runs if the write is in a bad PPU RAM addr
 	c.selectBlock(badPpuAddrBlock)
-	c.createPanic()
+	c.createPanic("invalid load address: $%04x\n", []llvm.Value{addr})
 
 	ppuReadStatusBlock := c.createBlock("ppu_read_status")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 2, false), ppuReadStatusBlock)
@@ -679,7 +681,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 
 	// this generated code runs if the write is > PPU RAM range
 	c.selectBlock(notInPpuRamBlock)
-	c.createPanic()
+	c.createPanic("invalid load address: $%04x\n", []llvm.Value{addr})
 
 	// done. X_X
 	c.selectBlock(loadDoneBlock)
@@ -788,10 +790,10 @@ func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
 	c.currentBlock = &bb
 }
 
-func (c *Compilation) createPanic() {
-	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
-	ptr := c.builder.CreatePointerCast(c.runtimePanicMsg, bytePointerType, "")
-	c.builder.CreateCall(c.printfFn, []llvm.Value{ptr}, "")
+func (c *Compilation) createPanic(msg string, args []llvm.Value) {
+	renderer := c.currentInstr.(Renderer)
+	c.printf(fmt.Sprintf("current instruction: %s\n", renderer.Render()), []llvm.Value{})
+	c.printf(msg, args)
 	exitCode := llvm.ConstInt(llvm.Int32Type(), 1, false)
 	c.builder.CreateCall(c.exitFn, []llvm.Value{exitCode}, "")
 	c.builder.CreateUnreachable()
@@ -926,14 +928,21 @@ func (c *Compilation) debugPrint(str string) {
 	c.debugPrintf(str, []llvm.Value{})
 }
 
-func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
-	if c.Flags&IncludeDebugFlag == 0 {
-		return
+func (c *Compilation) getMemoizedStrGlob(str string) llvm.Value {
+	glob, ok := c.stringTable[str]
+	if !ok {
+		text := llvm.ConstString(str, true)
+		glob = llvm.AddGlobal(c.mod, text.Type(), "debugPrintStr")
+		glob.SetLinkage(llvm.PrivateLinkage)
+		glob.SetInitializer(text)
+		glob.SetGlobalConstant(true)
+		c.stringTable[str] = glob
 	}
-	text := llvm.ConstString(str, true)
-	glob := llvm.AddGlobal(c.mod, text.Type(), "debugPrintStr")
-	glob.SetLinkage(llvm.PrivateLinkage)
-	glob.SetInitializer(text)
+	return glob
+}
+
+func (c *Compilation) printf(str string, values []llvm.Value) {
+	glob := c.getMemoizedStrGlob(str)
 	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	ptr := c.builder.CreatePointerCast(glob, bytePointerType, "")
 	args := []llvm.Value{ptr}
@@ -941,6 +950,13 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 		args = append(args, v)
 	}
 	c.builder.CreateCall(c.printfFn, args, "")
+}
+
+func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
+	if c.Flags&IncludeDebugFlag == 0 {
+		return
+	}
+	c.printf(str, values)
 }
 
 func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int) {
@@ -1387,6 +1403,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	defer c.builder.Dispose()
 	c.labeledData = map[string]llvm.Value{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
+	c.stringTable = map[string]llvm.Value{}
 	c.labelIds = map[string]int{}
 	c.entryLabelCount = 3 // irq, reset, nmi
 
@@ -1403,12 +1420,6 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	mirroringGlobal.SetInitializer(mirroringConst)
 
 	c.createReadChrFn(p.ChrRom)
-
-	// runtime panic msg
-	text := llvm.ConstString("panic: attempted to write to invalid memory address\n", true)
-	c.runtimePanicMsg = llvm.AddGlobal(c.mod, text.Type(), "panicMsg")
-	c.runtimePanicMsg.SetLinkage(llvm.PrivateLinkage)
-	c.runtimePanicMsg.SetInitializer(text)
 
 	// first pass to generate data declarations
 	c.mode = dataStmtMode
@@ -1460,7 +1471,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	badInterruptBlock := c.createBlock("BadInterrupt")
 	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, c.entryLabelCount)
 	c.selectBlock(badInterruptBlock)
-	c.createPanic()
+	c.createPanic("invalid interrupt id: %d\n", []llvm.Value{c.mainFn.Param(0)})
 	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 1, false), *c.nmiBlock)
 	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 2, false), *c.resetBlock)
 	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 3, false), *c.irqBlock)
