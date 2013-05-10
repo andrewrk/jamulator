@@ -1084,13 +1084,11 @@ func (c *Compilation) dynTestAndSetOverflowSubtraction(a llvm.Value, b llvm.Valu
 	c.builder.CreateStore(isOver, c.rSOver)
 }
 
-
-func (c *Compilation) createCompare(register llvm.Value, value llvm.Value) {
-	reg := c.builder.CreateLoad(register, "")
-	diff := c.builder.CreateSub(reg, value, "")
+func (c *Compilation) performCmp(lval llvm.Value, rval llvm.Value) {
+	diff := c.builder.CreateSub(lval, rval, "")
 	c.dynTestAndSetZero(diff)
 	c.dynTestAndSetNeg(diff)
-	c.dynTestAndSetCarrySubtraction(reg, value)
+	c.dynTestAndSetCarrySubtraction(lval, rval)
 }
 
 func (c *Compilation) labelAsEntryPoint(labelName string) int {

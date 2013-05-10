@@ -38,13 +38,16 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.dynTestAndSetNeg(newA)
 		c.cycle(2, i.Offset+i.Size)
 	case 0xc9: // cmp
-		c.createCompare(c.rA, v)
+		reg := c.builder.CreateLoad(c.rA, "")
+		c.performCmp(reg, v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0xe0: // cpx
-		c.createCompare(c.rX, v)
+		reg := c.builder.CreateLoad(c.rX, "")
+		c.performCmp(reg, v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0xc0: // cpy
-		c.createCompare(c.rY, v)
+		reg := c.builder.CreateLoad(c.rY, "")
+		c.performCmp(reg, v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x49: // eor
 		a := c.builder.CreateLoad(c.rA, "")
@@ -241,7 +244,21 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.performSbc(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
 	//case 0x39: // and abs y
-	//case 0xd9: // cmp abs y
+	case 0xd9: // cmp abs y
+		reg := c.builder.CreateLoad(c.rA, "")
+		mem := c.dynLoadIndexed(i.Value, c.rY)
+		c.performCmp(reg, mem)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0xdd: // cmp abs x
+		reg := c.builder.CreateLoad(c.rA, "")
+		mem := c.dynLoadIndexed(i.Value, c.rX)
+		c.performCmp(reg, mem)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0xd5: // cmp zpg x
+		reg := c.builder.CreateLoad(c.rA, "")
+		mem := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.performCmp(reg, mem)
+		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x59: // eor abs y
 	//case 0x19: // ora abs y
 	case 0xb9: // lda abs y
@@ -304,7 +321,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.cycle(4, i.Offset+i.GetSize())
 	//case 0x3d: // and abs x
 	//case 0x1e: // asl abs x
-	//case 0xdd: // cmp abs x
 	case 0xde: // dec abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.incrementVal(oldValue, -1)
@@ -331,7 +347,6 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 
 	//case 0x35: // and zpg x
 	//case 0x16: // asl zpg x
-	//case 0xd5: // cmp zpg x
 	//case 0xd6: // dec zpg x
 	//case 0x55: // eor zpg x
 	//case 0xf6: // inc zpg x
@@ -486,10 +501,12 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
 	case 0xc5: // cmp zpg
-		c.createCompare(c.rA, c.load(i.Value))
+		reg := c.builder.CreateLoad(c.rA, "")
+		c.performCmp(reg, c.load(i.Value))
 		c.cycle(3, i.Offset+i.GetSize())
 	case 0xcd: // cmp abs
-		c.createCompare(c.rA, c.load(i.Value))
+		reg := c.builder.CreateLoad(c.rA, "")
+		c.performCmp(reg, c.load(i.Value))
 		c.cycle(4, i.Offset+i.GetSize())
 	case 0x65: // adc zpg
 		c.performAdc(c.load(i.Value))

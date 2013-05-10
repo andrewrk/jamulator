@@ -1,4 +1,5 @@
 * make SMB1 work
+  - solve the BIT thing
   - more instruction codegen
   - change memory model to include all the PRG ROM
   - change JSR model to use a jump table so we can dynamically jump based on runtime PC value
