@@ -629,7 +629,25 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
 	c.debugPrint(i.Render())
-	c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
+
+	switch i.Payload[0] {
+	case 0xa1: // lda
+		index := c.builder.CreateLoad(c.rX, "")
+		base := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
+		addr := c.builder.CreateAdd(base, index, "")
+		v := c.dynLoad(addr, 0, 0xff)
+		c.builder.CreateStore(v, c.rA)
+		c.cycle(6, i.Offset+i.GetSize())
+	//case 0x61: // adc
+	//case 0x21: // and
+	//case 0xc1: // cmp
+	//case 0x41: // eor
+	//case 0x01: // ora
+	//case 0xe1: // sbc
+	//case 0x81: // sta
+	default:
+		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
+	}
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
