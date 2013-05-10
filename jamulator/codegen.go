@@ -46,11 +46,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 		c.performCmp(reg, v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x49: // eor
-		a := c.builder.CreateLoad(c.rA, "")
-		newA := c.builder.CreateXor(a, v, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
+		c.performEor(v)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x09: // ora
 		a := c.builder.CreateLoad(c.rA, "")
@@ -203,12 +199,19 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		c.absoluteIndexedLoadData(c.rX, i.LabelName, c.rY, i.Offset+i.Size)
 	case 0xbc: // ldy l, X
 		c.absoluteIndexedLoadData(c.rY, i.LabelName, c.rX, i.Offset+i.Size)
+	case 0x5d: // eor l, X
+		v := c.loadIndexedData(i.LabelName, c.rX)
+		c.performEor(v)
+		c.cyclesForLabelIndexed(i.LabelName, c.rX, i.Offset+i.Size)
+	case 0x59: // eor l, Y
+		v := c.loadIndexedData(i.LabelName, c.rY)
+		c.performEor(v)
+		c.cyclesForLabelIndexed(i.LabelName, c.rY, i.Offset+i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
 	//case 0xdd: // cmp l, X
 	//case 0xde: // dec l, X
-	//case 0x5d: // eor l, X
 	//case 0xfe: // inc l, X
 	//case 0x5e: // lsr l, X
 	//case 0x1d: // ora l, X
@@ -220,7 +223,6 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0x79: // adc l, Y
 	//case 0x39: // and l, Y
 	//case 0xd9: // cmp l, Y
-	//case 0x59: // eor l, Y
 	//case 0x19: // ora l, Y
 	//case 0xf9: // sbc l, Y
 	//case 0x99: // sta l, Y
@@ -370,12 +372,21 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		v := c.dynLoadZpgIndexed(i.Value, c.rX)
 		c.performAnd(v)
 		c.cycle(4, i.Offset+i.GetSize())
-	//case 0x5d: // eor abs x
-	//case 0x59: // eor abs y
+	case 0x5d: // eor abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performEor(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, i.Offset+i.GetSize())
+	case 0x55: // eor zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.performEor(v)
+		c.cycle(4, i.Offset+i.GetSize())
+	case 0x59: // eor abs y
+		v := c.dynLoadIndexed(i.Value, c.rY)
+		c.performEor(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, i.Offset+i.GetSize())
 	//case 0x19: // ora abs y
 	//case 0x5e: // lsr abs x
 	//case 0x1d: // ora abs x
-	//case 0x55: // eor zpg x
 	//case 0x56: // lsr zpg x
 	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
@@ -514,18 +525,12 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(6, i.Offset+i.GetSize())
 		}
-	case 0x45, 0x4d: // eor (zpg, abs)
-		a := c.builder.CreateLoad(c.rA, "")
-		mem := c.load(i.Value)
-		newA := c.builder.CreateXor(a, mem, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
-		if i.Payload[0] == 0x45 {
-			c.cycle(3, i.Offset+i.GetSize())
-		} else {
-			c.cycle(4, i.Offset+i.GetSize())
-		}
+	case 0x45: // eor zpg
+		c.performEor(c.load(i.Value))
+		c.cycle(3, i.Offset+i.GetSize())
+	case 0x4d: // eor abs
+		c.performEor(c.load(i.Value))
+		c.cycle(4, i.Offset+i.GetSize())
 	case 0xc5: // cmp zpg
 		reg := c.builder.CreateLoad(c.rA, "")
 		c.performCmp(reg, c.load(i.Value))

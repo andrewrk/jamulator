@@ -306,6 +306,13 @@ func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value,
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) performCmp(lval llvm.Value, rval llvm.Value) {
+	diff := c.builder.CreateSub(lval, rval, "")
+	c.dynTestAndSetZero(diff)
+	c.dynTestAndSetNeg(diff)
+	c.dynTestAndSetCarrySubtraction(lval, rval)
+}
+
 func (c *Compilation) performRor(val llvm.Value) llvm.Value {
 	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
 	c7 := llvm.ConstInt(llvm.Int8Type(), 7, false)
@@ -389,6 +396,14 @@ func (c *Compilation) performBit(val llvm.Value) {
 func (c *Compilation) performAnd(v llvm.Value) {
 	a := c.builder.CreateLoad(c.rA, "")
 	newA := c.builder.CreateAnd(a, v, "")
+	c.builder.CreateStore(newA, c.rA)
+	c.dynTestAndSetZero(newA)
+	c.dynTestAndSetNeg(newA)
+}
+
+func (c *Compilation) performEor(v llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	newA := c.builder.CreateXor(a, v, "")
 	c.builder.CreateStore(newA, c.rA)
 	c.dynTestAndSetZero(newA)
 	c.dynTestAndSetNeg(newA)
@@ -940,7 +955,7 @@ func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr 
 	c.cycle(2, instrAddr+2) // branch instructions are 2 bytes
 }
 
-func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName string, indexPtr llvm.Value, pc int) {
+func (c *Compilation) loadIndexedData(dataLabelName string, indexPtr llvm.Value) llvm.Value {
 	dataPtr, ok := c.labeledData[dataLabelName]
 	if !ok {
 		_, ok := c.labeledBlocks[dataLabelName]
@@ -949,7 +964,7 @@ func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName 
 		} else {
 			c.Errors = append(c.Errors, fmt.Sprintf("unknown label %s", dataLabelName))
 		}
-		return
+		return llvm.ConstInt(llvm.Int8Type(), 0, false)
 	}
 	index := c.builder.CreateLoad(indexPtr, "")
 	index16 := c.builder.CreateZExt(index, llvm.Int16Type(), "")
@@ -958,15 +973,23 @@ func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName 
 		index16,
 	}
 	ptr := c.builder.CreateGEP(dataPtr, indexes, "")
-	v := c.builder.CreateLoad(ptr, "")
+	return c.builder.CreateLoad(ptr, "")
+}
+
+func (c *Compilation) cyclesForLabelIndexed(labelName string, indexPtr llvm.Value, pc int) {
+	labelAddr, ok := c.program.Labels[labelName]
+	if !ok {
+		panic(fmt.Sprintf("label %s not defined", labelName))
+	}
+	c.cyclesForAbsoluteIndexedPtr(labelAddr, indexPtr, pc)
+}
+
+func (c *Compilation) absoluteIndexedLoadData(destPtr llvm.Value, dataLabelName string, indexPtr llvm.Value, pc int) {
+	v := c.loadIndexedData(dataLabelName, indexPtr)
 	c.builder.CreateStore(v, destPtr)
 	c.dynTestAndSetNeg(v)
 	c.dynTestAndSetZero(v)
-	labelAddr, ok := c.program.Labels[dataLabelName]
-	if !ok {
-		panic(fmt.Sprintf("label %s not defined", dataLabelName))
-	}
-	c.cyclesForAbsoluteIndexed(labelAddr, index16, pc)
+	c.cyclesForLabelIndexed(dataLabelName, indexPtr, pc)
 }
 
 func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, indexPtr llvm.Value, pc int) {
@@ -1112,13 +1135,6 @@ func (c *Compilation) dynTestAndSetOverflowSubtraction(a llvm.Value, b llvm.Valu
 
 	isOver := c.builder.CreateAnd(isOverVal, isOverB, "")
 	c.builder.CreateStore(isOver, c.rSOver)
-}
-
-func (c *Compilation) performCmp(lval llvm.Value, rval llvm.Value) {
-	diff := c.builder.CreateSub(lval, rval, "")
-	c.dynTestAndSetZero(diff)
-	c.dynTestAndSetNeg(diff)
-	c.dynTestAndSetCarrySubtraction(lval, rval)
 }
 
 func (c *Compilation) labelAsEntryPoint(labelName string) int {
