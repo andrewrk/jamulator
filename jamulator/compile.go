@@ -366,6 +366,25 @@ func (c *Compilation) performSbc(val llvm.Value) {
 	c.dynTestAndSetCarrySubtraction3(a, val, carry)
 }
 
+func (c *Compilation) performBit(val llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	x40 := llvm.ConstInt(llvm.Int8Type(), 0x40, false)
+	x80 := llvm.ConstInt(llvm.Int8Type(), 0x80, false)
+
+	anded := c.builder.CreateAnd(val, a, "")
+	isZero := c.builder.CreateICmp(llvm.IntEQ, anded, c0, "")
+	c.builder.CreateStore(isZero, c.rSZero)
+
+	maskedX80 := c.builder.CreateAnd(val, x80, "")
+	isNeg := c.builder.CreateICmp(llvm.IntNE, maskedX80, c0, "")
+	c.builder.CreateStore(isNeg, c.rSNeg)
+
+	maskedX40 := c.builder.CreateAnd(val, x40, "")
+	isOver := c.builder.CreateICmp(llvm.IntNE, maskedX40, c0, "")
+	c.builder.CreateStore(isOver, c.rSOver)
+}
+
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
 	if minAddr != 0 || maxAddr != 0xffff {
 		c.Warnings = append(c.Warnings, "TODO: dynStore is unoptimized")
