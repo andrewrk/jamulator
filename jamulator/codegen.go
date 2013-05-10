@@ -207,6 +207,14 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 		v := c.loadIndexedData(i.LabelName, c.rY)
 		c.performEor(v)
 		c.cyclesForLabelIndexed(i.LabelName, c.rY, i.Offset+i.Size)
+	case 0xfd: // sbc l, X
+		v := c.loadIndexedData(i.LabelName, c.rX)
+		c.performSbc(v)
+		c.cyclesForLabelIndexed(i.LabelName, c.rX, i.Offset+i.Size)
+	case 0xf9: // sbc l, Y
+		v := c.loadIndexedData(i.LabelName, c.rY)
+		c.performSbc(v)
+		c.cyclesForLabelIndexed(i.LabelName, c.rY, i.Offset+i.Size)
 	//case 0x7d: // adc l, X
 	//case 0x3d: // and l, X
 	//case 0x1e: // asl l, X
@@ -217,14 +225,12 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 	//case 0x1d: // ora l, X
 	//case 0x3e: // rol l, X
 	//case 0x7e: // ror l, X
-	//case 0xfd: // sbc l, X
 	//case 0x9d: // sta l, X
 
 	//case 0x79: // adc l, Y
 	//case 0x39: // and l, Y
 	//case 0xd9: // cmp l, Y
 	//case 0x19: // ora l, Y
-	//case 0xf9: // sbc l, Y
 	//case 0x99: // sta l, Y
 	default:
 		c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
