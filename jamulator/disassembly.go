@@ -913,7 +913,10 @@ func (i *ImpliedInstruction) Render() string {
 }
 
 func (i *DirectInstruction) Render() string {
-	return fmt.Sprintf("    %s $%02x", i.OpName, i.Value)
+	if opCodeDataMap[i.Payload[0]].addrMode == zeroPageAddr {
+		return fmt.Sprintf("    %s $%02x", i.OpName, i.Value)
+	}
+	return fmt.Sprintf("    %s $%04x", i.OpName, i.Value)
 }
 
 func (i *DirectWithLabelInstruction) Render() string {
@@ -921,7 +924,11 @@ func (i *DirectWithLabelInstruction) Render() string {
 }
 
 func (i *DirectIndexedInstruction) Render() string {
-	return fmt.Sprintf("    %s $%02x, %s", i.OpName, i.Value, i.RegisterName)
+	addrMode := opCodeDataMap[i.Payload[0]].addrMode
+	if addrMode == zeroXIndexAddr || addrMode == zeroYIndexAddr {
+		return fmt.Sprintf("    %s $%02x, %s", i.OpName, i.Value, i.RegisterName)
+	}
+	return fmt.Sprintf("    %s $%04x, %s", i.OpName, i.Value, i.RegisterName)
 }
 
 func (i *DirectWithLabelIndexedInstruction) Render() string {
@@ -929,7 +936,7 @@ func (i *DirectWithLabelIndexedInstruction) Render() string {
 }
 
 func (i *IndirectInstruction) Render() string {
-	return fmt.Sprintf("    %s ($%02x)", i.OpName, i.Value)
+	return fmt.Sprintf("    %s ($%04x)", i.OpName, i.Value)
 }
 
 func (i *IndirectXInstruction) Render() string {

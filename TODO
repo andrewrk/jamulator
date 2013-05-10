@@ -4,6 +4,8 @@
   - change memory model to include all the PRG ROM
   - change JSR model to use a jump table so we can dynamically jump based on runtime PC value
 * get rid of jamfile; use .ines* declarations
+* use the disassembly program format for everything instead of the AST thing
+* change the interrupt model so that cycle returns an id
 * namespace everything in ppu.h
 * update CLI to use commands instead of flags for commands
 * update assembler to be able to handle smb1 disassembly
