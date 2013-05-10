@@ -503,9 +503,18 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	case 0xed: // sbc abs
 		c.performSbc(c.load(i.Value))
 		c.cycle(4, i.Offset+i.GetSize())
-	//case 0x05: // ora zpg
-	//case 0x0d: // ora abs
-
+	case 0x05, 0x0d: // ora (zpg, abs)
+		a := c.builder.CreateLoad(c.rA, "")
+		mem := c.load(i.Value)
+		newA := c.builder.CreateOr(a, mem, "")
+		c.builder.CreateStore(newA, c.rA)
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		if i.Payload[0] == 0x05 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
