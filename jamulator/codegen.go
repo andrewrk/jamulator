@@ -548,6 +548,18 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		} else {
 			c.cycle(4, i.Offset+i.GetSize())
 		}
+	case 0x25, 0x2d: // and (zpg, abs)
+		a := c.builder.CreateLoad(c.rA, "")
+		mem := c.load(i.Value)
+		newA := c.builder.CreateAnd(a, mem, "")
+		c.builder.CreateStore(newA, c.rA)
+		c.dynTestAndSetZero(newA)
+		c.dynTestAndSetNeg(newA)
+		if i.Payload[0] == 0x25 {
+			c.cycle(3, i.Offset+i.GetSize())
+		} else {
+			c.cycle(4, i.Offset+i.GetSize())
+		}
 	case 0x24: // bit zpg
 		c.performBit(c.load(i.Value))
 		c.cycle(3, i.Offset+i.GetSize())
@@ -563,7 +575,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x50: // bvc rel
 	//case 0x70: // bvs rel
 
-	//case 0x25: // and zpg
 	//case 0x06: // asl zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
@@ -588,7 +599,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(newValue, c.rA)
 		c.cycle(6, i.Offset+i.GetSize())
 
-	//case 0x2d: // and abs
 	//case 0x0e: // asl abs
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
