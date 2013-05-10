@@ -566,6 +566,12 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	case 0x2c: // bit abs
 		c.performBit(c.load(i.Value))
 		c.cycle(4, i.Offset+i.GetSize())
+	case 0x06: // asl zpg
+		c.performAsl(c.load(i.Value))
+		c.cycle(5, i.Offset+i.GetSize())
+	case 0x0e: // asl abs
+		c.performAsl(c.load(i.Value))
+		c.cycle(6, i.Offset+i.GetSize())
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
 	//case 0xf0: // beq rel
@@ -575,7 +581,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0x50: // bvc rel
 	//case 0x70: // bvs rel
 
-	//case 0x06: // asl zpg
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
 	case 0x26: // rol zpg
@@ -599,7 +604,6 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.builder.CreateStore(newValue, c.rA)
 		c.cycle(6, i.Offset+i.GetSize())
 
-	//case 0x0e: // asl abs
 	//case 0xec: // cpx abs
 	//case 0xcc: // cpy abs
 	//case 0x4c: // jmp abs
