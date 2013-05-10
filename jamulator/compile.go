@@ -482,8 +482,152 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
-	// this generated code runs if the write is > PPU RAM range
+	// this generated code runs if the write is >= 0x4000
 	c.selectBlock(notInPpuRamBlock)
+	x4017 := llvm.ConstInt(llvm.Int16Type(), 0x4017, false)
+	inApuRam := c.builder.CreateICmp(llvm.IntULE, addr, x4017, "")
+	notInApuRamBlock := c.createIf(inApuRam)
+	// if the write is in the APU RAM range
+	badApuRamBlock := c.createBlock("BadAPUAddr")
+	sw = c.builder.CreateSwitch(addr, badApuRamBlock, 22)
+	c.selectBlock(badApuRamBlock)
+	c.createPanic("invalid store address: $%04x\n", []llvm.Value{addr})
+
+	apuSqr1CtrlBlock := c.createBlock("rom_apu_write_square1control")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4000, false), apuSqr1CtrlBlock)
+	c.selectBlock(apuSqr1CtrlBlock)
+	c.builder.CreateCall(c.apuWriteSquare1CtrlFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr1SweepsBlock := c.createBlock("rom_apu_write_square1sweeps")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4001, false), apuSqr1SweepsBlock)
+	c.selectBlock(apuSqr1SweepsBlock)
+	c.builder.CreateCall(c.apuWriteSquare1SweepsFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr1LowBlock := c.createBlock("rom_apu_write_square1low")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4002, false), apuSqr1LowBlock)
+	c.selectBlock(apuSqr1LowBlock)
+	c.builder.CreateCall(c.apuWriteSquare1LowFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr1HighBlock := c.createBlock("rom_apu_write_square1high")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4003, false), apuSqr1HighBlock)
+	c.selectBlock(apuSqr1HighBlock)
+	c.builder.CreateCall(c.apuWriteSquare1HighFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr2CtrlBlock := c.createBlock("rom_apu_write_square2control")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4004, false), apuSqr2CtrlBlock)
+	c.selectBlock(apuSqr2CtrlBlock)
+	c.builder.CreateCall(c.apuWriteSquare2CtrlFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr2SweepsBlock := c.createBlock("rom_apu_write_square2sweeps")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4005, false), apuSqr2SweepsBlock)
+	c.selectBlock(apuSqr2SweepsBlock)
+	c.builder.CreateCall(c.apuWriteSquare2SweepsFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr2LowBlock := c.createBlock("rom_apu_write_square2low")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4006, false), apuSqr2LowBlock)
+	c.selectBlock(apuSqr2LowBlock)
+	c.builder.CreateCall(c.apuWriteSquare2LowFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuSqr2HighBlock := c.createBlock("rom_apu_write_square2high")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4007, false), apuSqr2HighBlock)
+	c.selectBlock(apuSqr2HighBlock)
+	c.builder.CreateCall(c.apuWriteSquare2HighFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuTriCtrlBlock := c.createBlock("rom_apu_write_trianglecontrol")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4008, false), apuTriCtrlBlock)
+	c.selectBlock(apuTriCtrlBlock)
+	c.builder.CreateCall(c.apuWriteTriangleCtrlFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuTriLowBlock := c.createBlock("rom_apu_write_trianglelow")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400a, false), apuTriLowBlock)
+	c.selectBlock(apuTriLowBlock)
+	c.builder.CreateCall(c.apuWriteTriangleLowFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuTriHighBlock := c.createBlock("rom_apu_write_trianglehigh")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400b, false), apuTriHighBlock)
+	c.selectBlock(apuTriHighBlock)
+	c.builder.CreateCall(c.apuWriteTriangleHighFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuNoiseBaseBlock := c.createBlock("rom_apu_write_noisebase")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400c, false), apuNoiseBaseBlock)
+	c.selectBlock(apuNoiseBaseBlock)
+	c.builder.CreateCall(c.apuWriteNoiseBaseFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuNoisePeriodBlock := c.createBlock("rom_apu_write_noiseperiod")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400e, false), apuNoisePeriodBlock)
+	c.selectBlock(apuNoisePeriodBlock)
+	c.builder.CreateCall(c.apuWriteNoisePeriodFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuNoiseLengthBlock := c.createBlock("rom_apu_write_noiselength")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400f, false), apuNoiseLengthBlock)
+	c.selectBlock(apuNoiseLengthBlock)
+	c.builder.CreateCall(c.apuWriteNoiseLengthFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuDmcFlagsBlock := c.createBlock("rom_apu_write_dmcflags")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4010, false), apuDmcFlagsBlock)
+	c.selectBlock(apuDmcFlagsBlock)
+	c.builder.CreateCall(c.apuWriteDmcFlagsFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuDmcDirectLoadBlock := c.createBlock("rom_apu_write_dmcdirectload")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4011, false), apuDmcDirectLoadBlock)
+	c.selectBlock(apuDmcDirectLoadBlock)
+	c.builder.CreateCall(c.apuWriteDmcDirectLoadFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuDmcSampleAddrBlock := c.createBlock("rom_apu_write_dmcsampleaddress")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4012, false), apuDmcSampleAddrBlock)
+	c.selectBlock(apuDmcSampleAddrBlock)
+	c.builder.CreateCall(c.apuWriteDmcSampleAddressFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuDmcSampleLenBlock := c.createBlock("rom_apu_write_dmcsamplelength")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4013, false), apuDmcSampleLenBlock)
+	c.selectBlock(apuDmcSampleLenBlock)
+	c.builder.CreateCall(c.apuWriteDmcSampleLengthFn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	ppuDmaBlock := c.createBlock("rom_ppu_write_dma")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4014, false), ppuDmaBlock)
+	c.selectBlock(ppuDmaBlock)
+	c.builder.CreateCall(c.ppuWriteDma, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	apuCtrlFlags1Block := c.createBlock("rom_apu_write_controlflags1")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4015, false), apuCtrlFlags1Block)
+	c.selectBlock(apuCtrlFlags1Block)
+	c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	pad1Block := c.createBlock("rom_pad_write1")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), pad1Block)
+	c.selectBlock(pad1Block)
+	c.builder.CreateCall(c.padWrite1Fn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	padAndApuBlock := c.createBlock("padAndApuFlags2")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4017, false), padAndApuBlock)
+	c.selectBlock(padAndApuBlock)
+	c.builder.CreateCall(c.padWrite2Fn, []llvm.Value{val}, "")
+	c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{val}, "")
+	c.builder.CreateBr(storeDoneBlock)
+
+	// if not in any known writable range
+	c.selectBlock(notInApuRamBlock)
 	c.createPanic("invalid store address: $%04x\n", []llvm.Value{addr})
 
 	// done. X_X
