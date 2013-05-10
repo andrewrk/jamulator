@@ -325,13 +325,31 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.incrementVal(oldValue, -1)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
 		c.cycle(7, i.Offset+i.GetSize())
 	//case 0x5d: // eor abs x
 	case 0xfe: // inc abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
 		newValue := c.incrementVal(oldValue, 1)
 		c.dynStoreIndexed(i.Value, c.rX, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
 		c.cycle(7, i.Offset+i.GetSize())
+	case 0xd6: // dec zpg x
+		oldValue := c.dynLoadZpgIndexed(i.Value, c.rX)
+		newValue := c.incrementVal(oldValue, -1)
+		c.dynStoreZpgIndexed(i.Value, c.rX, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
+		c.cycle(6, i.Offset+i.GetSize())
+	case 0xf6: // inc zpg x
+		oldValue := c.dynLoadZpgIndexed(i.Value, c.rX)
+		newValue := c.incrementVal(oldValue, 1)
+		c.dynStoreZpgIndexed(i.Value, c.rX, newValue)
+		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
+		c.cycle(6, i.Offset+i.GetSize())
 	//case 0x5e: // lsr abs x
 	//case 0x1d: // ora abs x
 	case 0x3e: // rol abs x
@@ -347,9 +365,7 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 
 	//case 0x35: // and zpg x
 	//case 0x16: // asl zpg x
-	//case 0xd6: // dec zpg x
 	//case 0x55: // eor zpg x
-	//case 0xf6: // inc zpg x
 	//case 0x56: // lsr zpg x
 	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
