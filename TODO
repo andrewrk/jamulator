@@ -10,6 +10,7 @@
 * namespace everything in ppu.h
 * update CLI to use commands instead of flags for commands
 
+* use llvm memcpy intrinsic instead of libc
 * optimize dynStore
 * optimize dynLoad
 * figure out why optimized llvm code does dead loads

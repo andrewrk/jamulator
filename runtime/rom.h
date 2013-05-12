@@ -14,6 +14,21 @@ enum {
     ROM_INTERRUPT_IRQ,
 };
 
+enum {
+    ROM_BUTTON_A,
+    ROM_BUTTON_B,
+    ROM_BUTTON_SELECT,
+    ROM_BUTTON_START,
+    ROM_BUTTON_UP,
+    ROM_BUTTON_DOWN,
+    ROM_BUTTON_LEFT,
+    ROM_BUTTON_RIGHT,
+};
+
+enum {
+    ROM_PAD_STATE_OFF = 0x40,
+    ROM_PAD_STATE_ON = 0x41,
+};
 
 uint8_t rom_mirroring;
 uint8_t rom_chr_bank_count;
@@ -68,8 +83,5 @@ void rom_apu_write_dmcsamplelength(uint8_t);
 void rom_apu_write_controlflags1(uint8_t);
 void rom_apu_write_controlflags2(uint8_t);
 
-// controller hooks
-void rom_pad_write1(uint8_t);
-void rom_pad_write2(uint8_t);
-uint8_t rom_pad_read1();
-uint8_t rom_pad_read2();
+// controller
+void rom_set_button_state(uint8_t padIndex, uint8_t buttonIndex, uint8_t value);

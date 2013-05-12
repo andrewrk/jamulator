@@ -19,18 +19,53 @@ static Video v;
 static Ppu* p;
 static int interruptRequested = ROM_INTERRUPT_NONE;
 
+void setPadState(SDLKey key, uint8_t value) {
+    switch (key) {
+        case SDLK_2:
+            rom_set_button_state(0, ROM_BUTTON_A, value);
+            break;
+        case SDLK_1:
+            rom_set_button_state(0, ROM_BUTTON_B, value);
+            break;
+        case SDLK_RSHIFT:
+            rom_set_button_state(0, ROM_BUTTON_SELECT, value);
+            break;
+        case SDLK_RETURN:
+            rom_set_button_state(0, ROM_BUTTON_START, value);
+            break;
+        case SDLK_UP:
+            rom_set_button_state(0, ROM_BUTTON_UP, value);
+            break;
+        case SDLK_DOWN:
+            rom_set_button_state(0, ROM_BUTTON_DOWN, value);
+            break;
+        case SDLK_LEFT:
+            rom_set_button_state(0, ROM_BUTTON_LEFT, value);
+            break;
+        case SDLK_RIGHT:
+            rom_set_button_state(0, ROM_BUTTON_RIGHT, value);
+            break;
+    }
+}
+
 void flush_events() {
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
-            case SDL_VIDEORESIZE:
-                v.pendingResize = true;
-                v.pendingResizeWidth = event.resize.w;
-                v.pendingResizeHeight = event.resize.h;
-                break;
-            case SDL_QUIT:
-                exit(0);
+        case SDL_VIDEORESIZE:
+            v.pendingResize = true;
+            v.pendingResizeWidth = event.resize.w;
+            v.pendingResizeHeight = event.resize.h;
+            break;
+        case SDL_QUIT:
+            exit(0);
+        case SDL_KEYDOWN:
+            setPadState(event.key.keysym.sym, ROM_PAD_STATE_ON);
+            break;
+        case SDL_KEYUP:
+            setPadState(event.key.keysym.sym, ROM_PAD_STATE_OFF);
+            break;
         }
     }
 }
@@ -233,12 +268,3 @@ void rom_apu_write_dmcsampleaddress(uint8_t b){}
 void rom_apu_write_dmcsamplelength(uint8_t b){}
 void rom_apu_write_controlflags1(uint8_t b){}
 void rom_apu_write_controlflags2(uint8_t b){}
-
-void rom_pad_write1(uint8_t b){}
-void rom_pad_write2(uint8_t b){}
-uint8_t rom_pad_read1(){
-    return 0;
-}
-uint8_t rom_pad_read2(){
-    return 0;
-}

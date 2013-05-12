@@ -32,6 +32,12 @@ type Compilation struct {
 	rSZero          llvm.Value // whether the last arithmetic result is zero
 	rSCarry         llvm.Value // carry
 
+	// controllers. see http://wiki.nesdev.com/w/index.php/Standard_controller
+	btnReportIndex  llvm.Value // index of the button to report next
+	padsActual      llvm.Value // actual contoller state
+	padsReport      llvm.Value // reported controller state
+	strobeOn        llvm.Value // strobe bit status
+
 	labeledBlocks map[string]llvm.BasicBlock
 	labeledData   map[string]bool
 	stringTable   map[string]llvm.Value
@@ -57,6 +63,7 @@ type Compilation struct {
 	mainFn    llvm.Value
 	printfFn  llvm.Value
 	putCharFn llvm.Value
+	memcpyFn  llvm.Value
 	exitFn    llvm.Value
 	cycleFn   llvm.Value
 	// PPU
@@ -94,10 +101,8 @@ type Compilation struct {
 	apuWriteCtrlFlags1Fn       llvm.Value
 	apuWriteCtrlFlags2Fn       llvm.Value
 	// pads
-	padWrite1Fn llvm.Value
-	padWrite2Fn llvm.Value
-	padRead1Fn  llvm.Value
-	padRead2Fn  llvm.Value
+	padWriteFn llvm.Value
+	padReadFn  llvm.Value
 }
 
 type Compiler interface {
@@ -613,16 +618,15 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
-	pad1Block := c.createBlock("rom_pad_write1")
-	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), pad1Block)
-	c.selectBlock(pad1Block)
-	c.builder.CreateCall(c.padWrite1Fn, []llvm.Value{val}, "")
+	padWriteBlock := c.createBlock("padWrite")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), padWriteBlock)
+	c.selectBlock(padWriteBlock)
+	c.builder.CreateCall(c.padWriteFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
-	padAndApuBlock := c.createBlock("padAndApuFlags2")
-	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4017, false), padAndApuBlock)
-	c.selectBlock(padAndApuBlock)
-	c.builder.CreateCall(c.padWrite2Fn, []llvm.Value{val}, "")
+	apuCtrlFlags2Block := c.createBlock("rom_apu_write_controlflags2")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4017, false), apuCtrlFlags2Block)
+	c.selectBlock(apuCtrlFlags2Block)
 	c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
@@ -725,9 +729,8 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 		case 0x4015:
 			c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{i8}, "")
 		case 0x4016:
-			c.builder.CreateCall(c.padWrite1Fn, []llvm.Value{i8}, "")
+			c.builder.CreateCall(c.padWriteFn, []llvm.Value{i8}, "")
 		case 0x4017:
-			c.builder.CreateCall(c.padWrite2Fn, []llvm.Value{i8}, "")
 			c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{i8}, "")
 		}
 	}
@@ -883,9 +886,11 @@ func (c *Compilation) load(addr int) llvm.Value {
 	case addr == 0x4015:
 		return c.builder.CreateCall(c.apuReadStatusFn, []llvm.Value{}, "")
 	case addr == 0x4016:
-		return c.builder.CreateCall(c.padRead1Fn, []llvm.Value{}, "")
+		c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c0}, "")
 	case addr == 0x4017:
-		return c.builder.CreateCall(c.padRead2Fn, []llvm.Value{}, "")
+		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c1}, "")
 	}
 	panic("unreachable")
 }
@@ -1404,12 +1409,8 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	chrDataGlobal.SetLinkage(llvm.PrivateLinkage)
 	chrDataGlobal.SetInitializer(chrDataConst)
 	chrDataGlobal.SetGlobalConstant(true)
-	// declare void @memcpy(void* dest, void* source, i32 size)
-	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
-	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType, bytePointerType, llvm.Int32Type()}, false)
-	memcpyFn := llvm.AddFunction(c.mod, "memcpy", memcpyType)
-	memcpyFn.SetLinkage(llvm.ExternalLinkage)
 	// void rom_read_chr(uint8_t* dest)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	readChrType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType}, false)
 	readChrFn := llvm.AddFunction(c.mod, "rom_read_chr", readChrType)
 	readChrFn.SetFunctionCallConv(llvm.CCallConv)
@@ -1418,7 +1419,7 @@ func (c *Compilation) createReadChrFn(chrRom [][]byte) {
 	if dataLen > 0 {
 		x2000 := llvm.ConstInt(llvm.Int32Type(), uint64(dataLen), false)
 		source := c.builder.CreatePointerCast(chrDataGlobal, bytePointerType, "")
-		c.builder.CreateCall(memcpyFn, []llvm.Value{readChrFn.Param(0), source, x2000}, "")
+		c.builder.CreateCall(c.memcpyFn, []llvm.Value{readChrFn.Param(0), source, x2000}, "")
 	}
 	c.builder.CreateRetVoid()
 }
@@ -1458,13 +1459,18 @@ func (c *Compilation) declareWriteFn(name string) llvm.Value {
 }
 
 func (c *Compilation) createFunctionDeclares() {
+	// declare void @memcpy(void* dest, void* source, i32 size)
+	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
+	memcpyType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{bytePointerType, bytePointerType, llvm.Int32Type()}, false)
+	c.memcpyFn = llvm.AddFunction(c.mod, "memcpy", memcpyType)
+	c.memcpyFn.SetLinkage(llvm.ExternalLinkage)
+
 	// declare i32 @putchar(i32)
 	putCharType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{llvm.Int32Type()}, false)
 	c.putCharFn = llvm.AddFunction(c.mod, "putchar", putCharType)
 	c.putCharFn.SetLinkage(llvm.ExternalLinkage)
 
 	// declare i32 @printf(i8*, ...)
-	bytePointerType := llvm.PointerType(llvm.Int8Type(), 0)
 	printfType := llvm.FunctionType(llvm.Int32Type(), []llvm.Type{bytePointerType}, true)
 	c.printfFn = llvm.AddFunction(c.mod, "printf", printfType)
 	c.printfFn.SetFunctionCallConv(llvm.CCallConv)
@@ -1515,12 +1521,6 @@ func (c *Compilation) createFunctionDeclares() {
 	c.apuWriteDmcSampleLengthFn = c.declareWriteFn("rom_apu_write_dmcsamplelength")
 	c.apuWriteCtrlFlags1Fn = c.declareWriteFn("rom_apu_write_controlflags1")
 	c.apuWriteCtrlFlags2Fn = c.declareWriteFn("rom_apu_write_controlflags2")
-
-	// pads
-	c.padWrite1Fn = c.declareWriteFn("rom_pad_write1")
-	c.padWrite2Fn = c.declareWriteFn("rom_pad_write2")
-	c.padRead1Fn = c.declareReadFn("rom_pad_read1")
-	c.padRead2Fn = c.declareReadFn("rom_pad_read2")
 }
 
 func (c *Compilation) createRegisters() {
@@ -1545,6 +1545,155 @@ func (c *Compilation) addInterruptCode() {
 	c.pushWordToStack(c.builder.CreateLoad(c.rPC, ""))
 	// * push processor status onto stack
 	c.pushStatusReg()
+}
+
+func (c *Compilation) setupControllerFramework() {
+	// ROM_PAD_STATE_OFF = 0x40,
+	x40 := llvm.ConstInt(llvm.Int8Type(), 0x40, false)
+	initBtnArray := llvm.ConstArray(x40.Type(), []llvm.Value{
+		x40, x40, x40, x40, x40, x40, x40, x40 })
+	initPadArray := llvm.ConstArray(initBtnArray.Type(), []llvm.Value{
+		initBtnArray,
+		initBtnArray,
+	})
+	// btnReportIndex [2]int
+	btnReportIndexType := llvm.ArrayType(llvm.Int8Type(), 2)
+	c.btnReportIndex = llvm.AddGlobal(c.mod, btnReportIndexType, "ButtonReportIndex")
+	c.btnReportIndex.SetLinkage(llvm.PrivateLinkage)
+	c.btnReportIndex.SetInitializer(llvm.ConstNull(btnReportIndexType))
+	// padsActual [2][8]byte
+	c.padsActual = llvm.AddGlobal(c.mod, initPadArray.Type(), "PadsActual")
+	c.padsActual.SetLinkage(llvm.PrivateLinkage)
+	c.padsActual.SetInitializer(initPadArray)
+	// padsReport [2][8]byte
+	c.padsReport = llvm.AddGlobal(c.mod, initPadArray.Type(), "PadsReport")
+	c.padsReport.SetLinkage(llvm.PrivateLinkage)
+	c.padsReport.SetInitializer(initPadArray)
+	// strobeOn bool
+	c0 := llvm.ConstInt(llvm.Int1Type(), 0, false)
+	c.strobeOn = llvm.AddGlobal(c.mod, c0.Type(), "StrobeOn")
+	c.strobeOn.SetLinkage(llvm.PrivateLinkage)
+	c.strobeOn.SetInitializer(c0)
+	// void rom_set_button_state(uint8_t padIndex, uint8_t buttonIndex, uint8_t value);
+	i8Type := llvm.Int8Type()
+	setBtnStateType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{i8Type, i8Type, i8Type}, false)
+	setBtnStateFn := llvm.AddFunction(c.mod, "rom_set_button_state", setBtnStateType)
+	setBtnStateFn.SetFunctionCallConv(llvm.CCallConv)
+	entry := llvm.AddBasicBlock(setBtnStateFn, "Entry")
+	c.selectBlock(entry)
+	// padsActual[padIndex][buttonIndex] = state
+	c.builder.SetInsertPointAtEnd(entry)
+	indexes := []llvm.Value{
+		llvm.ConstInt(i8Type, 0, false),
+		setBtnStateFn.Param(0),
+		setBtnStateFn.Param(1),
+	}
+	ptr := c.builder.CreateGEP(c.padsActual, indexes, "")
+	c.builder.CreateStore(setBtnStateFn.Param(2), ptr)
+	// if strobeOn then padsReport[padIndex][buttonIndex] = state
+	strobeOn := c.builder.CreateLoad(c.strobeOn, "")
+	elseBlock := c.createIf(strobeOn)
+	ptr = c.builder.CreateGEP(c.padsReport, indexes, "")
+	c.builder.CreateStore(setBtnStateFn.Param(2), ptr)
+	c.builder.CreateRetVoid()
+	c.selectBlock(elseBlock)
+	c.builder.CreateRetVoid()
+
+	// these functions are private to this module
+	c.createPadWriteFn()
+	c.createPadReadFn()
+
+}
+
+func (c *Compilation) createPadWriteFn() {
+	i8Type := llvm.Int8Type()
+	// void padWrite(uint8_t value)
+	padWriteType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{i8Type}, false)
+	c.padWriteFn = llvm.AddFunction(c.mod, "padWrite", padWriteType)
+	c.padWriteFn.SetLinkage(llvm.PrivateLinkage)
+	entry := llvm.AddBasicBlock(c.padWriteFn, "Entry")
+	c.selectBlock(entry)
+	// StrobeOn = value&0x1 == 1
+	c0 := llvm.ConstInt(i8Type, 0, false)
+	c1 := llvm.ConstInt(i8Type, 1, false)
+	masked := c.builder.CreateAnd(c.padWriteFn.Param(0), c1, "")
+	isOn := c.builder.CreateICmp(llvm.IntNE, masked, c0, "")
+	c.builder.CreateStore(isOn, c.strobeOn)
+	// if c.StrobeOn {
+	elseBlock := c.createIf(isOn)
+	//     memcpy(padsReport, padsActual, 16)
+	c16 := llvm.ConstInt(llvm.Int32Type(), 16, false)
+	bytePointerType := llvm.PointerType(i8Type, 0)
+	dest := c.builder.CreatePointerCast(c.padsReport, bytePointerType, "")
+	source := c.builder.CreatePointerCast(c.padsActual, bytePointerType, "")
+	c.builder.CreateCall(c.memcpyFn, []llvm.Value{dest, source, c16}, "")
+	//     btnReportIndex[0] = 0
+	indexes := []llvm.Value{
+		c0,
+		c0,
+	}
+	ptr := c.builder.CreateGEP(c.btnReportIndex, indexes, "")
+	c.builder.CreateStore(c0, ptr)
+	//     btnReportIndex[1] = 0
+	indexes = []llvm.Value{
+		c0,
+		c1,
+	}
+	ptr = c.builder.CreateGEP(c.btnReportIndex, indexes, "")
+	c.builder.CreateStore(c0, ptr)
+	// }
+	c.builder.CreateRetVoid()
+	c.selectBlock(elseBlock)
+	c.builder.CreateRetVoid()
+}
+
+func (c *Compilation) createPadReadFn() {
+	i8Type := llvm.Int8Type()
+	c0 := llvm.ConstInt(i8Type, 0, false)
+	c1 := llvm.ConstInt(i8Type, 1, false)
+	c8 := llvm.ConstInt(i8Type, 8, false)
+	// uint8_t padRead(uint8_t padIndex)
+	padReadType := llvm.FunctionType(i8Type, []llvm.Type{i8Type}, false)
+	c.padReadFn = llvm.AddFunction(c.mod, "padRead", padReadType)
+	c.padReadFn.SetLinkage(llvm.PrivateLinkage)
+	entry := llvm.AddBasicBlock(c.padReadFn, "Entry")
+	c.selectBlock(entry)
+	// if btnReportIndex[padIndex] >= 8 {
+	indexes := []llvm.Value{
+		c0,
+		c.padReadFn.Param(0),
+	}
+	btnReportIndexPtr := c.builder.CreateGEP(c.btnReportIndex, indexes, "")
+	btnReportIndex := c.builder.CreateLoad(btnReportIndexPtr, "")
+	isOb := c.builder.CreateICmp(llvm.IntUGE, btnReportIndex, c8, "")
+	notObBlock := c.createIf(isOb)
+	//     return 1
+	c.builder.CreateRet(c1)
+	// }
+	c.selectBlock(notObBlock)
+	// v := padsReport[padIndex][btnReportIndex[padIndex]]
+	indexes = []llvm.Value{
+		c0,
+		c.padReadFn.Param(0),
+		btnReportIndex,
+	}
+	padsReportPtr := c.builder.CreateGEP(c.padsReport, indexes, "")
+	v := c.builder.CreateLoad(padsReportPtr, "")
+	// if c.StrobeOn {
+	strobeOn := c.builder.CreateLoad(c.strobeOn, "")
+	elseBlock := c.createIf(strobeOn)
+	//     btnReportIndex[padIndex] = 0
+	c.builder.CreateStore(c0, btnReportIndexPtr)
+	//     return v
+	c.builder.CreateRet(v)
+	// } else {
+	c.selectBlock(elseBlock)
+	//     btnReportIndex[padIndex] += 1
+	btnReportIndex = c.builder.CreateAdd(btnReportIndex, c1, "")
+	c.builder.CreateStore(btnReportIndex, btnReportIndexPtr)
+	//     return v
+	c.builder.CreateRet(v)
+	// }
 }
 
 func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
@@ -1574,6 +1723,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	mirroringGlobal.SetLinkage(llvm.ExternalLinkage)
 	mirroringGlobal.SetInitializer(mirroringConst)
 
+	c.createFunctionDeclares()
 	c.createReadChrFn(p.ChrRom)
 	c.createPrgRomGlobal(p.PrgRom)
 
@@ -1586,7 +1736,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 		return c, nil
 	}
 
-	c.createFunctionDeclares()
+	c.setupControllerFramework()
 	c.createRegisters()
 
 	// main function / entry point
@@ -1606,6 +1756,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	p.Ast.Ast(c)
 
 	// finally, one last pass for codegen
+	c.currentBlock = nil
 	c.mode = compileMode
 	p.Ast.Ast(c)
 
