@@ -115,6 +115,17 @@ void Ppu_writeMask(Ppu* p, uint8_t v) {
     p->masks.intensifyBlues = (((v >> 7) & 0x01) == 0x01);
 }
 
+// $4014
+void Ppu_writeDma(Ppu* p, uint8_t v) {
+    // Fill sprite RAM
+    int intV = v;
+    int addr = intV * 0x100;
+    for (int i = 0; i < 0x100; ++i) {
+        uint8_t d = p->readRam(addr + i);
+        p->spriteRam[i] = d;
+        Ppu_updateBufferedSpriteMem(p, i, d);
+    }
+}
 
 void Ppu_raster(Ppu* p) {
     int length = p->palettebufferSize;

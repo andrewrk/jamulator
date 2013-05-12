@@ -7,7 +7,7 @@ import (
 )
 
 func (i *ImmediateInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 	switch i.OpCode {
 	case 0xa2: // ldx
@@ -62,7 +62,7 @@ func (i *ImmediateInstruction) Compile(c *Compilation) {
 }
 
 func (i *ImpliedInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	switch i.OpCode {
 	case 0x0a: // asl
 		a := c.builder.CreateLoad(c.rA, "")
@@ -102,6 +102,7 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		newValue := c.builder.CreateLShr(oldValue, c1, "")
 		c.builder.CreateStore(newValue, c.rA)
 		c.dynTestAndSetZero(newValue)
+		c.dynTestAndSetNeg(newValue)
 		c.dynTestAndSetCarryLShr(oldValue)
 		c.cycle(2, i.Offset+i.Size)
 	case 0xea: // nop
@@ -161,7 +162,9 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.transfer(c.rX, c.rA)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x9a: // txs
-		c.transfer(c.rX, c.rSP)
+		// TXS does not set flags
+		v := c.builder.CreateLoad(c.rX, "")
+		c.builder.CreateStore(v, c.rSP)
 		c.cycle(2, i.Offset+i.Size)
 	case 0x98: // tya
 		c.transfer(c.rY, c.rA)
@@ -177,7 +180,7 @@ func (i *DirectWithLabelInstruction) ResolveRender(c *Compilation) string {
 	if !ok {
 		panic(fmt.Sprintf("label %s not defined: %s", i.LabelName, i.Render()))
 	}
-	return fmt.Sprintf("%s $%04x\n", i.OpName, addr)
+	return fmt.Sprintf("%s $%04x", i.OpName, addr)
 }
 
 func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
@@ -200,6 +203,7 @@ func (i *DirectWithLabelIndexedInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectIndexedInstruction) Compile(c *Compilation) {
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	switch i.Payload[0] {
 	case 0x79: // adc abs y
 		v := c.dynLoadIndexed(i.Value, c.rY)
@@ -369,7 +373,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 	if !ok {
 		panic(fmt.Sprintf("label %s addr not defined: %s", i.LabelName, i.Render()))
 	}
-	c.debugPrint(i.ResolveRender(c))
+	c.debugPrint(fmt.Sprintf("%s\n", i.ResolveRender(c)))
 	switch i.OpCode {
 	//case 0x6d: // adc
 	//case 0x2d: // and
@@ -437,7 +441,7 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 }
 
 func (i *DirectInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	switch i.Payload[0] {
 	case 0xa5, 0xad: // lda (zpg, abs)
 		v := c.load(i.Value)
@@ -609,7 +613,7 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectXInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 
 	switch i.Payload[0] {
 	case 0xa1: // lda
@@ -632,7 +636,7 @@ func (i *IndirectXInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectYInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	switch i.Payload[0] {
 	//case 0x71: // adc
 	//case 0x31: // and
@@ -664,6 +668,6 @@ func (i *IndirectYInstruction) Compile(c *Compilation) {
 }
 
 func (i *IndirectInstruction) Compile(c *Compilation) {
-	c.debugPrint(i.Render())
+	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
 	c.Errors = append(c.Errors, fmt.Sprintf("%s lacks Compile() implementation", i.Render()))
 }

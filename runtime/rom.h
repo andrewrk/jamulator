@@ -85,3 +85,6 @@ void rom_apu_write_controlflags2(uint8_t);
 
 // controller
 void rom_set_button_state(uint8_t padIndex, uint8_t buttonIndex, uint8_t value);
+
+// RAM
+uint8_t rom_ram_read(uint16_t addr);

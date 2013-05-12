@@ -79,6 +79,7 @@ typedef struct {
 
     void (*render)();
     void (*vblankInterrupt)();
+    uint8_t (*readRam)(uint16_t addr);
 
     int cycle;
     int scanline;
@@ -112,6 +113,7 @@ void Ppu_writeOamData(Ppu* p, uint8_t v);
 void Ppu_writeScroll(Ppu* p, uint8_t v);
 void Ppu_writeAddress(Ppu* p, uint8_t v);
 void Ppu_writeData(Ppu* p, uint8_t v);
+void Ppu_writeDma(Ppu* p, uint8_t v);
 
 uint8_t Ppu_readStatus(Ppu* p);
 uint8_t Ppu_readOamData(Ppu* p);

@@ -448,42 +448,49 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	ppuCtrlBlock := c.createBlock("ppuctrl")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0, false), ppuCtrlBlock)
 	c.selectBlock(ppuCtrlBlock)
+	c.debugPrint("ppu_write_control\n")
 	c.builder.CreateCall(c.ppuCtrlFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	ppuMaskBlock := c.createBlock("ppumask")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 1, false), ppuMaskBlock)
 	c.selectBlock(ppuMaskBlock)
+	c.debugPrint("ppu_write_mask\n")
 	c.builder.CreateCall(c.ppuMaskFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	oamAddrBlock := c.createBlock("oamaddr")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 3, false), oamAddrBlock)
 	c.selectBlock(oamAddrBlock)
+	c.debugPrint("ppu_write_oamaddr\n")
 	c.builder.CreateCall(c.oamAddrFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	oamDataBlock := c.createBlock("oamdata")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), oamDataBlock)
 	c.selectBlock(oamDataBlock)
+	c.debugPrint("ppu_write_oamdata\n")
 	c.builder.CreateCall(c.setOamDataFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	ppuScrollBlock := c.createBlock("ppuscroll")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 5, false), ppuScrollBlock)
 	c.selectBlock(ppuScrollBlock)
+	c.debugPrint("ppu_write_scroll\n")
 	c.builder.CreateCall(c.setPpuScrollFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	ppuAddrBlock := c.createBlock("ppuaddr")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 6, false), ppuAddrBlock)
 	c.selectBlock(ppuAddrBlock)
+	c.debugPrint("ppu_write_address\n")
 	c.builder.CreateCall(c.ppuAddrFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	ppuDataBlock := c.createBlock("ppudata")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuDataBlock)
 	c.selectBlock(ppuDataBlock)
+	c.debugPrint("ppu_write_data\n")
 	c.builder.CreateCall(c.setPpuDataFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
@@ -501,132 +508,156 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	apuSqr1CtrlBlock := c.createBlock("rom_apu_write_square1control")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4000, false), apuSqr1CtrlBlock)
 	c.selectBlock(apuSqr1CtrlBlock)
+	c.debugPrint("rom_apu_write_square1control\n")
 	c.builder.CreateCall(c.apuWriteSquare1CtrlFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr1SweepsBlock := c.createBlock("rom_apu_write_square1sweeps")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4001, false), apuSqr1SweepsBlock)
 	c.selectBlock(apuSqr1SweepsBlock)
+	c.debugPrint("rom_apu_write_square1sweeps\n")
 	c.builder.CreateCall(c.apuWriteSquare1SweepsFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr1LowBlock := c.createBlock("rom_apu_write_square1low")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4002, false), apuSqr1LowBlock)
 	c.selectBlock(apuSqr1LowBlock)
+	c.debugPrint("rom_apu_write_square1low\n")
 	c.builder.CreateCall(c.apuWriteSquare1LowFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr1HighBlock := c.createBlock("rom_apu_write_square1high")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4003, false), apuSqr1HighBlock)
 	c.selectBlock(apuSqr1HighBlock)
+	c.debugPrint("rom_apu_write_square1high\n")
 	c.builder.CreateCall(c.apuWriteSquare1HighFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr2CtrlBlock := c.createBlock("rom_apu_write_square2control")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4004, false), apuSqr2CtrlBlock)
 	c.selectBlock(apuSqr2CtrlBlock)
+	c.debugPrint("rom_apu_write_square2control\n")
 	c.builder.CreateCall(c.apuWriteSquare2CtrlFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr2SweepsBlock := c.createBlock("rom_apu_write_square2sweeps")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4005, false), apuSqr2SweepsBlock)
 	c.selectBlock(apuSqr2SweepsBlock)
+	c.debugPrint("rom_apu_write_square2sweeps\n")
 	c.builder.CreateCall(c.apuWriteSquare2SweepsFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr2LowBlock := c.createBlock("rom_apu_write_square2low")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4006, false), apuSqr2LowBlock)
 	c.selectBlock(apuSqr2LowBlock)
+	c.debugPrint("rom_apu_write_square2low\n")
 	c.builder.CreateCall(c.apuWriteSquare2LowFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuSqr2HighBlock := c.createBlock("rom_apu_write_square2high")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4007, false), apuSqr2HighBlock)
 	c.selectBlock(apuSqr2HighBlock)
+	c.debugPrint("rom_apu_write_square2high\n")
 	c.builder.CreateCall(c.apuWriteSquare2HighFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuTriCtrlBlock := c.createBlock("rom_apu_write_trianglecontrol")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4008, false), apuTriCtrlBlock)
 	c.selectBlock(apuTriCtrlBlock)
+	c.debugPrint("rom_apu_write_trianglecontrol\n")
 	c.builder.CreateCall(c.apuWriteTriangleCtrlFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuTriLowBlock := c.createBlock("rom_apu_write_trianglelow")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400a, false), apuTriLowBlock)
 	c.selectBlock(apuTriLowBlock)
+	c.debugPrint("rom_apu_write_trianglelow\n")
 	c.builder.CreateCall(c.apuWriteTriangleLowFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuTriHighBlock := c.createBlock("rom_apu_write_trianglehigh")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400b, false), apuTriHighBlock)
 	c.selectBlock(apuTriHighBlock)
+	c.debugPrint("rom_apu_write_trianglehigh\n")
 	c.builder.CreateCall(c.apuWriteTriangleHighFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuNoiseBaseBlock := c.createBlock("rom_apu_write_noisebase")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400c, false), apuNoiseBaseBlock)
 	c.selectBlock(apuNoiseBaseBlock)
+	c.debugPrint("rom_apu_write_noisebase\n")
 	c.builder.CreateCall(c.apuWriteNoiseBaseFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuNoisePeriodBlock := c.createBlock("rom_apu_write_noiseperiod")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400e, false), apuNoisePeriodBlock)
 	c.selectBlock(apuNoisePeriodBlock)
+	c.debugPrint("rom_apu_write_noiseperiod\n")
 	c.builder.CreateCall(c.apuWriteNoisePeriodFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuNoiseLengthBlock := c.createBlock("rom_apu_write_noiselength")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x400f, false), apuNoiseLengthBlock)
 	c.selectBlock(apuNoiseLengthBlock)
+	c.debugPrint("rom_apu_write_noiselength\n")
 	c.builder.CreateCall(c.apuWriteNoiseLengthFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuDmcFlagsBlock := c.createBlock("rom_apu_write_dmcflags")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4010, false), apuDmcFlagsBlock)
 	c.selectBlock(apuDmcFlagsBlock)
+	c.debugPrint("rom_apu_write_dmcflags\n")
 	c.builder.CreateCall(c.apuWriteDmcFlagsFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuDmcDirectLoadBlock := c.createBlock("rom_apu_write_dmcdirectload")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4011, false), apuDmcDirectLoadBlock)
 	c.selectBlock(apuDmcDirectLoadBlock)
+	c.debugPrint("rom_apu_write_dmcdirectload\n")
 	c.builder.CreateCall(c.apuWriteDmcDirectLoadFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuDmcSampleAddrBlock := c.createBlock("rom_apu_write_dmcsampleaddress")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4012, false), apuDmcSampleAddrBlock)
 	c.selectBlock(apuDmcSampleAddrBlock)
+	c.debugPrint("rom_apu_write_dmcsampleaddress\n")
 	c.builder.CreateCall(c.apuWriteDmcSampleAddressFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuDmcSampleLenBlock := c.createBlock("rom_apu_write_dmcsamplelength")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4013, false), apuDmcSampleLenBlock)
 	c.selectBlock(apuDmcSampleLenBlock)
+	c.debugPrint("rom_apu_write_dmcsamplelength\n")
 	c.builder.CreateCall(c.apuWriteDmcSampleLengthFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	ppuDmaBlock := c.createBlock("rom_ppu_write_dma")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4014, false), ppuDmaBlock)
 	c.selectBlock(ppuDmaBlock)
+	c.debugPrint("ppu_write_oamdata\n")
+	c.builder.CreateCall(c.setOamDataFn, []llvm.Value{val}, "")
+	c.debugPrint("rom_ppu_write_dma\n")
 	c.builder.CreateCall(c.ppuWriteDma, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuCtrlFlags1Block := c.createBlock("rom_apu_write_controlflags1")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4015, false), apuCtrlFlags1Block)
 	c.selectBlock(apuCtrlFlags1Block)
+	c.debugPrint("rom_apu_write_controlflags1\n")
 	c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	padWriteBlock := c.createBlock("padWrite")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), padWriteBlock)
 	c.selectBlock(padWriteBlock)
+	c.debugPrint("pad_write\n")
 	c.builder.CreateCall(c.padWriteFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
 	apuCtrlFlags2Block := c.createBlock("rom_apu_write_controlflags2")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4017, false), apuCtrlFlags2Block)
 	c.selectBlock(apuCtrlFlags2Block)
+	c.debugPrint("rom_apu_write_controlflags2\n")
 	c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
@@ -639,7 +670,6 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 }
 
 func (c *Compilation) store(addr int, i8 llvm.Value) {
-	//c.debugPrintf(fmt.Sprintf("static store $%04x %s\n", addr, "#$%02x"), []llvm.Value{i8})
 	// homebrew ABI
 	switch addr {
 	case 0x2008: // putchar
@@ -689,48 +719,72 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 		default:
 			c.Errors = append(c.Errors, fmt.Sprintf("writing to memory address 0x%04x is unsupported", addr))
 		case 0x4000:
+			c.debugPrint("rom_apu_write_square1control\n")
 			c.builder.CreateCall(c.apuWriteSquare1CtrlFn, []llvm.Value{i8}, "")
 		case 0x4001:
+			c.debugPrint("rom_apu_write_square1sweeps\n")
 			c.builder.CreateCall(c.apuWriteSquare1SweepsFn, []llvm.Value{i8}, "")
 		case 0x4002:
+			c.debugPrint("rom_apu_write_square1low\n")
 			c.builder.CreateCall(c.apuWriteSquare1LowFn, []llvm.Value{i8}, "")
 		case 0x4003:
+			c.debugPrint("rom_apu_write_square1high\n")
 			c.builder.CreateCall(c.apuWriteSquare1HighFn, []llvm.Value{i8}, "")
 		case 0x4004:
+			c.debugPrint("rom_apu_write_square2control\n")
 			c.builder.CreateCall(c.apuWriteSquare2CtrlFn, []llvm.Value{i8}, "")
 		case 0x4005:
+			c.debugPrint("rom_apu_write_square2sweeps\n")
 			c.builder.CreateCall(c.apuWriteSquare2SweepsFn, []llvm.Value{i8}, "")
 		case 0x4006:
+			c.debugPrint("rom_apu_write_square2low\n")
 			c.builder.CreateCall(c.apuWriteSquare2LowFn, []llvm.Value{i8}, "")
 		case 0x4007:
+			c.debugPrint("rom_apu_write_square2high\n")
 			c.builder.CreateCall(c.apuWriteSquare2HighFn, []llvm.Value{i8}, "")
 		case 0x4008:
+			c.debugPrint("rom_apu_write_trianglecontrol\n")
 			c.builder.CreateCall(c.apuWriteTriangleCtrlFn, []llvm.Value{i8}, "")
 		case 0x400a:
+			c.debugPrint("rom_apu_write_trianglelow\n")
 			c.builder.CreateCall(c.apuWriteTriangleLowFn, []llvm.Value{i8}, "")
 		case 0x400b:
+			c.debugPrint("rom_apu_write_trianglehigh\n")
 			c.builder.CreateCall(c.apuWriteTriangleHighFn, []llvm.Value{i8}, "")
 		case 0x400c:
+			c.debugPrint("rom_apu_write_noisebase\n")
 			c.builder.CreateCall(c.apuWriteNoiseBaseFn, []llvm.Value{i8}, "")
 		case 0x400e:
+			c.debugPrint("rom_apu_write_noiseperiod\n")
 			c.builder.CreateCall(c.apuWriteNoisePeriodFn, []llvm.Value{i8}, "")
 		case 0x400f:
+			c.debugPrint("rom_apu_write_noiselength\n")
 			c.builder.CreateCall(c.apuWriteNoiseLengthFn, []llvm.Value{i8}, "")
 		case 0x4010:
+			c.debugPrint("rom_apu_write_dmcflags\n")
 			c.builder.CreateCall(c.apuWriteDmcFlagsFn, []llvm.Value{i8}, "")
 		case 0x4011:
+			c.debugPrint("rom_apu_write_dmcdirectload\n")
 			c.builder.CreateCall(c.apuWriteDmcDirectLoadFn, []llvm.Value{i8}, "")
 		case 0x4012:
+			c.debugPrint("rom_apu_write_dmcsampleaddress\n")
 			c.builder.CreateCall(c.apuWriteDmcSampleAddressFn, []llvm.Value{i8}, "")
 		case 0x4013:
+			c.debugPrint("rom_apu_write_dmcsamplelength\n")
 			c.builder.CreateCall(c.apuWriteDmcSampleLengthFn, []llvm.Value{i8}, "")
 		case 0x4014:
+			c.debugPrint("ppu_write_oamdata\n")
+			c.builder.CreateCall(c.setOamDataFn, []llvm.Value{i8}, "")
+			c.debugPrint("rom_ppu_write_dma\n")
 			c.builder.CreateCall(c.ppuWriteDma, []llvm.Value{i8}, "")
 		case 0x4015:
+			c.debugPrint("rom_apu_write_controlflags1\n")
 			c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{i8}, "")
 		case 0x4016:
+			c.debugPrint("pad_write\n")
 			c.builder.CreateCall(c.padWriteFn, []llvm.Value{i8}, "")
 		case 0x4017:
+			c.debugPrint("rom_apu_write_controlflags2\n")
 			c.builder.CreateCall(c.apuWriteCtrlFlags2Fn, []llvm.Value{i8}, "")
 		}
 	}
@@ -804,6 +858,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	ppuReadStatusBlock := c.createBlock("ppu_read_status")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 2, false), ppuReadStatusBlock)
 	c.selectBlock(ppuReadStatusBlock)
+	c.debugPrint("ppu_read_status\n")
 	v = c.builder.CreateCall(c.ppuReadStatusFn, []llvm.Value{}, "")
 	c.builder.CreateStore(v, result)
 	c.builder.CreateBr(loadDoneBlock)
@@ -811,6 +866,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	ppuReadOamDataBlock := c.createBlock("ppu_read_oamdata")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 4, false), ppuReadOamDataBlock)
 	c.selectBlock(ppuReadOamDataBlock)
+	c.debugPrint("ppu_read_oamdata\n")
 	v = c.builder.CreateCall(c.ppuReadOamDataFn, []llvm.Value{}, "")
 	c.builder.CreateStore(v, result)
 	c.builder.CreateBr(loadDoneBlock)
@@ -818,6 +874,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	ppuReadDataBlock := c.createBlock("ppu_read_data")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 7, false), ppuReadDataBlock)
 	c.selectBlock(ppuReadDataBlock)
+	c.debugPrint("ppu_read_data\n")
 	v = c.builder.CreateCall(c.ppuReadDataFn, []llvm.Value{}, "")
 	c.builder.CreateStore(v, result)
 	c.builder.CreateBr(loadDoneBlock)
@@ -852,8 +909,8 @@ func (c *Compilation) wramPtr(addr int) llvm.Value {
 	}
 	maskedAddr := addr & (0x800 - 1)
 	indexes := []llvm.Value{
-		llvm.ConstInt(llvm.Int8Type(), 0, false),
-		llvm.ConstInt(llvm.Int8Type(), uint64(maskedAddr), false),
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
+		llvm.ConstInt(llvm.Int16Type(), uint64(maskedAddr), false),
 	}
 	return c.builder.CreateGEP(c.wram, indexes, "")
 }
@@ -884,12 +941,15 @@ func (c *Compilation) load(addr int) llvm.Value {
 			return llvm.ConstNull(llvm.Int8Type())
 		}
 	case addr == 0x4015:
+		c.debugPrint("rom_apu_read_status\n")
 		return c.builder.CreateCall(c.apuReadStatusFn, []llvm.Value{}, "")
 	case addr == 0x4016:
 		c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+		c.debugPrint("pad_read1\n")
 		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c0}, "")
 	case addr == 0x4017:
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+		c.debugPrint("pad_read2\n")
 		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c1}, "")
 	}
 	panic("unreachable")
@@ -989,14 +1049,9 @@ func (c *Compilation) pullFromStack() llvm.Value {
 	spPlusOne := c.builder.CreateAdd(sp, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
 	c.builder.CreateStore(spPlusOne, c.rSP)
 	// read the value at stack pointer
-	spZExt := c.builder.CreateZExt(sp, llvm.Int16Type(), "")
+	spZExt := c.builder.CreateZExt(spPlusOne, llvm.Int16Type(), "")
 	addr := c.builder.CreateAdd(spZExt, llvm.ConstInt(llvm.Int16Type(), 0x100, false), "")
-	indexes := []llvm.Value{
-		llvm.ConstInt(llvm.Int16Type(), 0, false),
-		addr,
-	}
-	ptr := c.builder.CreateGEP(c.wram, indexes, "")
-	return c.builder.CreateLoad(ptr, "")
+	return c.dynLoad(addr, 0x100, 0x1ff)
 }
 
 func (c *Compilation) pullWordFromStack() llvm.Value {
@@ -1013,12 +1068,7 @@ func (c *Compilation) pushToStack(v llvm.Value) {
 	sp := c.builder.CreateLoad(c.rSP, "")
 	spZExt := c.builder.CreateZExt(sp, llvm.Int16Type(), "")
 	addr := c.builder.CreateAdd(spZExt, llvm.ConstInt(llvm.Int16Type(), 0x100, false), "")
-	indexes := []llvm.Value{
-		llvm.ConstInt(llvm.Int16Type(), 0, false),
-		addr,
-	}
-	ptr := c.builder.CreateGEP(c.wram, indexes, "")
-	c.builder.CreateStore(v, ptr)
+	c.dynStore(addr, 0x100, 0x1ff, v)
 	// stack pointer = stack pointer - 1
 	spMinusOne := c.builder.CreateSub(sp, llvm.ConstInt(llvm.Int8Type(), 1, false), "")
 	c.builder.CreateStore(spMinusOne, c.rSP)
@@ -1062,7 +1112,7 @@ func (c *Compilation) pullStatusReg() {
 	c.builder.CreateStore(s0, c.rSCarry)
 }
 
-func (c *Compilation) pushStatusReg() {
+func (c *Compilation) getStatusByte() llvm.Value {
 	// zextend
 	s7z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSNeg, ""), llvm.Int8Type(), "")
 	s6z := c.builder.CreateZExt(c.builder.CreateLoad(c.rSOver, ""), llvm.Int8Type(), "")
@@ -1085,12 +1135,14 @@ func (c *Compilation) pushStatusReg() {
 	s0z = c.builder.CreateOr(s0z, s4z, "")
 	s0z = c.builder.CreateOr(s0z, s6z, "")
 	s0z = c.builder.CreateOr(s0z, s7z, "")
-	c.pushToStack(s0z)
+	return s0z
 }
 
 func (c *Compilation) cycle(count int, pc int) {
 	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
+	c.debugPrintStatus()
 
+	// pc -1 means don't mess with the pc
 	if pc >= 0 {
 		c.builder.CreateStore(llvm.ConstInt(llvm.Int16Type(), uint64(pc), false), c.rPC)
 	}
@@ -1134,6 +1186,12 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 	c.printf(str, values)
 }
 
+func (c *Compilation) debugPrintStatus() {
+	if c.Flags&IncludeDebugFlag != 0 {
+		c.printf("status %x\n", []llvm.Value{c.getStatusByte()})
+	}
+
+}
 func (c *Compilation) createBranch(cond llvm.Value, labelName string, instrAddr int) {
 	branchBlock := c.labeledBlocks[labelName]
 	thenBlock := c.createBlock("then")
@@ -1538,13 +1596,34 @@ func (c *Compilation) createRegisters() {
 	c.rSCarry = c.createBitRegister("S_carry")
 }
 
-func (c *Compilation) addInterruptCode() {
+func (c *Compilation) addNmiInterruptCode() {
 	c.builder.SetInsertPointBefore(c.nmiBlock.FirstInstruction())
 	// * push PC high onto stack
 	// * push PC low onto stack
 	c.pushWordToStack(c.builder.CreateLoad(c.rPC, ""))
 	// * push processor status onto stack
-	c.pushStatusReg()
+	c.pushToStack(c.getStatusByte())
+}
+
+func (c *Compilation) addResetInterruptCode() {
+	c.builder.SetInsertPointBefore(c.resetBlock.FirstInstruction())
+	// set registers
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	xfd := llvm.ConstInt(llvm.Int8Type(), 0xfd, false)
+	bit0 := llvm.ConstInt(llvm.Int1Type(), 0, false)
+	bit1 := llvm.ConstInt(llvm.Int1Type(), 1, false)
+	c.builder.CreateStore(c0, c.rX)
+	c.builder.CreateStore(c0, c.rY)
+	c.builder.CreateStore(c0, c.rA)
+	c.builder.CreateStore(xfd, c.rSP)
+
+	c.builder.CreateStore(bit0, c.rSNeg)
+	c.builder.CreateStore(bit0, c.rSOver)
+	c.builder.CreateStore(bit1, c.rSBrk)
+	c.builder.CreateStore(bit0, c.rSDec)
+	c.builder.CreateStore(bit1, c.rSInt)
+	c.builder.CreateStore(bit0, c.rSZero)
+	c.builder.CreateStore(bit0, c.rSCarry)
 }
 
 func (c *Compilation) setupControllerFramework() {
@@ -1696,6 +1775,16 @@ func (c *Compilation) createPadReadFn() {
 	// }
 }
 
+func (c *Compilation) createReadMemFn() {
+	// uint8_t rom_ram_read(uint16_t addr)
+	readMemType := llvm.FunctionType(llvm.Int8Type(), []llvm.Type{llvm.Int16Type()}, false)
+	readMemFn := llvm.AddFunction(c.mod, "rom_ram_read", readMemType)
+	entry := llvm.AddBasicBlock(readMemFn, "Entry")
+	c.selectBlock(entry)
+	v := c.dynLoad(readMemFn.Param(0), 0, 0xffff)
+	c.builder.CreateRet(v)
+}
+
 func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
 	llvm.InitializeNativeTarget()
 
@@ -1760,6 +1849,8 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.mode = compileMode
 	p.Ast.Ast(c)
 
+	c.createReadMemFn()
+
 	// hook up entry points
 	if c.nmiBlock == nil {
 		c.Errors = append(c.Errors, "missing nmi entry point")
@@ -1791,7 +1882,8 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 		sw.AddCase(llvm.ConstInt(llvm.Int32Type(), uint64(labelId), false), c.labeledBlocks[labelName])
 	}
 
-	c.addInterruptCode()
+	c.addNmiInterruptCode()
+	c.addResetInterruptCode()
 
 	if flags&DumpModulePreFlag != 0 {
 		c.mod.Dump()

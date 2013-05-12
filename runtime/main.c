@@ -70,11 +70,15 @@ void flush_events() {
     }
 }
 
-void rom_cycle(uint8_t cycles) {
-    flush_events();
+void step(uint8_t cycles) {
     for (int i = 0; i < 3 * cycles; ++i) {
         Ppu_step(p);
     }
+}
+
+void rom_cycle(uint8_t cycles) {
+    flush_events();
+    step(cycles);
     int req = interruptRequested;
     if (req != ROM_INTERRUPT_NONE) {
         interruptRequested = ROM_INTERRUPT_NONE;
@@ -119,7 +123,7 @@ void reshape_video(int width, int height) {
 }
 
 void init_video() {
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK|SDL_INIT_AUDIO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
         exit(1);
     }
@@ -197,6 +201,7 @@ int main() {
     p = Ppu_new();
     p->render = &render;
     p->vblankInterrupt = &vblankInterrupt;
+    p->readRam = &rom_ram_read;
     Nametable_setMirroring(&p->nametables, rom_mirroring);
     assert(rom_chr_bank_count == 1);
     rom_read_chr(p->vram);
@@ -243,7 +248,14 @@ void rom_ppu_write_oamdata(uint8_t b) {
 void rom_ppu_write_scroll(uint8_t b) {
     Ppu_writeScroll(p, b);
 }
-void rom_ppu_write_dma(uint8_t b){}
+void rom_ppu_write_dma(uint8_t b) {
+    Ppu_writeDma(p, b);
+
+    // Halt the CPU for 512 cycles
+    step(255);
+    step(255);
+    step(2);
+}
 
 uint8_t rom_apu_read_status() {
     return 0;
