@@ -138,7 +138,8 @@ func (i *ImpliedInstruction) Compile(c *Compilation) {
 		c.currentBlock = nil
 	case 0x60: // rts
 		pc := c.pullWordFromStack()
-		pc = c.builder.CreateAdd(pc, llvm.ConstInt(llvm.Int16Type(), 1, false), "")
+		pc = c.builder.CreateAdd(pc, llvm.ConstInt(pc.Type(), 1, false), "")
+		c.debugPrintf("rts: new pc $%04x\n", []llvm.Value{pc})
 		c.builder.CreateStore(pc, c.rPC)
 		c.cycle(6, -1)
 		c.builder.CreateRetVoid()
@@ -396,6 +397,9 @@ func (i *DirectWithLabelInstruction) Compile(c *Compilation) {
 		c.currentBlock = nil
 	case 0x20: // jsr
 		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset+2), false)
+
+		c.debugPrintf("jsr: saving $%04x\n", []llvm.Value{pc})
+
 		c.pushWordToStack(pc)
 		c.cycle(6, labelAddr)
 		id := c.labelAsEntryPoint(i.LabelName)
@@ -565,24 +569,24 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 	//case 0xe4: // cpx zpg
 	//case 0xc4: // cpy zpg
 	case 0x26: // rol zpg
-		oldValue := c.builder.CreateLoad(c.rA, "")
+		oldValue := c.load(i.Value)
 		newValue := c.performRol(oldValue)
-		c.builder.CreateStore(newValue, c.rA)
+		c.store(i.Value, newValue)
 		c.cycle(5, i.Offset+i.GetSize())
 	case 0x66: // ror zpg
-		oldValue := c.builder.CreateLoad(c.rA, "")
+		oldValue := c.load(i.Value)
 		newValue := c.performRor(oldValue)
-		c.builder.CreateStore(newValue, c.rA)
+		c.store(i.Value, newValue)
 		c.cycle(5, i.Offset+i.GetSize())
 	case 0x2e: // rol abs
-		oldValue := c.builder.CreateLoad(c.rA, "")
+		oldValue := c.load(i.Value)
 		newValue := c.performRol(oldValue)
-		c.builder.CreateStore(newValue, c.rA)
+		c.store(i.Value, newValue)
 		c.cycle(6, i.Offset+i.GetSize())
 	case 0x6e: // ror abs
-		oldValue := c.builder.CreateLoad(c.rA, "")
+		oldValue := c.load(i.Value)
 		newValue := c.performRor(oldValue)
-		c.builder.CreateStore(newValue, c.rA)
+		c.store(i.Value, newValue)
 		c.cycle(6, i.Offset+i.GetSize())
 
 	//case 0xec: // cpx abs

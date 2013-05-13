@@ -312,7 +312,7 @@ func (c *Compilation) performRor(val llvm.Value) llvm.Value {
 	carryBit := c.builder.CreateLoad(c.rSCarry, "")
 	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
 	carryShifted := c.builder.CreateShl(carry, c7, "")
-	newValue := c.builder.CreateAnd(shifted, carryShifted, "")
+	newValue := c.builder.CreateOr(shifted, carryShifted, "")
 	c.dynTestAndSetZero(newValue)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetCarryLShr(val)
@@ -320,11 +320,12 @@ func (c *Compilation) performRor(val llvm.Value) llvm.Value {
 }
 
 func (c *Compilation) performRol(val llvm.Value) llvm.Value {
-	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	c1 := llvm.ConstInt(val.Type(), 1, false)
 	shifted := c.builder.CreateShl(val, c1, "")
 	carryBit := c.builder.CreateLoad(c.rSCarry, "")
-	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
-	newValue := c.builder.CreateAnd(shifted, carry, "")
+	carry := c.builder.CreateZExt(carryBit, val.Type(), "")
+	newValue := c.builder.CreateOr(shifted, carry, "")
+
 	c.dynTestAndSetZero(newValue)
 	c.dynTestAndSetNeg(newValue)
 	c.dynTestAndSetCarryShl(val)
@@ -402,6 +403,7 @@ func (c *Compilation) performEor(v llvm.Value) {
 }
 
 func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val llvm.Value) {
+	c.debugPrintf("store $%02x in $%04x\n", []llvm.Value{val, addr})
 	if maxAddr < 0x800 {
 		// wram. we don't even have to mask it
 		indexes := []llvm.Value{
@@ -650,7 +652,7 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	padWriteBlock := c.createBlock("padWrite")
 	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), padWriteBlock)
 	c.selectBlock(padWriteBlock)
-	c.debugPrint("pad_write\n")
+	c.debugPrintf("pad_write $%02x\n", []llvm.Value{val})
 	c.builder.CreateCall(c.padWriteFn, []llvm.Value{val}, "")
 	c.builder.CreateBr(storeDoneBlock)
 
@@ -670,6 +672,8 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 }
 
 func (c *Compilation) store(addr int, i8 llvm.Value) {
+	c.debugPrintf("store $%02x in $%04x\n", []llvm.Value{i8, llvm.ConstInt(llvm.Int16Type(), uint64(addr), false)})
+
 	// homebrew ABI
 	switch addr {
 	case 0x2008: // putchar
@@ -781,7 +785,7 @@ func (c *Compilation) store(addr int, i8 llvm.Value) {
 			c.debugPrint("rom_apu_write_controlflags1\n")
 			c.builder.CreateCall(c.apuWriteCtrlFlags1Fn, []llvm.Value{i8}, "")
 		case 0x4016:
-			c.debugPrint("pad_write\n")
+			c.debugPrintf("pad_write $%02x\n", []llvm.Value{i8})
 			c.builder.CreateCall(c.padWriteFn, []llvm.Value{i8}, "")
 		case 0x4017:
 			c.debugPrint("rom_apu_write_controlflags2\n")
@@ -945,8 +949,9 @@ func (c *Compilation) load(addr int) llvm.Value {
 		return c.builder.CreateCall(c.apuReadStatusFn, []llvm.Value{}, "")
 	case addr == 0x4016:
 		c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
-		c.debugPrint("pad_read1\n")
-		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c0}, "")
+		v := c.builder.CreateCall(c.padReadFn, []llvm.Value{c0}, "")
+		c.debugPrintf("pad_read1 $%02x\n", []llvm.Value{v})
+		return v
 	case addr == 0x4017:
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
 		c.debugPrint("pad_read2\n")
@@ -1059,8 +1064,8 @@ func (c *Compilation) pullWordFromStack() llvm.Value {
 	high := c.pullFromStack()
 	low16 := c.builder.CreateZExt(low, llvm.Int16Type(), "")
 	high16 := c.builder.CreateZExt(high, llvm.Int16Type(), "")
-	word := c.builder.CreateShl(high16, llvm.ConstInt(llvm.Int16Type(), 8, false), "")
-	return c.builder.CreateAnd(word, low16, "")
+	word := c.builder.CreateShl(high16, llvm.ConstInt(high16.Type(), 8, false), "")
+	return c.builder.CreateOr(word, low16, "")
 }
 
 func (c *Compilation) pushToStack(v llvm.Value) {
@@ -1139,13 +1144,12 @@ func (c *Compilation) getStatusByte() llvm.Value {
 }
 
 func (c *Compilation) cycle(count int, pc int) {
-	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
-	c.debugPrintStatus()
-
 	// pc -1 means don't mess with the pc
 	if pc >= 0 {
 		c.builder.CreateStore(llvm.ConstInt(llvm.Int16Type(), uint64(pc), false), c.rPC)
 	}
+	c.debugPrint(fmt.Sprintf("cycles %d\n", count))
+	c.debugPrintStatus()
 
 	v := llvm.ConstInt(llvm.Int8Type(), uint64(count), false)
 	c.builder.CreateCall(c.cycleFn, []llvm.Value{v}, "")
@@ -1188,7 +1192,14 @@ func (c *Compilation) debugPrintf(str string, values []llvm.Value) {
 
 func (c *Compilation) debugPrintStatus() {
 	if c.Flags&IncludeDebugFlag != 0 {
-		c.printf("status %x\n", []llvm.Value{c.getStatusByte()})
+		c.printf("A $%02x  X $%02x  Y $%02x  P $%02x  PC $%04x  SP $%02x\n", []llvm.Value{
+			c.builder.CreateLoad(c.rA, ""),
+			c.builder.CreateLoad(c.rX, ""),
+			c.builder.CreateLoad(c.rY, ""),
+			c.getStatusByte(),
+			c.builder.CreateLoad(c.rPC, ""),
+			c.builder.CreateLoad(c.rSP, ""),
+		})
 	}
 
 }
