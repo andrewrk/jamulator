@@ -288,12 +288,14 @@ func (i *DirectIndexedInstruction) Compile(c *Compilation) {
 		c.performSbc(v)
 		c.cycle(4, i.Offset+i.GetSize())
 	case 0x1e: // asl abs x
-		v := c.dynLoadIndexed(i.Value, c.rX)
-		c.performAsl(v)
+		oldValue := c.dynLoadIndexed(i.Value, c.rX)
+		newValue := c.performAsl(oldValue)
+		c.dynStoreIndexed(i.Value, c.rX, newValue)
 		c.cycle(7, i.Offset+i.GetSize())
 	case 0x16: // asl zpg x
-		v := c.dynLoadZpgIndexed(i.Value, c.rX)
-		c.performAsl(v)
+		oldValue := c.dynLoadZpgIndexed(i.Value, c.rX)
+		newValue := c.performAsl(oldValue)
+		c.dynStoreZpgIndexed(i.Value, c.rX, newValue)
 		c.cycle(6, i.Offset+i.GetSize())
 	case 0xde: // dec abs x
 		oldValue := c.dynLoadIndexed(i.Value, c.rX)
@@ -552,10 +554,14 @@ func (i *DirectInstruction) Compile(c *Compilation) {
 		c.performBit(c.load(i.Value))
 		c.cycle(4, i.Offset+i.GetSize())
 	case 0x06: // asl zpg
-		c.performAsl(c.load(i.Value))
+		oldValue := c.load(i.Value)
+		newValue := c.performAsl(oldValue)
+		c.store(i.Value, newValue)
 		c.cycle(5, i.Offset+i.GetSize())
 	case 0x0e: // asl abs
-		c.performAsl(c.load(i.Value))
+		oldValue := c.load(i.Value)
+		newValue := c.performAsl(oldValue)
+		c.store(i.Value, newValue)
 		c.cycle(6, i.Offset+i.GetSize())
 	//case 0x90: // bcc rel
 	//case 0xb0: // bcs rel
