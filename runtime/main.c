@@ -19,6 +19,41 @@ static Video v;
 static Ppu* p;
 static int interruptRequested = ROM_INTERRUPT_NONE;
 
+
+typedef struct {
+    uint64_t cycle;
+    uint8_t padIndex;
+    uint8_t btnIndex;
+    uint8_t btnState;
+} MovieFrame;
+static char * movieFilename = NULL;
+static MovieFrame* movie = NULL;
+static uint64_t movieFrameCount;
+static uint64_t frameIndex = 0;
+static uint64_t cycleIndex = 0;
+
+void loadMovie() {
+    if (movieFilename == NULL) return;
+    FILE *fd = fopen(movieFilename, "rb");
+    if (fd == NULL) {
+        perror("Error opening movie file");
+        exit(1);
+    }
+    size_t n = fread(&movieFrameCount, 8, 1, fd);
+    movie = malloc(sizeof(MovieFrame) * movieFrameCount);
+    for (size_t i = 0; i < movieFrameCount; ++i) {
+        n = fread(&movie[i].cycle, 8, 1, fd);
+        n = fread(&movie[i].padIndex, 1, 1, fd);
+        n = fread(&movie[i].btnIndex, 1, 1, fd);
+        n = fread(&movie[i].btnState, 1, 1, fd);
+    }
+    if (ferror(fd) != 0) {
+        perror("Error reading movie");
+        exit(1);
+    }
+    fclose(fd);
+}
+
 void setPadState(SDLKey key, uint8_t value) {
     switch (key) {
         case SDLK_2:
@@ -48,6 +83,18 @@ void setPadState(SDLKey key, uint8_t value) {
     }
 }
 
+void setPadStateFromMovie() {
+    if (movie == NULL) return;
+    while (frameIndex < movieFrameCount && cycleIndex >= movie[frameIndex].cycle) {
+        rom_set_button_state(
+                movie[frameIndex].padIndex,
+                movie[frameIndex].btnIndex,
+                movie[frameIndex].btnState);
+        frameIndex += 1;
+    }
+    if (frameIndex >= movieFrameCount) exit(0);
+}
+
 void flush_events() {
     SDL_Event event;
 
@@ -71,6 +118,7 @@ void flush_events() {
 }
 
 void step(uint8_t cycles) {
+    cycleIndex += cycles;
     for (int i = 0; i < 3 * cycles; ++i) {
         Ppu_step(p);
     }
@@ -78,6 +126,7 @@ void step(uint8_t cycles) {
 
 void rom_cycle(uint8_t cycles) {
     flush_events();
+    setPadStateFromMovie();
     step(cycles);
     int req = interruptRequested;
     if (req != ROM_INTERRUPT_NONE) {
@@ -197,7 +246,30 @@ void render() {
     free(slice);
 }
 
-int main() {
+void printUsage(char * command) {
+    fprintf(stderr, "Usage:\n%s [-movie file]\n", command);
+    exit(1);
+}
+
+void parseFlags(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        char * arg = argv[i];
+        if (arg[0] == '-' && i < argc - 1) {
+            if (strcmp(arg, "-movie") == 0) {
+                movieFilename = argv[i + 1];
+                i += 1;
+            } else {
+                printUsage(argv[0]);
+            }
+        } else {
+            printUsage(argv[0]);
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    parseFlags(argc, argv);
+    loadMovie();
     p = Ppu_new();
     p->render = &render;
     p->vblankInterrupt = &vblankInterrupt;
