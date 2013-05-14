@@ -574,7 +574,7 @@ func (d *Disassembly) collapseDataStatements() {
 	const MAX_DATA_LIST_LEN = 8
 	for e := d.prog.List.Front().Next(); e != nil; e = e.Next() {
 		dataStmt, ok := e.Value.(*DataStatement)
-		if !ok {
+		if !ok || dataStmt.Type != ByteDataStmt {
 			continue
 		}
 		prev, ok := e.Prev().Value.(*DataStatement)
