@@ -56,6 +56,7 @@ void loadMovie() {
 
 void setPadState(SDLKey key, uint8_t value) {
     switch (key) {
+        default: break; // to make warning go away
         case SDLK_2:
             rom_set_button_state(0, ROM_BUTTON_A, value);
             break;
