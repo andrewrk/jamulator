@@ -19,6 +19,9 @@ func (rom *Rom) RecompileToBinary(filename string, flags CompileFlags) error {
 	if err != nil {
 		return err
 	}
+	if len(program.Errors) > 0 {
+		return errors.New(strings.Join(program.Errors, "\n"))
+	}
 
 	tmpDir, err := ioutil.TempDir("", "")
 	if err != nil {

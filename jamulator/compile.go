@@ -3,7 +3,6 @@ package jamulator
 // generates a module compatible with runtime/rom.h
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/axw/gollvm/llvm"
 	"os"
@@ -45,12 +44,8 @@ type Compilation struct {
 	labelIds        map[string]int
 	entryLabelCount int
 
-	currentValue *bytes.Buffer
-	currentLabel string
-	currentExpecting int
-	mode         int
 	currentBlock *llvm.BasicBlock
-	currentInstr Compiler
+	currentInstr *Instruction
 	// label names to look for
 	nmiLabelName   string
 	resetLabelName string
@@ -105,16 +100,6 @@ type Compilation struct {
 	padReadFn  llvm.Value
 }
 
-type Compiler interface {
-	Compile(*Compilation)
-}
-
-const (
-	dataStmtMode = iota
-	basicBlocksMode
-	compileMode
-)
-
 type CompileFlags int
 
 const (
@@ -130,67 +115,67 @@ const (
 	cfExpectInstr
 )
 
-func (c *Compilation) Visit(n Node) {
-	switch c.mode {
-	case dataStmtMode:
-		c.visitForControlFlow(n)
-	case basicBlocksMode:
-		c.visitForBasicBlocks(n)
-	case compileMode:
-		c.visitForCompile(n)
-	}
-}
-
-func (c *Compilation) ctrlFlowGotData(n Node) {
-	switch c.currentExpecting {
-	case cfExpectInstr:
-		// TODO: we need some of the logic from disassembly here
-		//c.Errors = append(c.Errors, fmt.Sprintf("expected instruction, got data: %s", n.(Renderer).Render()))
-		c.currentExpecting = cfExpectData
-	case cfExpectNone:
-		c.labeledData[c.currentLabel] = true
-		c.currentExpecting = cfExpectData
-	}
-}
-
-func (c *Compilation) visitForControlFlow(n Node) {
-	switch t := n.(type) {
-	case *LabeledStatement:
-		c.currentLabel = t.LabelName
-		c.currentExpecting = cfExpectNone
-	case *DataStatement:
-		c.ctrlFlowGotData(n)
-	case *DataWordStatement:
-		c.ctrlFlowGotData(n)
-	case Compiler:
-		switch c.currentExpecting {
-		case cfExpectData:
-			// TODO: we need some of the logic from disassembly here
-			//c.Errors = append(c.Errors, fmt.Sprintf("expected data, got instruction: %s", n.(Renderer).Render()))
-			c.currentExpecting = cfExpectInstr
-			return
-		case cfExpectNone:
-			c.currentExpecting = cfExpectInstr
+func (c *Compilation) visitForControlFlow() {
+	currentLabel := ""
+	currentExpecting := cfExpectNone
+	for e := c.program.List.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
+		default:
+			panic(fmt.Sprintf("unrecognized node: %T", e.Value))
+		case *OrgPseudoOp:
+			// do nothing
+		case *LabelStatement:
+			currentLabel = t.LabelName
+			currentExpecting = cfExpectNone
+		case *DataStatement:
+			switch currentExpecting {
+			case cfExpectInstr:
+				// TODO: we need some of the logic from disassembly here
+				//c.Errors = append(c.Errors, fmt.Sprintf("expected instruction, got data: %s", n.(Renderer).Render()))
+				currentExpecting = cfExpectData
+			case cfExpectNone:
+				c.labeledData[currentLabel] = true
+				currentExpecting = cfExpectData
+			}
+		case *Instruction:
+			switch currentExpecting {
+			case cfExpectData:
+				// TODO: we need some of the logic from disassembly here
+				//c.Errors = append(c.Errors, fmt.Sprintf("expected data, got instruction: %s", n.(Renderer).Render()))
+				currentExpecting = cfExpectInstr
+				return
+			case cfExpectNone:
+				currentExpecting = cfExpectInstr
+			}
 		}
 	}
 }
 
-func (c *Compilation) visitForBasicBlocks(n Node) {
-	switch t := n.(type) {
-	case *LabeledStatement:
-		t.CompileLabels(c)
+func (c *Compilation) visitForBasicBlocks() {
+	c.builder.SetInsertPointAtEnd(c.mainFn.EntryBasicBlock())
+	for e := c.program.List.Front(); e != nil; e = e.Next() {
+		labelStmt, ok := e.Value.(*LabelStatement)
+		if ok {
+			c.compileLabels(labelStmt)
+		}
 	}
 }
 
-func (c *Compilation) visitForCompile(n Node) {
-	switch t := n.(type) {
-	case Compiler:
-		c.currentInstr = t
-		t.Compile(c)
+func (c *Compilation) visitForCompile() {
+	c.currentBlock = nil
+	for e := c.program.List.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
+		default: panic("unrecognized node")
+		case *Instruction:
+			c.currentInstr = t
+			t.Compile(c)
+		case *LabelStatement:
+			t.Compile(c)
+		case *DataStatement:
+		case *OrgPseudoOp:
+		}
 	}
 }
-
-func (c *Compilation) VisitEnd(n Node) {}
 
 func (c *Compilation) testAndSetZero(v int) {
 	if v == 0 {
@@ -1015,9 +1000,8 @@ func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
 }
 
 func (c *Compilation) createPanic(msg string, args []llvm.Value) {
-	renderer := c.currentInstr.(Renderer)
 	c.printf(msg, args)
-	c.printf(fmt.Sprintf("current instruction: %s\n", renderer.Render()), []llvm.Value{})
+	c.printf(fmt.Sprintf("current instruction: %s\n", c.currentInstr.Render()), []llvm.Value{})
 	c.printf("A: $%02x  X: $%02x  Y: $%02x  SP: $%02x  PC: $%04x\n", []llvm.Value{
 		c.builder.CreateLoad(c.rA, ""),
 		c.builder.CreateLoad(c.rX, ""),
@@ -1382,7 +1366,7 @@ func (c *Compilation) labelAsEntryPoint(labelName string) int {
 	return c.entryLabelCount
 }
 
-func (s *LabeledStatement) Compile(c *Compilation) {
+func (s *LabelStatement) Compile(c *Compilation) {
 	bb, ok := c.labeledBlocks[s.LabelName]
 	if !ok {
 		// we're not doing codegen for this block. skip.
@@ -1395,7 +1379,7 @@ func (s *LabeledStatement) Compile(c *Compilation) {
 	c.builder.SetInsertPointAtEnd(bb)
 }
 
-func (s *LabeledStatement) CompileLabels(c *Compilation) {
+func (c *Compilation) compileLabels(s *LabelStatement) {
 	// if it's a "data block" ignore it
 	_, ok := c.labeledData[s.LabelName]
 	if ok {
@@ -1416,19 +1400,23 @@ func (s *LabeledStatement) CompileLabels(c *Compilation) {
 }
 
 func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
-	n, ok := p.offsets[addr]
+	e, ok := p.Offsets[addr]
 	if !ok {
 		c.Errors = append(c.Errors, fmt.Sprintf("Missing 0x%04x entry point", addr))
 		return
 	}
-	stmt, ok := n.(*DataWordStatement)
+	stmt, ok := e.Value.(*DataStatement)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w", addr))
+		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a data statement", addr))
 		return
 	}
-	call, ok := stmt.dataList[0].(*LabelCall)
+	if stmt.Type != WordDataStmt {
+		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a word data statement", addr))
+		return
+	}
+	call, ok := stmt.dataList.Front().Value.(*LabelCall)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a dc.w with a label", addr))
+		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a data word statement with a label", addr))
 		return
 	}
 	*s = call.LabelName
@@ -1828,10 +1816,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.createPrgRomGlobal(p.PrgRom)
 
 	// first pass to figure out which blocks are "data" and which are "code"
-	c.mode = dataStmtMode
-	c.currentLabel = ""
-	c.currentExpecting = cfExpectNone
-	p.Ast.Ast(c)
+	c.visitForControlFlow()
 	if len(c.Errors) > 0 {
 		return c, nil
 	}
@@ -1851,14 +1836,10 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.setUpEntryPoint(p, 0xfffe, &c.irqLabelName)
 
 	// second pass to build basic blocks
-	c.builder.SetInsertPointAtEnd(entry)
-	c.mode = basicBlocksMode
-	p.Ast.Ast(c)
+	c.visitForBasicBlocks()
 
 	// finally, one last pass for codegen
-	c.currentBlock = nil
-	c.mode = compileMode
-	p.Ast.Ast(c)
+	c.visitForCompile()
 
 	c.createReadMemFn()
 

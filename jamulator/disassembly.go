@@ -10,26 +10,14 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 )
-
-type SourceWriter struct {
-	program *Program
-	writer  *bufio.Writer
-	Errors  []string
-}
 
 type Renderer interface {
 	Render() string
 }
 
 type Disassembly struct {
-	Errors []string
-
-	rom  *Rom
-	list *list.List
-	// maps memory offset to node
-	offsets    map[int]*list.Element
+	prog       *Program
 	offset     int
 	dynJumps   []int
 	jumpTables map[int]bool
@@ -43,10 +31,10 @@ func (d *Disassembly) elemAsByte(elem *list.Element) (byte, error) {
 	if !ok {
 		return 0, errors.New("already marked as instruction")
 	}
-	if len(stmt.dataList) != 1 {
+	if stmt.dataList.Len() != 1 {
 		return 0, errors.New("expected DataStatement of size 1")
 	}
-	intDataItem, ok := stmt.dataList[0].(*IntegerDataItem)
+	intDataItem, ok := stmt.dataList.Front().Value.(*IntegerDataItem)
 	if !ok {
 		return 0, errors.New("expected integer data item")
 	}
@@ -86,19 +74,23 @@ func (d *Disassembly) getLabelAt(addr int, name string) (string, error) {
 		return stmt.LabelName, nil
 	}
 	// put one there
-	i := new(LabeledStatement)
+	i := new(LabelStatement)
 	i.LabelName = name
 	if len(i.LabelName) == 0 {
 		i.LabelName = fmt.Sprintf("Label_%04x", addr)
 	}
-	d.list.InsertBefore(i, elem)
+	d.prog.List.InsertBefore(i, elem)
+
+	// save in the label map
+	d.prog.Labels[i.LabelName] = addr
+
 	return i.LabelName, nil
 }
 
 func (d *Disassembly) removeElemAt(addr int) {
 	elem := d.elemAtAddr(addr)
-	d.list.Remove(elem)
-	delete(d.offsets, addr)
+	d.prog.List.Remove(elem)
+	delete(d.prog.Offsets, addr)
 }
 
 func (d *Disassembly) isJumpTable(addr int) bool {
@@ -132,7 +124,7 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 	for elem := d.elemAtAddr(addr); elem != nil; elem = elem.Next() {
 		switch state {
 		case expectAsl:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -141,7 +133,7 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectTay
 		case expectTay:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -150,7 +142,7 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectPlaA
 		case expectPlaA:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -159,17 +151,17 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectStaA
 		case expectStaA:
-			i, ok := elem.Value.(*DirectInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+			if i.OpCode != 0x85 && i.OpCode != 0x8d {
 				return false
 			}
 			memA = i.Value
 			state = expectPlaB
 		case expectPlaB:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -178,11 +170,11 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectStaB
 		case expectStaB:
-			i, ok := elem.Value.(*DirectInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+			if i.OpCode != 0x85 && i.OpCode != 0x8d {
 				return false
 			}
 			if i.Value != memA+1 {
@@ -190,7 +182,7 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectInyC
 		case expectInyC:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -199,11 +191,11 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectLdaC
 		case expectLdaC:
-			i, ok := elem.Value.(*IndirectYInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0xb1 {
+			if i.OpCode != 0xb1 {
 				return false
 			}
 			if i.Value != memA {
@@ -211,17 +203,17 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectStaC
 		case expectStaC:
-			i, ok := elem.Value.(*DirectInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+			if i.OpCode != 0x85 && i.OpCode != 0x8d {
 				return false
 			}
 			memC = i.Value
 			state = expectInYD
 		case expectInYD:
-			i, ok := elem.Value.(*ImpliedInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
@@ -230,11 +222,11 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectLdaD
 		case expectLdaD:
-			i, ok := elem.Value.(*IndirectYInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0xb1 {
+			if i.OpCode != 0xb1 {
 				return false
 			}
 			if i.Value != memA {
@@ -242,11 +234,11 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectStaD
 		case expectStaD:
-			i, ok := elem.Value.(*DirectInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
 				return false
 			}
-			if i.Payload[0] != 0x85 && i.Payload[0] != 0x8d {
+			if i.OpCode != 0x85 && i.OpCode != 0x8d {
 				return false
 			}
 			if i.Value != memC+1 {
@@ -254,8 +246,11 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 			}
 			state = expectJmp
 		case expectJmp:
-			i, ok := elem.Value.(*IndirectInstruction)
+			i, ok := elem.Value.(*Instruction)
 			if !ok {
+				return false
+			}
+			if i.OpCode != 0x6c {
 				return false
 			}
 			if i.Value != memC {
@@ -278,7 +273,11 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		// already decoded as instruction
 		return nil
 	}
+	i := new(Instruction)
 	opCodeInfo := opCodeDataMap[opCode]
+	i.OpName = opCodeInfo.opName
+	i.OpCode = opCode
+	i.Offset = addr
 	switch opCodeInfo.addrMode {
 	case nilAddr:
 		return errors.New("cannot disassemble as instruction: bad op code")
@@ -288,35 +287,26 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		targetAddr := int(w)
-		label, err := d.getLabelAt(targetAddr, "")
+		i.Value = int(w)
+		i.Payload = []byte{opCode, 0, 0}
+		binary.LittleEndian.PutUint16(i.Payload[1:], w)
+		i.LabelName, err = d.getLabelAt(i.Value, "")
 		if err == nil {
-			i := new(DirectWithLabelInstruction)
-			i.OpName = opCodeInfo.opName
-			i.Offset = addr
-			i.Size = 3
-			i.OpCode = opCode
-			i.LabelName = label
-			elem.Value = i
+			i.Type = DirectWithLabelInstruction
 		} else {
-			i := new(DirectInstruction)
-			i.OpName = opCodeInfo.opName
-			i.Offset = addr
-			i.Payload = []byte{opCode, 0, 0}
-			i.Value = targetAddr
-			binary.LittleEndian.PutUint16(i.Payload[1:], w)
-			elem.Value = i
+			i.Type = DirectInstruction
 		}
+		elem.Value = i
 
 		d.removeElemAt(addr + 1)
 		d.removeElemAt(addr + 2)
 
 		switch opCode {
 		case 0x4c: // jmp
-			d.markAsInstruction(targetAddr)
+			d.markAsInstruction(i.Value)
 		case 0x20: // jsr
-			d.markAsInstruction(targetAddr)
-			if d.isJumpTable(targetAddr) {
+			d.markAsInstruction(i.Value)
+			if d.isJumpTable(i.Value) {
 				// mark this and remember to come back later
 				d.dynJumps = append(d.dynJumps, addr+3)
 			} else {
@@ -330,31 +320,21 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		regName := "X"
 		if opCodeInfo.addrMode == absYAddr {
-			regName = "Y"
-		}
-		targetAddr := int(w)
-		labelName, err := d.getLabelAt(targetAddr, "")
-		if err == nil {
-			i := new(DirectWithLabelIndexedInstruction)
-			i.OpName = opCodeInfo.opName
-			i.Offset = addr
-			i.LabelName = labelName
-			i.RegisterName = regName
-			i.Size = 3
-			i.OpCode = opCode
-			elem.Value = i
+			i.RegisterName = "Y"
 		} else {
-			i := new(DirectIndexedInstruction)
-			i.OpName = opCodeInfo.opName
-			i.Offset = addr
-			i.Payload = []byte{opCode, 0, 0}
-			i.Value = targetAddr
-			i.RegisterName = regName
-			binary.LittleEndian.PutUint16(i.Payload[1:], w)
-			elem.Value = i
+			i.RegisterName = "X"
 		}
+		i.Value = int(w)
+		i.Payload = []byte{opCode, 0, 0}
+		binary.LittleEndian.PutUint16(i.Payload[1:], w)
+		i.LabelName, err = d.getLabelAt(i.Value, "")
+		if err == nil {
+			i.Type = DirectWithLabelIndexedInstruction
+		} else {
+			i.Type = DirectIndexedInstruction
+		}
+		elem.Value = i
 
 		d.removeElemAt(addr + 1)
 		d.removeElemAt(addr + 2)
@@ -366,11 +346,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		i := new(ImmediateInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.OpCode = opCode
+		i.Type = ImmediateInstruction
 		i.Value = int(v)
+		i.Payload = []byte{opCode, v}
 		elem.Value = i
 
 		d.removeElemAt(addr + 1)
@@ -378,19 +356,15 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
 	case impliedAddr:
-		i := new(ImpliedInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.OpCode = opCode
+		i.Type = ImpliedInstruction
+		i.Payload = []byte{opCode}
 		elem.Value = i
 
-		if opCode == 0x40 {
-			// RTI
-		} else if opCode == 0x60 {
-			// RTS
-		} else if opCode == 0x00 {
-			// BRK
-		} else {
+		switch opCode {
+		case 0x40: // RTI
+		case 0x60: // RTS
+		case 0x00: // BRK
+		default:
 			// next thing is definitely an instruction
 			d.markAsInstruction(addr + 1)
 		}
@@ -400,9 +374,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		i := new(IndirectInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
+		i.Type = IndirectInstruction
 		i.Payload = []byte{opCode, 0, 0}
 		i.Value = int(w)
 		binary.LittleEndian.PutUint16(i.Payload[1:], w)
@@ -422,9 +394,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		i := new(IndirectXInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
+		i.Type = IndirectXInstruction
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
@@ -438,11 +408,9 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		i := new(IndirectYInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.Payload = []byte{opCode, v}
+		i.Type = IndirectYInstruction
 		i.Value = int(v)
+		i.Payload = []byte{opCode, v}
 		elem.Value = i
 
 		d.removeElemAt(addr + 1)
@@ -454,13 +422,10 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		if err != nil {
 			return err
 		}
-		i := new(DirectWithLabelInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
-		i.Size = 2
-		i.OpCode = opCode
-		targetAddr := addr + 2 + int(int8(v))
-		i.LabelName, err = d.getLabelAt(targetAddr, "")
+		i.Type = DirectWithLabelInstruction
+		i.Value = addr + 2 + int(int8(v))
+		i.Payload = []byte{opCode, v}
+		i.LabelName, err = d.getLabelAt(i.Value, "")
 		if err != nil {
 			panic(err)
 		}
@@ -470,15 +435,13 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 
 		// mark both targets of the branch as instructions
 		d.markAsInstruction(addr + 2)
-		d.markAsInstruction(targetAddr)
+		d.markAsInstruction(i.Value)
 	case zeroPageAddr:
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil {
 			return err
 		}
-		i := new(DirectInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
+		i.Type = DirectInstruction
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
 		elem.Value = i
@@ -488,20 +451,19 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		// next thing is definitely an instruction
 		d.markAsInstruction(addr + 2)
 	case zeroXIndexAddr, zeroYIndexAddr:
-		regName := "X"
 		if opCodeInfo.addrMode == zeroYIndexAddr {
-			regName = "Y"
+			i.RegisterName = "Y"
+		} else {
+			i.RegisterName = "X"
 		}
 		v, err := d.elemAsByte(elem.Next())
 		if err != nil {
 			return err
 		}
-		i := new(DirectIndexedInstruction)
-		i.OpName = opCodeInfo.opName
-		i.Offset = addr
+		i.Type = DirectIndexedInstruction
 		i.Payload = []byte{opCode, v}
 		i.Value = int(v)
-		i.RegisterName = regName
+		i.RegisterName = i.RegisterName
 		elem.Value = i
 
 		d.removeElemAt(addr + 1)
@@ -512,64 +474,42 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 	return nil
 }
 
-func (d *Disassembly) Error() string {
-	return strings.Join(d.Errors, "\n")
-}
-
 func (d *Disassembly) ToProgram() *Program {
-	p := new(Program)
-	p.Ast = new(ProgramAST)
-	p.Ast.statements = make(StatementList, 0, d.list.Len())
-	p.offsets = map[int]Node{}
-
+	// add the org statement
 	orgStatement := new(OrgPseudoOp)
 	orgStatement.Fill = 0xff // this is the default; causes it to be left off when rendered
 	orgStatement.Value = d.offset
-	p.Ast.statements = append(p.Ast.statements, orgStatement)
+	d.prog.List.PushFront(orgStatement)
 
-	for e := d.list.Front(); e != nil; e = e.Next() {
-		p.Ast.statements = append(p.Ast.statements, e.Value.(Node))
-	}
-	for k, v := range d.offsets {
-		n := v.Value.(Node)
-		p.offsets[k] = n
-		// if 1 bank, it's mirrored at 0x8000 and 0xc000
-		if len(d.rom.PrgRom) == 1 {
-			p.offsets[k-0x4000] = n
-		}
-	}
-	// generate label offsets
-	p.Labels = map[string]int{}
-	p.Ast.Ast(p)
-
-	return p
+	return d.prog
 }
 
 func (d *Disassembly) readAllAsData() {
-	d.offset = 0x10000 - 0x4000*len(d.rom.PrgRom)
+	d.offset = 0x10000 - 0x4000*len(d.prog.PrgRom)
 	offset := d.offset
-	for _, bank := range d.rom.PrgRom {
+	for _, bank := range d.prog.PrgRom {
 		for _, b := range bank {
 			stmt := new(DataStatement)
-			stmt.dataList = make(DataList, 1)
+			stmt.Type = ByteDataStmt
+			stmt.dataList = list.New()
 			item := IntegerDataItem(b)
-			stmt.dataList[0] = &item
+			stmt.dataList.PushBack(&item)
 			stmt.Offset = offset
-			stmt.Size = 1
-			d.offsets[stmt.Offset] = d.list.PushBack(stmt)
+			stmt.Payload = []byte{b}
+			d.prog.Offsets[stmt.Offset] = d.prog.List.PushBack(stmt)
 			offset += 1
 		}
 	}
 }
 
 func (d *Disassembly) elemAtAddr(addr int) *list.Element {
-	elem, ok := d.offsets[addr]
+	elem, ok := d.prog.Offsets[addr]
 	if ok {
 		return elem
 	}
 	// if there is only 1 prg rom bank, it is at 0x8000 and mirrored at 0xc000
-	if len(d.rom.PrgRom) == 1 && addr < 0xc000 {
-		return d.offsets[addr+0x4000]
+	if len(d.prog.PrgRom) == 1 && addr < 0xc000 {
+		return d.prog.Offsets[addr+0x4000]
 	}
 	return nil
 }
@@ -579,20 +519,23 @@ func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error 
 	elem2 := elem1.Next()
 	s1 := elem1.Value.(*DataStatement)
 	s2 := elem2.Value.(*DataStatement)
-	if len(s1.dataList) != 1 {
+	if s1.dataList.Len() != 1 {
 		return errors.New("expected DataList len 1")
 	}
-	if len(s2.dataList) != 1 {
+	if s2.dataList.Len() != 1 {
 		return errors.New("expected DataList len 1")
 	}
-	n1 := s1.dataList[0].(*IntegerDataItem)
-	n2 := s2.dataList[0].(*IntegerDataItem)
+	n1 := s1.dataList.Front().Value.(*IntegerDataItem)
+	n2 := s2.dataList.Front().Value.(*IntegerDataItem)
 
-	targetAddr := int(binary.LittleEndian.Uint16([]byte{byte(*n1), byte(*n2)}))
+	newStmt := &DataStatement{
+		Type: WordDataStmt,
+		Offset: addr,
+		Payload: []byte{byte(*n1), byte(*n2)},
+		dataList: list.New(),
+	}
+	targetAddr := int(binary.LittleEndian.Uint16(newStmt.Payload))
 
-	newStmt := new(DataWordStatement)
-	newStmt.Offset = addr
-	newStmt.Size = 2
 
 	elem1.Value = newStmt
 	d.removeElemAt(addr + 1)
@@ -600,7 +543,7 @@ func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error 
 	if targetAddr < 0x8000 {
 		// target not in PRG ROM
 		tmp := IntegerDataItem(targetAddr)
-		newStmt.dataList = WordList{&tmp}
+		newStmt.dataList.PushBack(&tmp)
 		return nil
 	}
 
@@ -609,27 +552,27 @@ func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error 
 	err := d.markAsInstruction(targetAddr)
 	if err != nil {
 		tmp := IntegerDataItem(targetAddr)
-		newStmt.dataList = WordList{&tmp}
+		newStmt.dataList.PushBack(&tmp)
 		return nil
 	}
 
 	labelName, err := d.getLabelAt(targetAddr, suggestedName)
 	if err != nil {
 		tmp := IntegerDataItem(targetAddr)
-		newStmt.dataList = WordList{&tmp}
+		newStmt.dataList.PushBack(&tmp)
 		return nil
 	}
-	newStmt.dataList = WordList{&LabelCall{labelName}}
+	newStmt.dataList.PushBack(&LabelCall{labelName})
 
 	return nil
 }
 
 func (d *Disassembly) collapseDataStatements() {
-	if d.list.Len() < 2 {
+	if d.prog.List.Len() < 2 {
 		return
 	}
 	const MAX_DATA_LIST_LEN = 8
-	for e := d.list.Front().Next(); e != nil; e = e.Next() {
+	for e := d.prog.List.Front().Next(); e != nil; e = e.Next() {
 		dataStmt, ok := e.Value.(*DataStatement)
 		if !ok {
 			continue
@@ -638,22 +581,22 @@ func (d *Disassembly) collapseDataStatements() {
 		if !ok {
 			continue
 		}
-		if len(prev.dataList)+len(dataStmt.dataList) > MAX_DATA_LIST_LEN {
+		if prev.dataList.Len()+dataStmt.dataList.Len() > MAX_DATA_LIST_LEN {
 			continue
 		}
-		for _, v := range dataStmt.dataList {
-			prev.dataList = append(prev.dataList, v)
+		for de := dataStmt.dataList.Front(); de != nil; de = de.Next() {
+			prev.dataList.PushBack(de.Value)
 		}
 		elToDel := e
 		e = e.Prev()
-		d.list.Remove(elToDel)
+		d.prog.List.Remove(elToDel)
 
 	}
 }
 
-func allAscii(dl DataList) bool {
-	for _, v := range dl {
-		switch t := v.(type) {
+func allAscii(dl *list.List) bool {
+	for e := dl.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
 		case *IntegerDataItem:
 			if *t < 32 || *t > 126 || *t == '"' {
 				return false
@@ -661,16 +604,16 @@ func allAscii(dl DataList) bool {
 		case *StringDataItem:
 			// nothing to do
 		default:
-			panic("unrecognized data list item")
+			panic(fmt.Sprintf("unrecognized data list item: %T", e.Value))
 		}
 	}
 	return true
 }
 
-func dataListToStr(dl DataList) string {
+func dataListToStr(dl *list.List) string {
 	str := ""
-	for _, v := range dl {
-		switch t := v.(type) {
+	for e := dl.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
 		case *IntegerDataItem:
 			str += string(*t)
 		case *StringDataItem:
@@ -697,12 +640,12 @@ func (oi *orgIdentifier) stop(e *list.Element) {
 		for i := 0; i < oi.repeatCount; i++ {
 			delItem := oi.firstElem
 			oi.firstElem = oi.firstElem.Next()
-			oi.dis.list.Remove(delItem)
+			oi.dis.prog.List.Remove(delItem)
 		}
 		orgStmt := new(OrgPseudoOp)
 		orgStmt.Value = firstOffset + oi.repeatCount
 		orgStmt.Fill = oi.repeatingByte
-		oi.dis.list.InsertBefore(orgStmt, e)
+		oi.dis.prog.List.InsertBefore(orgStmt, e)
 	}
 	oi.repeatCount = 0
 }
@@ -726,18 +669,18 @@ func (oi *orgIdentifier) gotByte(e *list.Element, b byte) {
 
 func (d *Disassembly) identifyOrgs() {
 	// if a byte repeats enough, use an org statement
-	if d.list.Len() < orgMinRepeatAmt {
+	if d.prog.List.Len() < orgMinRepeatAmt {
 		return
 	}
 	orgIdent := new(orgIdentifier)
 	orgIdent.dis = d
-	for e := d.list.Front().Next(); e != nil; e = e.Next() {
+	for e := d.prog.List.Front().Next(); e != nil; e = e.Next() {
 		dataStmt, ok := e.Value.(*DataStatement)
-		if !ok || len(dataStmt.dataList) != 1 {
+		if !ok || dataStmt.dataList.Len() != 1 {
 			orgIdent.stop(e)
 			continue
 		}
-		v, ok := dataStmt.dataList[0].(*IntegerDataItem)
+		v, ok := dataStmt.dataList.Front().Value.(*IntegerDataItem)
 		if !ok {
 			orgIdent.stop(e)
 			continue
@@ -748,26 +691,26 @@ func (d *Disassembly) identifyOrgs() {
 
 func (d *Disassembly) groupAsciiStrings() {
 	const threshold = 5
-	if d.list.Len() < threshold {
+	if d.prog.List.Len() < threshold {
 		return
 	}
-	e := d.list.Front()
+	e := d.prog.List.Front()
 	first := e
 	buf := new(bytes.Buffer)
 	for e != nil {
 		dataStmt, ok := e.Value.(*DataStatement)
-		if !ok || !allAscii(dataStmt.dataList) {
+		if !ok || dataStmt.Type != ByteDataStmt || !allAscii(dataStmt.dataList) {
 			if buf.Len() >= threshold {
 				firstStmt := first.Value.(*DataStatement)
-				firstStmt.dataList = make([]Node, 1)
+				firstStmt.dataList = list.New()
 				tmp := StringDataItem(buf.String())
-				firstStmt.dataList[0] = &tmp
+				firstStmt.dataList.PushBack(&tmp)
 				for {
 					elToDel := first.Next()
 					if elToDel == e {
 						break
 					}
-					d.list.Remove(elToDel)
+					d.prog.List.Remove(elToDel)
 				}
 			}
 			buf = new(bytes.Buffer)
@@ -780,17 +723,17 @@ func (d *Disassembly) groupAsciiStrings() {
 	}
 }
 
-func (d *Disassembly) elemLabelStmt(elem *list.Element) *LabeledStatement {
+func (d *Disassembly) elemLabelStmt(elem *list.Element) *LabelStatement {
 	if elem == nil {
 		return nil
 	}
-	stmt, ok := elem.Value.(*LabeledStatement)
+	stmt, ok := elem.Value.(*LabelStatement)
 	if ok {
 		return stmt
 	}
 	prev := elem.Prev()
 	if prev != nil {
-		stmt, ok = prev.Value.(*LabeledStatement)
+		stmt, ok = prev.Value.(*LabelStatement)
 		if ok {
 			return stmt
 		}
@@ -833,10 +776,13 @@ func (r *Rom) Disassemble() (*Program, error) {
 	}
 
 	dis := new(Disassembly)
-	dis.rom = r
-	dis.list = new(list.List)
-	dis.offsets = make(map[int]*list.Element)
 	dis.jumpTables = make(map[int]bool)
+	dis.prog = new(Program)
+	dis.prog.List = list.New()
+	dis.prog.Offsets = make(map[int]*list.Element)
+	dis.prog.Labels = make(map[string]int)
+	dis.prog.ChrRom = r.ChrRom
+	dis.prog.PrgRom = r.PrgRom
 
 	dis.readAllAsData()
 
@@ -857,9 +803,6 @@ func (r *Rom) Disassemble() (*Program, error) {
 	p.PrgRom = r.PrgRom
 	p.Mirroring = r.Mirroring
 
-	if len(dis.Errors) > 0 {
-		return p, dis
-	}
 	return p, nil
 }
 
@@ -891,131 +834,107 @@ func DisassembleFile(filename string) (*Program, error) {
 	return p, nil
 }
 
-func (sw SourceWriter) Visit(n Node) {
-	switch t := n.(type) {
-	case Renderer:
-		sw.writer.WriteString(t.Render())
-		sw.writer.WriteString("\n")
+func (i *Instruction) Render() string {
+	switch i.Type {
+	case ImmediateInstruction:
+		return fmt.Sprintf("%s #$%02x", i.OpName, i.Value)
+	case ImpliedInstruction:
+		return i.OpName
+	case DirectInstruction:
+		if opCodeDataMap[i.OpCode].addrMode == zeroPageAddr {
+			return fmt.Sprintf("%s $%02x", i.OpName, i.Value)
+		}
+		return fmt.Sprintf("%s $%04x", i.OpName, i.Value)
+	case DirectWithLabelInstruction:
+		return fmt.Sprintf("%s %s", i.OpName, i.LabelName)
+	case DirectIndexedInstruction:
+		addrMode := opCodeDataMap[i.OpCode].addrMode
+		if addrMode == zeroXIndexAddr || addrMode == zeroYIndexAddr {
+			return fmt.Sprintf("%s $%02x, %s", i.OpName, i.Value, i.RegisterName)
+		}
+		return fmt.Sprintf("%s $%04x, %s", i.OpName, i.Value, i.RegisterName)
+	case DirectWithLabelIndexedInstruction:
+		return fmt.Sprintf("%s %s, %s", i.OpName, i.LabelName, i.RegisterName)
+	case IndirectInstruction:
+		return fmt.Sprintf("%s ($%04x)", i.OpName, i.Value)
+	case IndirectXInstruction:
+		return fmt.Sprintf("%s ($%02x, X)", i.OpName, i.Value)
+	case IndirectYInstruction:
+		return fmt.Sprintf("%s ($%02x), Y", i.OpName, i.Value)
 	}
-}
-
-func (SourceWriter) VisitEnd(Node) {}
-
-func (sw SourceWriter) Error() string {
-	return strings.Join(sw.Errors, "\n")
-}
-
-func (i *ImmediateInstruction) Render() string {
-	return fmt.Sprintf("    %s #$%02x", i.OpName, i.Value)
-}
-
-func (i *ImpliedInstruction) Render() string {
-	return fmt.Sprintf("    %s", i.OpName)
-}
-
-func (i *DirectInstruction) Render() string {
-	if opCodeDataMap[i.Payload[0]].addrMode == zeroPageAddr {
-		return fmt.Sprintf("    %s $%02x", i.OpName, i.Value)
-	}
-	return fmt.Sprintf("    %s $%04x", i.OpName, i.Value)
-}
-
-func (i *DirectWithLabelInstruction) Render() string {
-	return fmt.Sprintf("    %s %s", i.OpName, i.LabelName)
-}
-
-func (i *DirectIndexedInstruction) Render() string {
-	addrMode := opCodeDataMap[i.Payload[0]].addrMode
-	if addrMode == zeroXIndexAddr || addrMode == zeroYIndexAddr {
-		return fmt.Sprintf("    %s $%02x, %s", i.OpName, i.Value, i.RegisterName)
-	}
-	return fmt.Sprintf("    %s $%04x, %s", i.OpName, i.Value, i.RegisterName)
-}
-
-func (i *DirectWithLabelIndexedInstruction) Render() string {
-	return fmt.Sprintf("    %s %s, %s", i.OpName, i.LabelName, i.RegisterName)
-}
-
-func (i *IndirectInstruction) Render() string {
-	return fmt.Sprintf("    %s ($%04x)", i.OpName, i.Value)
-}
-
-func (i *IndirectXInstruction) Render() string {
-	return fmt.Sprintf("    %s ($%02x, X)", i.OpName, i.Value)
-}
-
-func (i *IndirectYInstruction) Render() string {
-	return fmt.Sprintf("    %s ($%02x), Y", i.OpName, i.Value)
+	panic("unexpected Instruction Type")
 }
 
 func (i *OrgPseudoOp) Render() string {
 	if i.Fill == 0xff {
-		return fmt.Sprintf("  .org $%04x", i.Value)
+		return fmt.Sprintf(".org $%04x", i.Value)
 	}
-	return fmt.Sprintf("  .org $%04x, $%02x", i.Value, i.Fill)
+	return fmt.Sprintf(".org $%04x, $%02x", i.Value, i.Fill)
 }
 
 func (s *DataStatement) Render() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("    .db ")
-	for i, node := range s.dataList {
-		switch t := node.(type) {
+	switch s.Type {
+	default: panic("unexpected DataStatement Type")
+	case ByteDataStmt:
+		buf.WriteString(".db ")
+	case WordDataStmt:
+		buf.WriteString(".dw ")
+	}
+	for e := s.dataList.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
+		case *LabelCall:
+			buf.WriteString(t.LabelName)
 		case *StringDataItem:
 			buf.WriteString("\"")
 			buf.WriteString(string(*t))
 			buf.WriteString("\"")
 		case *IntegerDataItem:
-			buf.WriteString(fmt.Sprintf("$%02x", int(*t)))
+			switch s.Type {
+			default: panic("unexpected DataStatement Type")
+			case ByteDataStmt:
+				buf.WriteString(fmt.Sprintf("$%02x", int(*t)))
+			case WordDataStmt:
+				buf.WriteString(fmt.Sprintf("$%04x", int(*t)))
+			}
 		}
-		if i < len(s.dataList)-1 {
+		if e != s.dataList.Back() {
 			buf.WriteString(", ")
 		}
 	}
 	return buf.String()
 }
 
-func (s *DataWordStatement) Render() string {
-	buf := new(bytes.Buffer)
-	buf.WriteString("    .dw ")
-	for i, node := range s.dataList {
-		switch t := node.(type) {
-		case *LabelCall:
-			buf.WriteString(t.LabelName)
-		case *IntegerDataItem:
-			buf.WriteString(fmt.Sprintf("$%04x", int(*t)))
-		}
-		if i < len(s.dataList)-1 {
-			buf.WriteString(", ")
-		}
-	}
-	return buf.String()
+func (s *LabelStatement) Render() string {
+	return fmt.Sprintf("%s:", s.LabelName)
 }
 
-func (s *LabeledStatement) Render() string {
-	buf := new(bytes.Buffer)
-	buf.WriteString(s.LabelName)
-	buf.WriteString(":")
-
-	if s.Stmt == nil {
-		return buf.String()
-	}
-	buf.WriteString(" ")
-	n := s.Stmt.(Renderer)
-	buf.WriteString(n.Render())
-	return buf.String()
-}
-
-func (p *Program) WriteSource(writer io.Writer) error {
+func (p *Program) WriteSource(writer io.Writer) (err error) {
 	w := bufio.NewWriter(writer)
 
-	sw := SourceWriter{p, w, make([]string, 0)}
-	p.Ast.Ast(sw)
-	w.Flush()
-
-	if len(sw.Errors) > 0 {
-		return sw
+	for e := p.List.Front(); e != nil; e = e.Next() {
+		switch t := e.Value.(type) {
+		default:
+			panic(fmt.Sprintf("unrecognized node: %T", e.Value))
+		case *Instruction:
+			_, err = w.WriteString("    ")
+			_, err = w.WriteString(t.Render())
+			_, err = w.WriteString("\n")
+		case *LabelStatement:
+			_, err = w.WriteString(t.Render())
+			_, err = w.WriteString("\n")
+		case *DataStatement:
+			_, err = w.WriteString("    ")
+			_, err = w.WriteString(t.Render())
+			_, err = w.WriteString("\n")
+		case *OrgPseudoOp:
+			_, err = w.WriteString(t.Render())
+			_, err = w.WriteString("\n")
+		}
 	}
-	return nil
+
+	w.Flush()
+	return
 }
 
 func (p *Program) WriteSourceFile(filename string) error {

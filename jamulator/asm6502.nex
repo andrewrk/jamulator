@@ -113,26 +113,26 @@ func (errs ParseErrors) Error() string {
 	return strings.Join(errs, "\n")
 }
 
-func Parse(reader io.Reader) (*ProgramAST, error) {
+func Parse(reader io.Reader) (ProgramAst, error) {
 	parseLineNumber = 1
 
 	lexer := NewLexer(reader)
 	yyParse(lexer)
 	if len(parseErrors) > 0 {
-		return nil, parseErrors
+		return ProgramAst{}, parseErrors
 	}
 	return programAst, nil
 }
 
-func ParseFile(filename string) (*ProgramAST, error) {
+func ParseFile(filename string) (ProgramAst, error) {
 	parseFilename = filename
 
 	fd, err := os.Open(filename)
-	if err != nil { return nil, err }
+	if err != nil { return ProgramAst{}, err }
 	programAst, err := Parse(fd)
 	err2 := fd.Close()
-	if err != nil { return nil, err }
-	if err2 != nil { return nil, err2 }
+	if err != nil { return ProgramAst{}, err }
+	if err2 != nil { return ProgramAst{}, err2 }
 	return programAst, nil
 }
 

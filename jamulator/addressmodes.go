@@ -1,7 +1,9 @@
 package jamulator
 
+type AddrMode int
+
 const (
-	nilAddr = iota
+	nilAddr AddrMode = iota
 	absAddr
 	absXAddr
 	absYAddr
@@ -14,12 +16,16 @@ const (
 	zeroPageAddr
 	zeroXIndexAddr
 	zeroYIndexAddr
+
+	addrModeCount
 )
 
 type opCodeData struct {
 	opName   string
-	addrMode int
+	addrMode AddrMode
 }
+
+var opNameToOpCode [addrModeCount]map[string]byte
 
 var opCodeDataMap = []opCodeData{
 	// 0x00
@@ -310,3 +316,14 @@ var opCodeDataMap = []opCodeData{
 	{"inc", absXAddr},
 	{"", nilAddr},
 }
+
+func Init() {
+	for i := 0; i < int(addrModeCount); i++ {
+		opNameToOpCode[i] = make(map[string]byte)
+	}
+	for opCode := 0; opCode < 256; opCode++ {
+		info := opCodeDataMap[opCode]
+		opNameToOpCode[info.addrMode][info.opName] = byte(opCode)
+	}
+}
+

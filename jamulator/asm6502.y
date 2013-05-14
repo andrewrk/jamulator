@@ -4,232 +4,23 @@ package jamulator
 import (
 	"fmt"
 	"strconv"
+	"container/list"
 )
-
-type Node interface {
-	Ast(v Visitor)
-}
-
-type Visitor interface {
-	Visit(n Node)
-	VisitEnd(n Node)
-}
-
-type ProgramAST struct {
-	statements StatementList
-}
-
-func (p *ProgramAST) Ast(v Visitor) {
-	v.Visit(p)
-	p.statements.Ast(v)
-	v.VisitEnd(p)
-}
-
-type StatementList []Node
-
-func (sl *StatementList) Ast(v Visitor) {
-	v.Visit(sl)
-	for _, s := range(*sl) {
-		s.Ast(v)
-	}
-	v.VisitEnd(sl)
-}
 
 type AssignStatement struct {
 	VarName string
 	Value int
 }
 
-func (as *AssignStatement) Ast(v Visitor) {
-	v.Visit(as)
-	v.VisitEnd(as)
-}
-
-type ImmediateInstruction struct {
-	OpName string
-	Value int
+type LabelStatement struct {
+	LabelName string
 	Line int
-
-	// filled in later
-	OpCode byte
-	Size int
-	Offset int
-}
-
-func (ii *ImmediateInstruction) Ast(v Visitor) {
-	v.Visit(ii)
-	v.VisitEnd(ii)
-}
-
-func (ii *ImmediateInstruction) GetSize() int {
-	return ii.Size
-}
-
-type ImpliedInstruction struct {
-	OpName string
-	Line int
-
-	// filled in later
-	OpCode byte
-	Size int
-	Offset int
-}
-
-func (ii *ImpliedInstruction) Ast(v Visitor) {
-	v.Visit(ii)
-	v.VisitEnd(ii)
-}
-
-func (ii *ImpliedInstruction) GetSize() int {
-	return ii.Size
 }
 
 type LabeledStatement struct {
-	LabelName string
-	Stmt Node
-	Line int
+	Label *LabelStatement
+	Stmt interface{}
 }
-
-func (ls *LabeledStatement) Ast(v Visitor) {
-	v.Visit(ls)
-	if ls.Stmt != nil {
-		ls.Stmt.Ast(v)
-	}
-	v.VisitEnd(ls)
-}
-
-type DirectWithLabelIndexedInstruction struct {
-	OpName string
-	LabelName string
-	RegisterName string
-	Line int
-
-	// filled in later
-	OpCode byte
-	Size int
-	Offset int
-}
-
-func (n *DirectWithLabelIndexedInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *DirectWithLabelIndexedInstruction) GetSize() int {
-	return n.Size
-}
-
-type DirectIndexedInstruction struct {
-	OpName string
-	Value int
-	RegisterName string
-	Line int
-
-	// filled in later
-	Payload []byte
-	Offset int
-}
-
-func (n *DirectIndexedInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *DirectIndexedInstruction) GetSize() int {
-	return len(n.Payload)
-}
-
-type DirectWithLabelInstruction struct {
-	OpName string
-	LabelName string
-	Line int
-
-	OpCode byte
-	Size int
-	Offset int
-}
-
-func (n *DirectWithLabelInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *DirectWithLabelInstruction) GetSize() int {
-	return n.Size
-}
-
-type DirectInstruction struct {
-	OpName string
-	Value int
-	Line int
-
-	Payload []byte
-	Offset int
-}
-
-func (n *DirectInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *DirectInstruction) GetSize() int {
-	return len(n.Payload)
-}
-
-type IndirectXInstruction struct {
-	OpName string
-	Value int
-	Line int
-
-	Payload []byte
-	Offset int
-}
-
-func (n *IndirectXInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *IndirectXInstruction) GetSize() int {
-	return len(n.Payload)
-}
-
-type IndirectYInstruction struct {
-	OpName string
-	Value int
-	Line int
-
-	Payload []byte
-	Offset int
-}
-
-func (n *IndirectYInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *IndirectYInstruction) GetSize() int {
-	return len(n.Payload)
-}
-
-type IndirectInstruction struct {
-	OpName string
-	Value int
-	Line int
-
-	Payload []byte
-	Offset int
-}
-
-func (n *IndirectInstruction) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
-func (n *IndirectInstruction) GetSize() int {
-	return len(n.Payload)
-}
-
 
 type OrgPseudoOp struct {
 	Value int
@@ -237,117 +28,81 @@ type OrgPseudoOp struct {
 	Line int
 }
 
-func (n *OrgPseudoOp) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
+type InstructionType int
+const (
+	ImmediateInstruction InstructionType = iota
+	ImpliedInstruction
+	DirectWithLabelIndexedInstruction
+	DirectIndexedInstruction
+	DirectWithLabelInstruction
+	DirectInstruction
+	IndirectXInstruction
+	IndirectYInstruction
+	IndirectInstruction
+)
+
+type Instruction struct {
+	Type InstructionType
+	OpName string
+	Line int
+
+	// not all fields are used by all instruction types.
+	Value int
+	LabelName string
+	RegisterName string
+
+	// filled in later
+	OpCode byte
+	Offset int
+	Payload []byte
 }
+
+type DataStmtType int
+const (
+	ByteDataStmt DataStmtType = iota
+	WordDataStmt
+)
 
 type DataStatement struct {
-	dataList DataList
+	Type DataStmtType
+	dataList *list.List
 	Line int
 
 	// filled in later
-	Size int
 	Offset int
+	Payload []byte
 }
 
-func (n *DataStatement) Ast(v Visitor) {
-	v.Visit(n)
-	n.dataList.Ast(v)
-	v.VisitEnd(n)
-}
-
-func (n *DataStatement) GetSize() int {
-	return n.Size
-}
-
-type DataWordStatement struct {
-	dataList WordList
-	Line int
-
-	// filled in later
-	Size int
-	Offset int
-}
-
-func (n *DataWordStatement) Ast(v Visitor) {
-	v.Visit(n)
-	n.dataList.Ast(v)
-	v.VisitEnd(n)
-}
-
-func (n *DataWordStatement) GetSize() int {
-	return n.Size
-}
-
-type DataList []Node
-
-func (n DataList) Ast(v Visitor) {
-	v.Visit(n)
-	for _, di := range(n) {
-		di.Ast(v)
-	}
-	v.VisitEnd(n)
-}
-
-type WordList []Node
-
-func (n WordList) Ast(v Visitor) {
-	v.Visit(n)
-	for _, di := range(n) {
-		di.Ast(v)
-	}
-	v.VisitEnd(n)
-}
-
-type StringDataItem string
-
-func (n *StringDataItem) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
 
 type IntegerDataItem int
-
-func (n *IntegerDataItem) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
-}
-
+type StringDataItem string
 type LabelCall struct {
 	LabelName string
 }
-
-func (n *LabelCall) Ast(v Visitor) {
-	v.Visit(n)
-	v.VisitEnd(n)
+type ProgramAst struct {
+	List *list.List
 }
 
-var programAst *ProgramAST
+var programAst ProgramAst
 %}
 
 %union {
 	integer int
 	str string
-	quotedString string
-	statementList StatementList
+	list *list.List
 	assignStatement *AssignStatement
-	dataList DataList
-	wordList WordList
-	programAst ProgramAST
 	orgPsuedoOp *OrgPseudoOp
-	node Node
+	node interface{}
 }
 
-%type <statementList> statementList
+%type <list> statementList
 %type <assignStatement> assignStatement
 %type <node> statement
 %type <node> instructionStatement
 %type <node> dataStatement
-%type <dataList> dataList
-%type <wordList> wordList
+%type <list> dataList
+%type <list> wordList
 %type <node> dataItem
-%type <programAst> programAst
 %type <str> processorDecl
 %type <str> labelName
 %type <orgPsuedoOp> orgPsuedoOp
@@ -378,27 +133,35 @@ var programAst *ProgramAST
 %%
 
 programAst : statementList {
-	programAst = &ProgramAST{$1}
+	programAst = ProgramAst{$1}
 }
 
 statementList : statementList tokNewline statement {
 	if $3 == nil {
 		$$ = $1
 	} else {
-		$$ = append($1, $3)
+		$$ = $1
+		$$.PushBack($3)
 	}
 } | statement {
 	if $1 == nil {
-		$$ = []Node{}
+		$$ = list.New()
 	} else {
-		$$ = []Node{$1}
+		$$ = list.New()
+		$$.PushBack($1)
 	}
 }
 
 statement : tokDot tokIdentifier instructionStatement {
-	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
+	$$ = &LabeledStatement{
+		&LabelStatement{"." + $2, parseLineNumber},
+		$3,
+	}
 } | tokIdentifier tokColon instructionStatement {
-	$$ = &LabeledStatement{$1, $3, parseLineNumber}
+	$$ = &LabeledStatement{
+		&LabelStatement{$1, parseLineNumber},
+		$3,
+	}
 } | orgPsuedoOp {
 	$$ = $1
 } | subroutineDecl {
@@ -406,17 +169,23 @@ statement : tokDot tokIdentifier instructionStatement {
 } | instructionStatement {
 	$$ = $1
 } | tokDot tokIdentifier dataStatement {
-	$$ = &LabeledStatement{"." + $2, $3, parseLineNumber}
+	$$ = &LabeledStatement{
+		&LabelStatement{"." + $2, parseLineNumber},
+		 $3,
+	 }
 } | tokIdentifier tokColon dataStatement {
-	$$ = &LabeledStatement{$1, $3, parseLineNumber}
+	$$ = &LabeledStatement{
+		&LabelStatement{$1, parseLineNumber},
+		$3,
+	}
 } | dataStatement {
 	$$ = $1
 } | assignStatement {
 	$$ = $1
 } | tokIdentifier {
-	$$ = &LabeledStatement{$1, nil, parseLineNumber}
+	$$ = &LabelStatement{$1, parseLineNumber}
 } | tokIdentifier tokColon {
-	$$ = &LabeledStatement{$1, nil, parseLineNumber}
+	$$ = &LabelStatement{$1, parseLineNumber}
 } | processorDecl {
 	if $1 != "6502" {
 		yylex.Error("Unsupported processor: " + $1 + " - Only 6502 is supported.")
@@ -429,9 +198,17 @@ statement : tokDot tokIdentifier instructionStatement {
 }
 
 dataStatement : tokData dataList {
-	$$ = &DataStatement{$2, parseLineNumber, 0, 0}
+	$$ = &DataStatement{
+		Type: ByteDataStmt,
+		dataList: $2,
+		Line: parseLineNumber,
+	}
 } | tokDataWord wordList {
-	$$ = &DataWordStatement{$2, parseLineNumber, 0, 0}
+	$$ = &DataStatement{
+		Type: WordDataStmt,
+		dataList: $2,
+		Line: parseLineNumber,
+	}
 }
 
 processorDecl : tokProcessor tokInteger {
@@ -441,15 +218,19 @@ processorDecl : tokProcessor tokInteger {
 }
 
 wordList : wordList tokComma numberExprOptionalPound {
-	$$ = append($1, $3)
+	$$ = $1
+	$$.PushBack($3)
 } | numberExprOptionalPound {
-	$$ = []Node{$1}
+	$$ = list.New()
+	$$.PushBack($1)
 }
 
 dataList : dataList tokComma dataItem {
-	$$ = append($1, $3)
+	$$ = $1
+	$$.PushBack($3)
 } | dataItem {
-	$$ = []Node{$1}
+	$$ = list.New()
+	$$.PushBack($1)
 }
 
 numberExpr : tokPound tokInteger {
@@ -487,35 +268,79 @@ orgPsuedoOp : tokOrg tokInteger {
 }
 
 subroutineDecl : tokIdentifier tokSubroutine {
-	$$ = &LabeledStatement{$1, nil, parseLineNumber}
+	$$ = &LabelStatement{$1, parseLineNumber}
 }
 
 instructionStatement : tokInstruction tokPound tokInteger {
-	// immediate address
-	$$ = &ImmediateInstruction{$1, $3, parseLineNumber, 0, 0, 0}
+	$$ = &Instruction{
+		Type: ImmediateInstruction,
+		OpName: $1,
+		Value: $3,
+		Line: parseLineNumber,
+	}
 } | tokInstruction {
-	// no address
-	$$ = &ImpliedInstruction{$1, parseLineNumber, 0, 0, 0}
+	$$ = &Instruction{
+		Type: ImpliedInstruction,
+		OpName: $1,
+		Line: parseLineNumber,
+	}
 } | tokInstruction labelName tokComma tokRegister {
-	$$ = &DirectWithLabelIndexedInstruction{$1, $2, $4, parseLineNumber, 0, 0, 0}
+	$$ = &Instruction{
+		Type: DirectWithLabelIndexedInstruction,
+		OpName: $1,
+		LabelName: $2,
+		RegisterName: $4,
+		Line: parseLineNumber,
+	}
 } | tokInstruction tokInteger tokComma tokRegister {
-	$$ = &DirectIndexedInstruction{$1, $2, $4, parseLineNumber, []byte{}, 0}
+	$$ = &Instruction{
+		Type: DirectIndexedInstruction,
+		OpName: $1,
+		Value: $2,
+		RegisterName: $4,
+		Line: parseLineNumber,
+	}
 } | tokInstruction labelName {
-	$$ = &DirectWithLabelInstruction{$1, $2, parseLineNumber, 0, 0, 0}
+	$$ = &Instruction{
+		Type: DirectWithLabelInstruction,
+		OpName: $1,
+		LabelName: $2,
+		Line: parseLineNumber,
+	}
 } | tokInstruction tokInteger {
-	$$ = &DirectInstruction{$1, $2, parseLineNumber, []byte{}, 0}
+	$$ = &Instruction{
+		Type: DirectInstruction,
+		OpName: $1,
+		Value: $2,
+		Line: parseLineNumber,
+	}
 } | tokInstruction tokLParen tokInteger tokComma tokRegister tokRParen {
 	if $5 != "x" && $5 != "X" {
 		yylex.Error("Register argument must be X.")
 	}
-	$$ = &IndirectXInstruction{$1, $3, parseLineNumber, []byte{}, 0}
+	$$ = &Instruction{
+		Type: IndirectXInstruction,
+		OpName: $1,
+		Value: $3,
+		Line: parseLineNumber,
+	}
 } | tokInstruction tokLParen tokInteger tokRParen tokComma tokRegister {
 	if $6 != "y" && $6 != "Y" {
 		yylex.Error("Register argument must be Y.")
 	}
-	$$ = &IndirectYInstruction{$1, $3, parseLineNumber, []byte{}, 0}
+	$$ = &Instruction{
+		Type: IndirectYInstruction,
+		OpName: $1,
+		Value: $3,
+		Line: parseLineNumber,
+	}
 } | tokInstruction tokLParen tokInteger tokRParen {
-	$$ = &IndirectInstruction{$1, $3, parseLineNumber, []byte{}, 0}
+	$$ = &Instruction{
+		Type: IndirectInstruction,
+		OpName: $1,
+		Value: $3,
+		Line: parseLineNumber,
+	}
 }
 
 labelName : tokDot {

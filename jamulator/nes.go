@@ -189,7 +189,7 @@ func AssembleRom(dir string, ioreader io.Reader) (*Rom, error) {
 			}
 			program := programAst.ToProgram()
 			if len(program.Errors) > 0 {
-				return nil, program
+				return nil, errors.New(strings.Join(program.Errors, "\n"))
 			}
 			bank := make([]byte, 0, 0x4000)
 			buf := bytes.NewBuffer(bank)
