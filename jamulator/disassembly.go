@@ -63,13 +63,13 @@ func (d *Disassembly) elemAsWord(elem *list.Element) (uint16, error) {
 	return binary.LittleEndian.Uint16([]byte{b1, b2}), nil
 }
 
-func (d *Disassembly) getLabelAt(addr int, name string) (string, error) {
-	elem := d.elemAtAddr(addr)
+func (p *Program) getLabelAt(addr int, name string) (string, error) {
+	elem := p.elemAtAddr(addr)
 	if elem == nil {
 		// cannot get/make label; there is already code there
 		return "", errors.New("cannot insert a label mid-instruction")
 	}
-	stmt := d.elemLabelStmt(elem)
+	stmt := p.elemLabelStmt(elem)
 	if stmt != nil {
 		return stmt.LabelName, nil
 	}
@@ -79,16 +79,16 @@ func (d *Disassembly) getLabelAt(addr int, name string) (string, error) {
 	if len(i.LabelName) == 0 {
 		i.LabelName = fmt.Sprintf("Label_%04x", addr)
 	}
-	d.prog.List.InsertBefore(i, elem)
+	p.List.InsertBefore(i, elem)
 
 	// save in the label map
-	d.prog.Labels[i.LabelName] = addr
+	p.Labels[i.LabelName] = addr
 
 	return i.LabelName, nil
 }
 
 func (d *Disassembly) removeElemAt(addr int) {
-	elem := d.elemAtAddr(addr)
+	elem := d.prog.elemAtAddr(addr)
 	d.prog.List.Remove(elem)
 	delete(d.prog.Offsets, addr)
 }
@@ -121,7 +121,7 @@ func (d *Disassembly) detectJumpTable(addr int) bool {
 	)
 	state := expectAsl
 	var memA, memC int
-	for elem := d.elemAtAddr(addr); elem != nil; elem = elem.Next() {
+	for elem := d.prog.elemAtAddr(addr); elem != nil; elem = elem.Next() {
 		switch state {
 		case expectAsl:
 			i, ok := elem.Value.(*Instruction)
@@ -267,7 +267,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		// non-ROM address. nothing we can do
 		return nil
 	}
-	elem := d.elemAtAddr(addr)
+	elem := d.prog.elemAtAddr(addr)
 	opCode, err := d.elemAsByte(elem)
 	if err != nil {
 		// already decoded as instruction
@@ -290,7 +290,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(w)
 		i.Payload = []byte{opCode, 0, 0}
 		binary.LittleEndian.PutUint16(i.Payload[1:], w)
-		i.LabelName, err = d.getLabelAt(i.Value, "")
+		i.LabelName, err = d.prog.getLabelAt(i.Value, "")
 		if err == nil {
 			i.Type = DirectWithLabelInstruction
 		} else {
@@ -328,7 +328,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Value = int(w)
 		i.Payload = []byte{opCode, 0, 0}
 		binary.LittleEndian.PutUint16(i.Payload[1:], w)
-		i.LabelName, err = d.getLabelAt(i.Value, "")
+		i.LabelName, err = d.prog.getLabelAt(i.Value, "")
 		if err == nil {
 			i.Type = DirectWithLabelIndexedInstruction
 		} else {
@@ -425,7 +425,7 @@ func (d *Disassembly) markAsInstruction(addr int) error {
 		i.Type = DirectWithLabelInstruction
 		i.Value = addr + 2 + int(int8(v))
 		i.Payload = []byte{opCode, v}
-		i.LabelName, err = d.getLabelAt(i.Value, "")
+		i.LabelName, err = d.prog.getLabelAt(i.Value, "")
 		if err != nil {
 			panic(err)
 		}
@@ -502,20 +502,20 @@ func (d *Disassembly) readAllAsData() {
 	}
 }
 
-func (d *Disassembly) elemAtAddr(addr int) *list.Element {
-	elem, ok := d.prog.Offsets[addr]
+func (p *Program) elemAtAddr(addr int) *list.Element {
+	elem, ok := p.Offsets[addr]
 	if ok {
 		return elem
 	}
 	// if there is only 1 prg rom bank, it is at 0x8000 and mirrored at 0xc000
-	if len(d.prog.PrgRom) == 1 && addr < 0xc000 {
-		return d.prog.Offsets[addr+0x4000]
+	if len(p.PrgRom) == 1 && addr < 0xc000 {
+		return p.Offsets[addr+0x4000]
 	}
 	return nil
 }
 
 func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error {
-	elem1 := d.elemAtAddr(addr)
+	elem1 := d.prog.elemAtAddr(addr)
 	elem2 := elem1.Next()
 	s1 := elem1.Value.(*DataStatement)
 	s2 := elem2.Value.(*DataStatement)
@@ -556,7 +556,7 @@ func (d *Disassembly) markAsDataWordLabel(addr int, suggestedName string) error 
 		return nil
 	}
 
-	labelName, err := d.getLabelAt(targetAddr, suggestedName)
+	labelName, err := d.prog.getLabelAt(targetAddr, suggestedName)
 	if err != nil {
 		tmp := IntegerDataItem(targetAddr)
 		newStmt.dataList.PushBack(&tmp)
@@ -723,7 +723,7 @@ func (d *Disassembly) groupAsciiStrings() {
 	}
 }
 
-func (d *Disassembly) elemLabelStmt(elem *list.Element) *LabelStatement {
+func (p *Program) elemLabelStmt(elem *list.Element) *LabelStatement {
 	if elem == nil {
 		return nil
 	}
@@ -749,8 +749,8 @@ func (d *Disassembly) resolveDynJumpCases() {
 	}
 	// use the last item in the dynJumps list, and check a single address
 	dynJumpAddr := d.dynJumps[len(d.dynJumps)-1]
-	elem := d.elemAtAddr(dynJumpAddr)
-	if d.elemLabelStmt(elem) != nil {
+	elem := d.prog.elemAtAddr(dynJumpAddr)
+	if d.prog.elemLabelStmt(elem) != nil {
 		// this dynJump has been exhausted. remove it from the list
 		d.dynJumps = d.dynJumps[0 : len(d.dynJumps)-1]
 		d.resolveDynJumpCases()

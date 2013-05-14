@@ -1,4 +1,3 @@
-* change JSR model to use a jump table so we can dynamically jump based on runtime PC value
 * detect when control flows into data and make that an error
 * disassembler: detect the pacman-style jump table. (another example in nestest.nes)
 * solve the BIT thing (search smb1 disassembly for bit instruction opcode)

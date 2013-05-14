@@ -5,8 +5,24 @@ import (
 	"github.com/axw/gollvm/llvm"
 )
 
+func (i *Instruction) ResolveRender() string {
+	switch i.Type {
+	case DirectWithLabelInstruction:
+		i.Type = DirectInstruction
+		v := i.Render()
+		i.Type = DirectWithLabelInstruction
+		return v
+	case DirectWithLabelIndexedInstruction:
+		i.Type = DirectIndexedInstruction
+		v := i.Render()
+		i.Type = DirectWithLabelInstruction
+		return v
+	}
+	return i.Render()
+}
+
 func (i *Instruction) Compile(c *Compilation) {
-	c.debugPrint(fmt.Sprintf("%s\n", i.Render()))
+	c.debugPrint(fmt.Sprintf("%s\n", i.ResolveRender()))
 
 	var labelAddr int
 	var ok bool
@@ -151,7 +167,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.debugPrintf("rts: new pc $%04x\n", []llvm.Value{pc})
 		c.builder.CreateStore(pc, c.rPC)
 		c.cycle(6, -1)
-		c.builder.CreateRetVoid()
+		c.builder.CreateBr(c.dynJumpBlock)
 		c.currentBlock = nil
 	case 0xf8: // sed implied
 		c.setDec()
@@ -359,9 +375,12 @@ func (i *Instruction) Compile(c *Compilation) {
 
 		c.pushWordToStack(pc)
 		c.cycle(6, labelAddr)
-		id := c.labelAsEntryPoint(i.LabelName)
-		c.builder.CreateCall(c.mainFn, []llvm.Value{llvm.ConstInt(llvm.Int32Type(), uint64(id), false)}, "")
-
+		destBlock, ok := c.labeledBlocks[i.LabelName]
+		if !ok {
+			panic(fmt.Sprintf("label %s block not defined: %s", i.LabelName, i.Render()))
+		}
+		c.builder.CreateBr(destBlock)
+		c.currentBlock = nil
 	case 0xf0: // beq
 		isZero := c.builder.CreateLoad(c.rSZero, "")
 		c.createBranch(isZero, i.LabelName, i.Offset)

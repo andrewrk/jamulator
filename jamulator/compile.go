@@ -40,9 +40,9 @@ type Compilation struct {
 	labeledBlocks map[string]llvm.BasicBlock
 	labeledData   map[string]bool
 	stringTable   map[string]llvm.Value
-	// used for the entry jump table so we can do JSR
-	labelIds        map[string]int
-	entryLabelCount int
+	// used for RTS, BRK, RTI
+	dynJumpAddrs        map[int]llvm.BasicBlock
+	dynJumpBlock llvm.BasicBlock
 
 	currentBlock *llvm.BasicBlock
 	currentInstr *Instruction
@@ -50,6 +50,7 @@ type Compilation struct {
 	nmiLabelName   string
 	resetLabelName string
 	irqLabelName   string
+
 	nmiBlock       *llvm.BasicBlock
 	resetBlock     *llvm.BasicBlock
 	irqBlock       *llvm.BasicBlock
@@ -1001,7 +1002,9 @@ func (c *Compilation) selectBlock(bb llvm.BasicBlock) {
 
 func (c *Compilation) createPanic(msg string, args []llvm.Value) {
 	c.printf(msg, args)
-	c.printf(fmt.Sprintf("current instruction: %s\n", c.currentInstr.Render()), []llvm.Value{})
+	if c.currentInstr != nil {
+		c.printf(fmt.Sprintf("current instruction: %s\n", c.currentInstr.Render()), []llvm.Value{})
+	}
 	c.printf("A: $%02x  X: $%02x  Y: $%02x  SP: $%02x  PC: $%04x\n", []llvm.Value{
 		c.builder.CreateLoad(c.rA, ""),
 		c.builder.CreateLoad(c.rX, ""),
@@ -1356,14 +1359,25 @@ func (c *Compilation) dynTestAndSetOverflowSubtraction(a llvm.Value, b llvm.Valu
 	c.builder.CreateStore(isOver, c.rSOver)
 }
 
-func (c *Compilation) labelAsEntryPoint(labelName string) int {
-	id, ok := c.labelIds[labelName]
+// TODO: this is unused... delete it?
+func (c *Compilation) markAsPossibleDynJump(addr int) {
+	_, ok := c.dynJumpAddrs[addr]
 	if ok {
-		return id
+		return
 	}
-	c.entryLabelCount += 1
-	c.labelIds[labelName] = c.entryLabelCount
-	return c.entryLabelCount
+	elem, ok := c.program.Offsets[addr]
+	if !ok {
+		panic(fmt.Sprintf("expected element at offset $%04x", addr))
+	}
+	labelStmt := c.program.elemLabelStmt(elem)
+	if labelStmt == nil {
+		panic(fmt.Sprintf("expected label at offset $%04x", addr))
+	}
+	block, ok := c.labeledBlocks[labelStmt.LabelName]
+	if !ok {
+		panic(fmt.Sprintf("expected block at offset $%04x", addr))
+	}
+	c.dynJumpAddrs[addr] = block
 }
 
 func (s *LabelStatement) Compile(c *Compilation) {
@@ -1388,6 +1402,7 @@ func (c *Compilation) compileLabels(s *LabelStatement) {
 
 	bb := llvm.AddBasicBlock(c.mainFn, s.LabelName)
 	c.labeledBlocks[s.LabelName] = bb
+	c.dynJumpAddrs[c.program.Labels[s.LabelName]] = bb
 
 	switch s.LabelName {
 	case c.nmiLabelName:
@@ -1625,6 +1640,22 @@ func (c *Compilation) addResetInterruptCode() {
 	c.builder.CreateStore(bit0, c.rSCarry)
 }
 
+func (c *Compilation) addDynJumpTable() {
+	// here we create a basic block that we jump to for instructions such as
+	// BRK, RTS, and RTI.
+	c.dynJumpBlock = llvm.AddBasicBlock(c.mainFn, "DynJumpTable")
+	c.builder.SetInsertPointAtEnd(c.dynJumpBlock)
+	pc := c.builder.CreateLoad(c.rPC, "")
+	noJumpFoundBlock := llvm.AddBasicBlock(c.mainFn, "NoJumpFound")
+	sw := c.builder.CreateSwitch(pc, noJumpFoundBlock, len(c.dynJumpAddrs))
+	for addr, block := range c.dynJumpAddrs {
+		addrVal := llvm.ConstInt(llvm.Int16Type(), uint64(addr), false)
+		sw.AddCase(addrVal, block)
+	}
+	c.builder.SetInsertPointAtEnd(noJumpFoundBlock)
+	c.createPanic("invalid jump destination: $%04x\n", []llvm.Value{pc})
+}
+
 func (c *Compilation) setupControllerFramework() {
 	// ROM_PAD_STATE_OFF = 0x40,
 	x40 := llvm.ConstInt(llvm.Int8Type(), 0x40, false)
@@ -1784,6 +1815,15 @@ func (c *Compilation) createReadMemFn() {
 	c.builder.CreateRet(v)
 }
 
+func (c *Compilation) addLabelsAfterJsrs() {
+	for e := c.program.List.Front(); e != nil; e = e.Next() {
+		i, ok := e.Value.(*Instruction)
+		if ok && i.OpCode == 0x20 {
+			c.program.getLabelAt(i.Offset+len(i.Payload), "")
+		}
+	}
+}
+
 func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation, error) {
 	llvm.InitializeNativeTarget()
 
@@ -1796,8 +1836,9 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.labeledData = map[string]bool{}
 	c.labeledBlocks = map[string]llvm.BasicBlock{}
 	c.stringTable = map[string]llvm.Value{}
-	c.labelIds = map[string]int{}
-	c.entryLabelCount = 3 // irq, reset, nmi
+	c.dynJumpAddrs = map[int]llvm.BasicBlock{}
+
+	c.addLabelsAfterJsrs()
 
 	// 2KB memory
 	memType := llvm.ArrayType(llvm.Int8Type(), 0x800)
@@ -1825,7 +1866,7 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.createRegisters()
 
 	// main function / entry point
-	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int32Type()}, false)
+	mainType := llvm.FunctionType(llvm.VoidType(), []llvm.Type{llvm.Int8Type()}, false)
 	c.mainFn = llvm.AddFunction(c.mod, "rom_start", mainType)
 	c.mainFn.SetFunctionCallConv(llvm.CCallConv)
 	entry := llvm.AddBasicBlock(c.mainFn, "Entry")
@@ -1837,6 +1878,8 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 
 	// second pass to build basic blocks
 	c.visitForBasicBlocks()
+
+	c.addDynJumpTable()
 
 	// finally, one last pass for codegen
 	c.visitForCompile()
@@ -1864,15 +1907,12 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	c.selectBlock(entry)
 	c.builder.SetInsertPointAtEnd(entry)
 	badInterruptBlock := c.createBlock("BadInterrupt")
-	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, c.entryLabelCount)
+	sw := c.builder.CreateSwitch(c.mainFn.Param(0), badInterruptBlock, 3)
 	c.selectBlock(badInterruptBlock)
 	c.createPanic("invalid interrupt id: %d\n", []llvm.Value{c.mainFn.Param(0)})
-	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 1, false), *c.nmiBlock)
-	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 2, false), *c.resetBlock)
-	sw.AddCase(llvm.ConstInt(llvm.Int32Type(), 3, false), *c.irqBlock)
-	for labelName, labelId := range c.labelIds {
-		sw.AddCase(llvm.ConstInt(llvm.Int32Type(), uint64(labelId), false), c.labeledBlocks[labelName])
-	}
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 1, false), *c.nmiBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 2, false), *c.resetBlock)
+	sw.AddCase(llvm.ConstInt(llvm.Int8Type(), 3, false), *c.irqBlock)
 
 	c.addNmiInterruptCode()
 	c.addResetInterruptCode()
