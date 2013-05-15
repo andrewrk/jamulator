@@ -118,12 +118,8 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.cycle(2, addrNext)
 	case 0x4a: // lsr implied
 		oldValue := c.builder.CreateLoad(c.rA, "")
-		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
-		newValue := c.builder.CreateLShr(oldValue, c1, "")
+		newValue := c.performLsr(oldValue)
 		c.builder.CreateStore(newValue, c.rA)
-		c.dynTestAndSetZero(newValue)
-		c.dynTestAndSetNeg(newValue)
-		c.dynTestAndSetCarryLShr(oldValue)
 		c.cycle(2, addrNext)
 	case 0xea: // nop implied
 		c.cycle(2, addrNext)
@@ -453,18 +449,14 @@ func (i *Instruction) Compile(c *Compilation) {
 	case 0xee: // inc abs
 		c.incrementMem(i.Value, 1)
 		c.cycle(6, addrNext)
-	case 0x46, 0x4e: // lsr (zpg, abs)
-		oldValue := c.load(i.Value)
-		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
-		newValue := c.builder.CreateLShr(oldValue, c1, "")
+	case 0x46: // lsr zpg
+		newValue := c.performLsr(c.load(i.Value))
 		c.store(i.Value, newValue)
-		c.dynTestAndSetZero(newValue)
-		c.dynTestAndSetCarryLShr(oldValue)
-		if i.OpCode == 0x46 {
-			c.cycle(5, addrNext)
-		} else {
-			c.cycle(6, addrNext)
-		}
+		c.cycle(5, addrNext)
+	case 0x4e: // lsr abs
+		newValue := c.performLsr(c.load(i.Value))
+		c.store(i.Value, newValue)
+		c.cycle(6, addrNext)
 	case 0x45: // eor zpg
 		c.performEor(c.load(i.Value))
 		c.cycle(3, addrNext)

@@ -293,6 +293,15 @@ func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value,
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) performLsr(v llvm.Value) llvm.Value {
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	newValue := c.builder.CreateLShr(v, c1, "")
+	c.dynTestAndSetZero(newValue)
+	c.dynTestAndSetNeg(newValue)
+	c.dynTestAndSetCarryLShr(v)
+	return newValue
+}
+
 func (c *Compilation) performOra(v llvm.Value) {
 	a := c.builder.CreateLoad(c.rA, "")
 	newA := c.builder.CreateOr(a, v, "")
