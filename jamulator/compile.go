@@ -316,6 +316,12 @@ func (c *Compilation) performLda(v llvm.Value) {
 	c.dynTestAndSetNeg(v)
 }
 
+func (c *Compilation) performLdx(v llvm.Value) {
+	c.builder.CreateStore(v, c.rX)
+	c.dynTestAndSetZero(v)
+	c.dynTestAndSetNeg(v)
+}
+
 func (c *Compilation) performCmp(lval llvm.Value, rval llvm.Value) {
 	diff := c.builder.CreateSub(lval, rval, "")
 	c.dynTestAndSetZero(diff)
