@@ -118,6 +118,7 @@ const (
 )
 
 func (c *Compilation) visitForControlFlow() {
+	// detect whether labels are data or instructions
 	currentLabel := ""
 	currentExpecting := cfExpectNone
 	for e := c.program.List.Front(); e != nil; e = e.Next() {
@@ -132,8 +133,6 @@ func (c *Compilation) visitForControlFlow() {
 		case *DataStatement:
 			switch currentExpecting {
 			case cfExpectInstr:
-				// TODO: we need some of the logic from disassembly here
-				//c.Errors = append(c.Errors, fmt.Sprintf("expected instruction, got data: %s", n.(Renderer).Render()))
 				currentExpecting = cfExpectData
 			case cfExpectNone:
 				c.labeledData[currentLabel] = true
@@ -142,8 +141,6 @@ func (c *Compilation) visitForControlFlow() {
 		case *Instruction:
 			switch currentExpecting {
 			case cfExpectData:
-				// TODO: we need some of the logic from disassembly here
-				//c.Errors = append(c.Errors, fmt.Sprintf("expected data, got instruction: %s", n.(Renderer).Render()))
 				currentExpecting = cfExpectInstr
 				return
 			case cfExpectNone:
@@ -174,6 +171,12 @@ func (c *Compilation) visitForCompile() {
 		case *LabelStatement:
 			t.Compile(c)
 		case *DataStatement:
+			if c.currentBlock != nil {
+				// we expected an instruction but we got data.
+				// interpreter to the rescue!
+				c.builder.CreateBr(c.interpretBlock)
+				c.currentBlock = nil
+			}
 		case *OrgPseudoOp:
 		}
 	}
@@ -830,7 +833,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		return c.builder.CreateLoad(ptr, "")
 	}
 	if minAddr != 0 || maxAddr != 0xffff {
-		c.Warnings = append(c.Warnings, "TODO: dynLoad is unoptimized")
+		c.Warnings = append(c.Warnings, fmt.Sprintf("TODO: dynLoad is unoptimized for min $%04x max $%04x", minAddr, maxAddr))
 	}
 	result := c.builder.CreateAlloca(llvm.Int8Type(), "load_result")
 	loadDoneBlock := c.createBlock("LoadDone")
