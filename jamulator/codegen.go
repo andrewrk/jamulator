@@ -475,6 +475,22 @@ func (i *Instruction) Compile(c *Compilation) {
 		reg := c.builder.CreateLoad(c.rA, "")
 		c.performCmp(reg, c.load(i.Value))
 		c.cycle(4, addrNext)
+	case 0xe4: // cpx zpg
+		reg := c.builder.CreateLoad(c.rX, "")
+		c.performCmp(reg, c.load(i.Value))
+		c.cycle(3, addrNext)
+	case 0xc4: // cpy zpg
+		reg := c.builder.CreateLoad(c.rY, "")
+		c.performCmp(reg, c.load(i.Value))
+		c.cycle(3, addrNext)
+	case 0xec: // cpx abs
+		reg := c.builder.CreateLoad(c.rX, "")
+		c.performCmp(reg, c.load(i.Value))
+		c.cycle(4, addrNext)
+	case 0xcc: // cpy abs
+		reg := c.builder.CreateLoad(c.rY, "")
+		c.performCmp(reg, c.load(i.Value))
+		c.cycle(4, addrNext)
 	case 0x65: // adc zpg
 		c.performAdc(c.load(i.Value))
 		c.cycle(3, addrNext)
@@ -521,17 +537,6 @@ func (i *Instruction) Compile(c *Compilation) {
 		newValue := c.performAsl(oldValue)
 		c.store(i.Value, newValue)
 		c.cycle(6, addrNext)
-	//case 0x90: // bcc rel
-	//case 0xb0: // bcs rel
-	//case 0xf0: // beq rel
-	//case 0x30: // bmi rel
-	//case 0xd0: // bne rel
-	//case 0x10: // bpl rel
-	//case 0x50: // bvc rel
-	//case 0x70: // bvs rel
-
-	//case 0xe4: // cpx zpg
-	//case 0xc4: // cpy zpg
 	case 0x26: // rol zpg
 		oldValue := c.load(i.Value)
 		newValue := c.performRol(oldValue)
@@ -552,11 +557,6 @@ func (i *Instruction) Compile(c *Compilation) {
 		newValue := c.performRor(oldValue)
 		c.store(i.Value, newValue)
 		c.cycle(6, addrNext)
-
-	//case 0xec: // cpx abs
-	//case 0xcc: // cpy abs
-	//case 0x4c: // jmp abs
-	//case 0x20: // jsr abs
 	case 0x85: // sta zpg
 		c.store(i.Value, c.builder.CreateLoad(c.rA, ""))
 		c.cycle(3, addrNext)
