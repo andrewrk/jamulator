@@ -1359,26 +1359,6 @@ func (c *Compilation) dynTestAndSetOverflowSubtraction(a llvm.Value, b llvm.Valu
 	c.builder.CreateStore(isOver, c.rSOver)
 }
 
-// TODO: this is unused... delete it?
-func (c *Compilation) markAsPossibleDynJump(addr int) {
-	_, ok := c.dynJumpAddrs[addr]
-	if ok {
-		return
-	}
-	elem, ok := c.program.Offsets[addr]
-	if !ok {
-		panic(fmt.Sprintf("expected element at offset $%04x", addr))
-	}
-	labelStmt := c.program.elemLabelStmt(elem)
-	if labelStmt == nil {
-		panic(fmt.Sprintf("expected label at offset $%04x", addr))
-	}
-	block, ok := c.labeledBlocks[labelStmt.LabelName]
-	if !ok {
-		panic(fmt.Sprintf("expected block at offset $%04x", addr))
-	}
-	c.dynJumpAddrs[addr] = block
-}
 
 func (s *LabelStatement) Compile(c *Compilation) {
 	bb, ok := c.labeledBlocks[s.LabelName]
