@@ -374,10 +374,14 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.pushWordToStack(pc)
 		c.cycle(6, labelAddr)
 		destBlock, ok := c.labeledBlocks[i.LabelName]
-		if !ok {
-			panic(fmt.Sprintf("label %s block not defined: %s", i.LabelName, i.Render()))
+		if ok {
+			// cool, we're jumping into statically compiled code
+			c.builder.CreateBr(destBlock)
+		} else {
+			// damn, we'll have to interpret the next instruction
+			c.builder.CreateBr(c.interpretBlock)
+
 		}
-		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
 	case 0xf0: // beq
 		isZero := c.builder.CreateLoad(c.rSZero, "")
