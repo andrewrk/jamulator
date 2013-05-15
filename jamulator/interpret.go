@@ -72,7 +72,13 @@ var interpretOps = [256]func(*Compilation) {
 	nil,
 	nil,
 	nil,
-	nil,
+	func (c *Compilation) {
+		// 0x2c bit abs
+		addr := c.interpAbsAddr()
+		c.debugPrintf("bit $%04x\n", []llvm.Value{addr})
+		c.performBit(c.dynLoad(addr, 0, 0xffff))
+		c.cycle(4, -1)
+	},
 	nil,
 	nil,
 	nil,

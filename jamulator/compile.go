@@ -903,7 +903,37 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	c.builder.CreateBr(loadDoneBlock)
 	// this generated code runs if the write is not in the PRG ROM range
 	c.selectBlock(notInPrgRomBlock)
+	badAddrBlock := c.createBlock("BadAddr")
+	sw = c.builder.CreateSwitch(addr, badAddrBlock, 3)
+	// if bad load address
+	c.selectBlock(badAddrBlock)
 	c.createPanic("invalid load address: $%04x\n", []llvm.Value{addr})
+
+	apuReadStatusBlock := c.createBlock("rom_apu_read_status")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4015, false), apuReadStatusBlock)
+	c.selectBlock(apuReadStatusBlock)
+	c.debugPrint("rom_apu_read_status\n")
+	v = c.builder.CreateCall(c.apuReadStatusFn, []llvm.Value{}, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+
+	padRead1Block := c.createBlock("pad_read1")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4016, false), padRead1Block)
+	c.selectBlock(padRead1Block)
+	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
+	v = c.builder.CreateCall(c.padReadFn, []llvm.Value{c0}, "")
+	c.debugPrintf("pad_read1 $%02x\n", []llvm.Value{v})
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
+
+	padRead2Block := c.createBlock("pad_read2")
+	sw.AddCase(llvm.ConstInt(llvm.Int16Type(), 0x4017, false), padRead2Block)
+	c.selectBlock(padRead2Block)
+	c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
+	c.debugPrint("pad_read2\n")
+	v = c.builder.CreateCall(c.padReadFn, []llvm.Value{c1}, "")
+	c.builder.CreateStore(v, result)
+	c.builder.CreateBr(loadDoneBlock)
 
 	// done. X_X
 	c.selectBlock(loadDoneBlock)
