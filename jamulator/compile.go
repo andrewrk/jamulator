@@ -43,6 +43,7 @@ type Compilation struct {
 	// used for RTS, BRK, RTI
 	dynJumpAddrs        map[int]llvm.BasicBlock
 	dynJumpBlock llvm.BasicBlock
+	interpretBlock llvm.BasicBlock
 
 	currentBlock *llvm.BasicBlock
 	currentInstr *Instruction
@@ -282,6 +283,12 @@ func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value,
 	c0 := llvm.ConstInt(llvm.Int32Type(), 0, false)
 	isCarry := c.builder.CreateICmp(llvm.IntSGE, newA32, c0, "")
 	c.builder.CreateStore(isCarry, c.rSCarry)
+}
+
+func (c *Compilation) performLda(v llvm.Value) {
+	c.builder.CreateStore(v, c.rA)
+	c.dynTestAndSetZero(v)
+	c.dynTestAndSetNeg(v)
 }
 
 func (c *Compilation) performCmp(lval llvm.Value, rval llvm.Value) {
@@ -957,6 +964,17 @@ func (c *Compilation) loadWord(addr int) llvm.Value {
 	return c.builder.CreateOr(word, ptrByte1w, "")
 }
 
+func (c *Compilation) dynLoadWord(addr llvm.Value) llvm.Value {
+	addrPlusOne := c.builder.CreateAdd(addr, llvm.ConstInt(addr.Type(), 1, false), "")
+	ptrByte1 := c.dynLoad(addr, 0, 0xffff)
+	ptrByte2 := c.dynLoad(addrPlusOne, 0, 0xffff)
+	ptrByte1w := c.builder.CreateZExt(ptrByte1, llvm.Int16Type(), "")
+	ptrByte2w := c.builder.CreateZExt(ptrByte2, llvm.Int16Type(), "")
+	shiftAmt := llvm.ConstInt(ptrByte2w.Type(), 8, false)
+	word := c.builder.CreateShl(ptrByte2w, shiftAmt, "")
+	return c.builder.CreateOr(word, ptrByte1w, "")
+}
+
 func (c *Compilation) incrementVal(v llvm.Value, delta int) llvm.Value {
 	if delta < 0 {
 		c1 := llvm.ConstInt(llvm.Int8Type(), uint64(-delta), false)
@@ -1623,17 +1641,13 @@ func (c *Compilation) addResetInterruptCode() {
 func (c *Compilation) addDynJumpTable() {
 	// here we create a basic block that we jump to for instructions such as
 	// BRK, RTS, and RTI.
-	c.dynJumpBlock = llvm.AddBasicBlock(c.mainFn, "DynJumpTable")
 	c.builder.SetInsertPointAtEnd(c.dynJumpBlock)
 	pc := c.builder.CreateLoad(c.rPC, "")
-	noJumpFoundBlock := llvm.AddBasicBlock(c.mainFn, "NoJumpFound")
-	sw := c.builder.CreateSwitch(pc, noJumpFoundBlock, len(c.dynJumpAddrs))
+	sw := c.builder.CreateSwitch(pc, c.interpretBlock, len(c.dynJumpAddrs))
 	for addr, block := range c.dynJumpAddrs {
 		addrVal := llvm.ConstInt(llvm.Int16Type(), uint64(addr), false)
 		sw.AddCase(addrVal, block)
 	}
-	c.builder.SetInsertPointAtEnd(noJumpFoundBlock)
-	c.createPanic("invalid jump destination: $%04x\n", []llvm.Value{pc})
 }
 
 func (c *Compilation) setupControllerFramework() {
@@ -1859,6 +1873,9 @@ func (p *Program) CompileToFile(file *os.File, flags CompileFlags) (*Compilation
 	// second pass to build basic blocks
 	c.visitForBasicBlocks()
 
+	c.interpretBlock = llvm.AddBasicBlock(c.mainFn, "Interpret")
+	c.dynJumpBlock = llvm.AddBasicBlock(c.mainFn, "DynJumpTable")
+	c.addInterpretBlock()
 	c.addDynJumpTable()
 
 	// finally, one last pass for codegen

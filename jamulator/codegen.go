@@ -257,9 +257,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.cycle(4, addrNext)
 	case 0xb5: // lda zpg x
 		v := c.dynLoadZpgIndexed(i.Value, c.rX)
-		c.builder.CreateStore(v, c.rA)
-		c.dynTestAndSetZero(v)
-		c.dynTestAndSetNeg(v)
+		c.performLda(v)
 		c.cycle(4, addrNext)
 	case 0x7d: // adc abs x
 		v := c.dynLoadIndexed(i.Value, c.rX)
@@ -405,17 +403,12 @@ func (i *Instruction) Compile(c *Compilation) {
 	//case 0x50: // bvc
 	//case 0x70: // bvs
 
-
-	case 0xa5, 0xad: // lda (zpg, abs)
-		v := c.load(i.Value)
-		c.builder.CreateStore(v, c.rA)
-		c.dynTestAndSetZero(v)
-		c.dynTestAndSetNeg(v)
-		if i.OpCode == 0xa5 {
-			c.cycle(3, addrNext)
-		} else {
-			c.cycle(4, addrNext)
-		}
+	case 0xa5:
+		c.performLda(c.load(i.Value))
+		c.cycle(4, addrNext)
+	case 0xad:
+		c.performLda(c.load(i.Value))
+		c.cycle(3, addrNext)
 	case 0xa4, 0xac: // ldy (zpg, abs)
 		v := c.load(i.Value)
 		c.builder.CreateStore(v, c.rY)
@@ -580,7 +573,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		base := llvm.ConstInt(llvm.Int8Type(), uint64(i.Value), false)
 		addr := c.builder.CreateAdd(base, index, "")
 		v := c.dynLoad(addr, 0, 0xff)
-		c.builder.CreateStore(v, c.rA)
+		c.performLda(v)
 		c.cycle(6, addrNext)
 	//case 0x61: // adc indirect x
 	//case 0x21: // and indirect x
@@ -601,9 +594,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		rYw := c.builder.CreateZExt(rY, llvm.Int16Type(), "")
 		addr := c.builder.CreateAdd(baseAddr, rYw, "")
 		val := c.dynLoad(addr, 0, 0xffff)
-		c.builder.CreateStore(val, c.rA)
-		c.dynTestAndSetNeg(val)
-		c.dynTestAndSetZero(val)
+		c.performLda(val)
 		c.cyclesForIndirectY(baseAddr, addr, addrNext)
 	//case 0x11: // ora indirect y
 	//case 0xf1: // sbc indirect y
