@@ -376,7 +376,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.debugPrintf("jsr: saving $%04x\n", []llvm.Value{pc})
 
 		c.pushWordToStack(pc)
-		c.cycle(6, labelAddr)
+		c.cycle(6, i.Value)
 		destBlock, ok := c.labeledBlocks[i.LabelName]
 		if ok {
 			// cool, we're jumping into statically compiled code
