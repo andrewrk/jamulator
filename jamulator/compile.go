@@ -949,6 +949,14 @@ func (c *Compilation) load(addr int) llvm.Value {
 		c1 := llvm.ConstInt(llvm.Int8Type(), 1, false)
 		c.debugPrint("pad_read2\n")
 		return c.builder.CreateCall(c.padReadFn, []llvm.Value{c1}, "")
+	case 0x8000 <= addr && addr <= 0xffff:
+		offsetAddr := addr - 0x8000
+		indexes := []llvm.Value{
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
+			llvm.ConstInt(llvm.Int16Type(), uint64(offsetAddr), false),
+		}
+		ptr := c.builder.CreateGEP(c.prgRom, indexes, "")
+		return c.builder.CreateLoad(ptr, "")
 	}
 	panic("unreachable")
 }
