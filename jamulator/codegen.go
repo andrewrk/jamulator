@@ -355,8 +355,12 @@ func (i *Instruction) Compile(c *Compilation) {
 	//case 0x36: // rol zpg x
 	//case 0x76: // ror zpg x
 
-	//case 0x6c: // jmp indirect
-
+	case 0x6c: // jmp indirect
+		newPc := c.loadWord(i.Value)
+		c.builder.CreateStore(newPc, c.rPC)
+		c.cycle(5, -1)
+		c.builder.CreateBr(c.dynJumpBlock)
+		c.currentBlock = nil
 	case 0x4c: // jmp
 		// branch instruction - cycle before execution
 		c.cycle(3, labelAddr)
