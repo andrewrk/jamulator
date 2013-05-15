@@ -17,7 +17,13 @@ var interpretOps = [256]func(*Compilation) {
 	nil,
 	nil,
 	nil,
-	nil,
+	func (c *Compilation) {
+		// 0x0a asl implied
+		c.debugPrintf("asl\n", []llvm.Value{})
+		a := c.builder.CreateLoad(c.rA, "")
+		c.builder.CreateStore(c.performAsl(a), c.rA)
+		c.cycle(2, -1)
+	},
 	nil,
 	nil,
 	nil,

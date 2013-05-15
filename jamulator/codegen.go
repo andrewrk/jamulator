@@ -405,10 +405,10 @@ func (i *Instruction) Compile(c *Compilation) {
 
 	case 0xa5:
 		c.performLda(c.load(i.Value))
-		c.cycle(4, addrNext)
+		c.cycle(3, addrNext)
 	case 0xad:
 		c.performLda(c.load(i.Value))
-		c.cycle(3, addrNext)
+		c.cycle(4, addrNext)
 	case 0xa4, 0xac: // ldy (zpg, abs)
 		v := c.load(i.Value)
 		c.builder.CreateStore(v, c.rY)

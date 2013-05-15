@@ -3,7 +3,6 @@
 * solve the BIT thing (search smb1 disassembly for bit instruction opcode)
 * make SMB1 work
 * get rid of jamfile; use .ines* declarations
-* change the interrupt model so that cycle returns an id
 * update assembler to be able to handle smb1 disassembly
 * namespace everything in ppu.h
 * update CLI to use commands instead of flags for commands
