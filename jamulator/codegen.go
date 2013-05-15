@@ -82,13 +82,8 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.performEor(immedValue)
 		c.cycle(2, addrNext)
 	case 0x09: // ora immediate
-		a := c.builder.CreateLoad(c.rA, "")
-		newA := c.builder.CreateOr(a, immedValue, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
+		c.performOra(immedValue)
 		c.cycle(2, addrNext)
-
 	case 0x0a: // asl implied
 		a := c.builder.CreateLoad(c.rA, "")
 		c.builder.CreateStore(c.performAsl(a), c.rA)
@@ -347,11 +342,20 @@ func (i *Instruction) Compile(c *Compilation) {
 		v := c.dynLoadIndexed(i.Value, c.rY)
 		c.performEor(v)
 		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, addrNext)
-	//case 0x19: // ora abs y
+	case 0x19: // ora abs y
+		v := c.dynLoadIndexed(i.Value, c.rY)
+		c.performOra(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rY, addrNext)
+	case 0x1d: // ora abs x
+		v := c.dynLoadIndexed(i.Value, c.rX)
+		c.performOra(v)
+		c.cyclesForAbsoluteIndexedPtr(i.Value, c.rX, addrNext)
+	case 0x15: // ora zpg x
+		v := c.dynLoadZpgIndexed(i.Value, c.rX)
+		c.performOra(v)
+		c.cycle(4, addrNext)
 	//case 0x5e: // lsr abs x
-	//case 0x1d: // ora abs x
 	//case 0x56: // lsr zpg x
-	//case 0x15: // ora zpg x
 	//case 0x36: // rol zpg x
 	//case 0x76: // ror zpg x
 
@@ -503,18 +507,12 @@ func (i *Instruction) Compile(c *Compilation) {
 	case 0xed: // sbc abs
 		c.performSbc(c.load(i.Value))
 		c.cycle(4, addrNext)
-	case 0x05, 0x0d: // ora (zpg, abs)
-		a := c.builder.CreateLoad(c.rA, "")
-		mem := c.load(i.Value)
-		newA := c.builder.CreateOr(a, mem, "")
-		c.builder.CreateStore(newA, c.rA)
-		c.dynTestAndSetZero(newA)
-		c.dynTestAndSetNeg(newA)
-		if i.OpCode == 0x05 {
-			c.cycle(3, addrNext)
-		} else {
-			c.cycle(4, addrNext)
-		}
+	case 0x05: // ora zpg
+		c.performOra(c.load(i.Value))
+		c.cycle(3, addrNext)
+	case 0x0d: // ora abs
+		c.performOra(c.load(i.Value))
+		c.cycle(4, addrNext)
 	case 0x25: // and zpg
 		c.performAnd(c.load(i.Value))
 		c.cycle(3, addrNext)

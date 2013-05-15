@@ -285,6 +285,14 @@ func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value,
 	c.builder.CreateStore(isCarry, c.rSCarry)
 }
 
+func (c *Compilation) performOra(v llvm.Value) {
+	a := c.builder.CreateLoad(c.rA, "")
+	newA := c.builder.CreateOr(a, v, "")
+	c.builder.CreateStore(newA, c.rA)
+	c.dynTestAndSetZero(newA)
+	c.dynTestAndSetNeg(newA)
+}
+
 func (c *Compilation) performLda(v llvm.Value) {
 	c.builder.CreateStore(v, c.rA)
 	c.dynTestAndSetZero(v)
