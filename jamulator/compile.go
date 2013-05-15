@@ -281,8 +281,13 @@ func (c *Compilation) dynTestAndSetCarrySubtraction3(a llvm.Value, v llvm.Value,
 	a32 := c.builder.CreateZExt(a, llvm.Int32Type(), "")
 	carry32 := c.builder.CreateZExt(carry, llvm.Int32Type(), "")
 	v32 := c.builder.CreateZExt(v, llvm.Int32Type(), "")
-	aMinusV32 := c.builder.CreateSub(a32, v32, "")
-	newA32 := c.builder.CreateSub(aMinusV32, carry32, "")
+	// subtract val
+	newA32 := c.builder.CreateSub(a32, v32, "")
+	// add the carry
+	newA32 = c.builder.CreateAdd(newA32, carry32, "")
+	// subtract 1
+	c1 := llvm.ConstInt(newA32.Type(), 1, false)
+	newA32 = c.builder.CreateSub(newA32, c1, "")
 	c0 := llvm.ConstInt(llvm.Int32Type(), 0, false)
 	isCarry := c.builder.CreateICmp(llvm.IntSGE, newA32, c0, "")
 	c.builder.CreateStore(isCarry, c.rSCarry)
@@ -360,10 +365,20 @@ func (c *Compilation) performAdc(val llvm.Value) {
 
 func (c *Compilation) performSbc(val llvm.Value) {
 	a := c.builder.CreateLoad(c.rA, "")
-	aMinusV := c.builder.CreateSub(a, val, "")
+	// subtract val
+	newA := c.builder.CreateSub(a, val, "")
 	carryBit := c.builder.CreateLoad(c.rSCarry, "")
 	carry := c.builder.CreateZExt(carryBit, llvm.Int8Type(), "")
-	newA := c.builder.CreateSub(aMinusV, carry, "")
+	c1 := llvm.ConstInt(newA.Type(), 1, false)
+	// add the carry
+	newA = c.builder.CreateAdd(newA, carry, "")
+	// subtract 1
+	newA = c.builder.CreateSub(newA, c1, "")
+
+	c.debugPrintf("sbc oldA: $%02x newA: $%02x val: $%02x carry: $%02x\n", []llvm.Value{
+		a, newA, val, carry,
+	})
+
 	c.builder.CreateStore(newA, c.rA)
 	c.dynTestAndSetNeg(newA)
 	c.dynTestAndSetZero(newA)
@@ -411,7 +426,7 @@ func (c *Compilation) dynStore(addr llvm.Value, minAddr int, maxAddr int, val ll
 	if maxAddr < 0x800 {
 		// wram. we don't even have to mask it
 		indexes := []llvm.Value{
-			llvm.ConstInt(addr.Type(), 0, false),
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
 			addr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
@@ -805,17 +820,18 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	if maxAddr < 0x0800 {
 		// no runtime checks needed.
 		indexes := []llvm.Value{
-			llvm.ConstInt(addr.Type(), 0, false),
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
 			addr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
-		return c.builder.CreateLoad(ptr, "")
+		v := c.builder.CreateLoad(ptr, "")
+		return v
 	}
 	if maxAddr < 0x2000 {
 		// address masking needed, but it's definitely in WRAM
 		maskedAddr := c.builder.CreateAnd(addr, llvm.ConstInt(llvm.Int16Type(), 0x800-1, false), "")
 		indexes := []llvm.Value{
-			llvm.ConstInt(maskedAddr.Type(), 0, false),
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
 			maskedAddr,
 		}
 		ptr := c.builder.CreateGEP(c.wram, indexes, "")
@@ -826,7 +842,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 		// PRG ROM load
 		offsetAddr := c.builder.CreateSub(addr, x8000, "")
 		indexes := []llvm.Value{
-			llvm.ConstInt(offsetAddr.Type(), 0, false),
+			llvm.ConstInt(llvm.Int16Type(), 0, false),
 			offsetAddr,
 		}
 		ptr := c.builder.CreateGEP(c.prgRom, indexes, "")
@@ -894,7 +910,7 @@ func (c *Compilation) dynLoad(addr llvm.Value, minAddr int, maxAddr int) llvm.Va
 	// this generated code runs if the write is in the PRG ROM range
 	offsetAddr := c.builder.CreateSub(addr, x8000, "")
 	indexes = []llvm.Value{
-		llvm.ConstInt(offsetAddr.Type(), 0, false),
+		llvm.ConstInt(llvm.Int16Type(), 0, false),
 		offsetAddr,
 	}
 	ptr = c.builder.CreateGEP(c.prgRom, indexes, "")
@@ -1294,8 +1310,9 @@ func (c *Compilation) absoluteIndexedStore(valPtr llvm.Value, baseAddr int, inde
 func (c *Compilation) dynLoadZpgIndexed(baseAddr int, indexPtr llvm.Value) llvm.Value {
 	index := c.builder.CreateLoad(indexPtr, "")
 	base := llvm.ConstInt(llvm.Int8Type(), uint64(baseAddr), false)
-	addr := c.builder.CreateAdd(base, index, "")
-	return c.dynLoad(addr, 0, 0xff)
+	addr8 := c.builder.CreateAdd(base, index, "")
+	addr16 := c.builder.CreateZExt(addr8, llvm.Int16Type(), "")
+	return c.dynLoad(addr16, 0, 0xff)
 }
 
 func (c *Compilation) dynLoadIndexed(baseAddr int, indexPtr llvm.Value) llvm.Value {

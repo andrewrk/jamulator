@@ -317,7 +317,7 @@ var opCodeDataMap = []opCodeData{
 	{"", nilAddr},
 }
 
-func Init() {
+func init() {
 	for i := 0; i < int(addrModeCount); i++ {
 		opNameToOpCode[i] = make(map[string]byte)
 	}
