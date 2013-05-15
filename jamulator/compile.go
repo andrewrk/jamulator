@@ -1415,21 +1415,21 @@ func (c *Compilation) compileLabels(s *LabelStatement) {
 func (c *Compilation) setUpEntryPoint(p *Program, addr int, s *string) {
 	e, ok := p.Offsets[addr]
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Missing 0x%04x entry point", addr))
+		c.Warnings = append(c.Warnings, fmt.Sprintf("Missing 0x%04x entry point", addr))
 		return
 	}
 	stmt, ok := e.Value.(*DataStatement)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a data statement", addr))
+		c.Warnings = append(c.Warnings, fmt.Sprintf("Entry point at 0x%04x must be a data statement", addr))
 		return
 	}
 	if stmt.Type != WordDataStmt {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a word data statement", addr))
+		c.Warnings = append(c.Warnings, fmt.Sprintf("Entry point at 0x%04x must be a word data statement", addr))
 		return
 	}
 	call, ok := stmt.dataList.Front().Value.(*LabelCall)
 	if !ok {
-		c.Errors = append(c.Errors, fmt.Sprintf("Entry point at 0x%04x must be a data word statement with a label", addr))
+		c.Warnings = append(c.Warnings, fmt.Sprintf("Entry point at 0x%04x must be a data word statement with a label", addr))
 		return
 	}
 	*s = call.LabelName
