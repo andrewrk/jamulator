@@ -48,9 +48,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.testAndSetNeg(i.Value)
 		c.cycle(2, addrNext)
 	case 0xa0: // ldy immediate
-		c.builder.CreateStore(immedValue, c.rY)
-		c.testAndSetZero(i.Value)
-		c.testAndSetNeg(i.Value)
+		c.performLdy(immedValue)
 		c.cycle(2, addrNext)
 	case 0xa9: // lda immediate
 		c.builder.CreateStore(immedValue, c.rA)
@@ -242,9 +240,7 @@ func (i *Instruction) Compile(c *Compilation) {
 		c.cycle(4, addrNext)
 	case 0xb4: // ldy zpg x
 		v := c.dynLoadZpgIndexed(i.Value, c.rX)
-		c.builder.CreateStore(v, c.rY)
-		c.dynTestAndSetZero(v)
-		c.dynTestAndSetNeg(v)
+		c.performLdy(v)
 		c.cycle(4, addrNext)
 	case 0xb5: // lda zpg x
 		v := c.dynLoadZpgIndexed(i.Value, c.rX)
@@ -417,16 +413,12 @@ func (i *Instruction) Compile(c *Compilation) {
 	case 0xad:
 		c.performLda(c.load(i.Value))
 		c.cycle(4, addrNext)
-	case 0xa4, 0xac: // ldy (zpg, abs)
-		v := c.load(i.Value)
-		c.builder.CreateStore(v, c.rY)
-		c.dynTestAndSetZero(v)
-		c.dynTestAndSetNeg(v)
-		if i.OpCode == 0xa4 {
-			c.cycle(3, addrNext)
-		} else {
-			c.cycle(4, addrNext)
-		}
+	case 0xa4: // ldy zpg
+		c.performLdy(c.load(i.Value))
+		c.cycle(3, addrNext)
+	case 0xac: // ldy abs
+		c.performLdy(c.load(i.Value))
+		c.cycle(4, addrNext)
 	case 0xa6, 0xae: // ldx (zpg, abs)
 		v := c.load(i.Value)
 		c.builder.CreateStore(v, c.rX)

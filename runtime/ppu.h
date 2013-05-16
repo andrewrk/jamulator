@@ -84,7 +84,6 @@ typedef struct {
     int cycle;
     int scanline;
     int timestamp;
-    int vblankTime;
     int frameCount;
     int frameCycles;
 

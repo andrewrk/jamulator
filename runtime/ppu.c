@@ -28,8 +28,6 @@ Ppu* Ppu_new() {
     p->spriteLimitEnabled = true;
     p->scanline = 241;
 
-    p->vblankTime = 20 * 341 * 5; // NTSC
-
     for (unsigned int i = 0; i < 0x400; ++i) {
         p->attributeShift[i] = ((i >> 4) & 0x04) | (i & 0x02);
         p->attributeLocation[i] = ((i >> 2) & 0x07) | (((i >> 4) & 0x38) | 0x3C0);

@@ -3,13 +3,11 @@
 #include "ppu.h"
 #include "stdio.h"
 #include "SDL/SDL.h"
-#include "SDL/SDL_framerate.h"
 #include "GL/glew.h"
 
 typedef struct {
     SDL_Surface* screen;
     GLuint tex;
-    FPSmanager fpsmanager;
     bool pendingResize;
     int pendingResizeWidth;
     int pendingResizeHeight;
@@ -18,7 +16,10 @@ typedef struct {
 static Video v;
 static Ppu* p;
 static int interruptRequested = ROM_INTERRUPT_NONE;
+bool fast = false;
 
+uint8_t *framebufferSlice = NULL;
+int framebufferSize = 0;
 
 typedef struct {
     uint64_t cycle;
@@ -178,6 +179,7 @@ void init_video() {
         exit(1);
     }
 
+    SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, !fast); // vsync
     v.screen = SDL_SetVideoMode(512, 480, 32, SDL_OPENGL|SDL_RESIZABLE);
 
     if (v.screen == NULL) {
@@ -197,9 +199,6 @@ void init_video() {
     v.pendingResize = false;
 
     glGenTextures(1, &v.tex);
-
-    SDL_initFramerate(&v.fpsmanager);
-    SDL_setFramerate(&v.fpsmanager, 70);
 }
 
 void vblankInterrupt() {
@@ -211,11 +210,15 @@ void render() {
         reshape_video(v.pendingResizeWidth, v.pendingResizeHeight);
         v.pendingResize = false;
     }
-    uint8_t* slice = malloc(p->framebufferSize * 3);
+    if (framebufferSlice == NULL || framebufferSize != p->framebufferSize) {
+        if (framebufferSlice != NULL) free(framebufferSlice);
+        framebufferSlice = malloc(p->framebufferSize * 3);
+        framebufferSize = p->framebufferSize;
+    }
     for (int i = 0; i < p->framebufferSize; ++i) {
-        slice[i*3+0] = (p->framebuffer[i] >> 16) & 0xff;
-        slice[i*3+1] = (p->framebuffer[i] >> 8) & 0xff;
-        slice[i*3+2] = p->framebuffer[i] & 0xff;
+        framebufferSlice[i*3+0] = (p->framebuffer[i] >> 16) & 0xff;
+        framebufferSlice[i*3+1] = (p->framebuffer[i] >> 8) & 0xff;
+        framebufferSlice[i*3+2] = p->framebuffer[i] & 0xff;
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -224,7 +227,7 @@ void render() {
 
     int w = p->overscanEnabled ? 240 : 256;
     int h = p->overscanEnabled ? 224 : 240;
-    glTexImage2D(GL_TEXTURE_2D, 0, 3, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, slice);
+    glTexImage2D(GL_TEXTURE_2D, 0, 3, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, framebufferSlice);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -242,23 +245,24 @@ void render() {
 
     if (v.screen != NULL) {
         SDL_GL_SwapBuffers();
-        SDL_framerateDelay(&v.fpsmanager);
+        SDL_Delay(0);
     }
-    free(slice);
 }
 
 void printUsage(char * command) {
-    fprintf(stderr, "Usage:\n%s [-movie file]\n", command);
+    fprintf(stderr, "Usage:\n%s [-movie file] [-fast]\n", command);
     exit(1);
 }
 
 void parseFlags(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         char * arg = argv[i];
-        if (arg[0] == '-' && i < argc - 1) {
-            if (strcmp(arg, "-movie") == 0) {
+        if (arg[0] == '-') {
+            if (strcmp(arg, "-movie") == 0 && i < argc - 1) {
                 movieFilename = argv[i + 1];
                 i += 1;
+            } else if (strcmp(arg, "-fast") == 0) {
+                fast = true;
             } else {
                 printUsage(argv[0]);
             }

@@ -108,7 +108,13 @@ var interpretOps = [256]func(*Compilation) {
 	nil,
 	nil,
 	nil,
-	nil,
+	func (c *Compilation) {
+		// 0x48 pha implied
+		c.debugPrintf("pha\n", []llvm.Value{})
+		a := c.builder.CreateLoad(c.rA, "")
+		c.pushToStack(a)
+		c.cycle(3, -1)
+	},
 	nil,
 	nil,
 	nil,
@@ -241,7 +247,14 @@ var interpretOps = [256]func(*Compilation) {
 	nil,
 	nil,
 	nil,
-	nil,
+	func (c *Compilation) {
+		// 0xb4 ldy zpg x
+		addr := c.interpZpgIndexAddr(c.rX)
+		c.debugPrintf("ldy $%02x, X\n", []llvm.Value{addr})
+		v := c.dynLoad(addr, 0, 0xff)
+		c.performLdy(v)
+		c.cycle(4, -1)
+	},
 	nil,
 	nil,
 	nil,
@@ -395,6 +408,13 @@ func (c *Compilation) interpRelAddr() llvm.Value {
 	addr := c.builder.CreateAdd(pc, offset16, "")
 	c1 := llvm.ConstInt(llvm.Int16Type(), 1, false)
 	return c.builder.CreateAdd(addr, c1, "")
+}
+
+func (c *Compilation) interpZpgIndexAddr(indexPtr llvm.Value) llvm.Value {
+	pc := c.builder.CreateLoad(c.rPC, "")
+	base := c.dynLoad(pc, 0, 0xffff)
+	index := c.builder.CreateLoad(indexPtr, "")
+	return c.builder.CreateAdd(base, index, "")
 }
 
 func (c *Compilation) addInterpretBlock() {
