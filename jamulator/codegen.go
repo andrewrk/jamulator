@@ -86,7 +86,13 @@ func (i *Instruction) Compile(c *Compilation) {
 		a := c.builder.CreateLoad(c.rA, "")
 		c.builder.CreateStore(c.performAsl(a), c.rA)
 		c.cycle(2, addrNext)
-	//case 0x00: // brk implied
+	case 0x00: // brk implied
+		c.pushWordToStack(llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset + 2), false))
+		c.pushToStack(c.getStatusByte())
+		c.setInt()
+		c.cycle(7, -1)
+		c.currentBlock = nil
+		c.builder.CreateBr(*c.resetBlock)
 	case 0x18: // clc implied
 		c.clearCarry()
 		c.cycle(2, addrNext)
@@ -361,10 +367,13 @@ func (i *Instruction) Compile(c *Compilation) {
 		// branch instruction - cycle before execution
 		c.cycle(3, labelAddr)
 		destBlock, ok := c.labeledBlocks[i.LabelName]
-		if !ok {
-			panic(fmt.Sprintf("label %s block not defined: %s", i.LabelName, i.Render()))
+		if ok {
+			// cool, we're jumping into statically compiled code
+			c.builder.CreateBr(destBlock)
+		} else {
+			// damn, we'll have to interpret the next instruction
+			c.builder.CreateBr(c.interpretBlock)
 		}
-		c.builder.CreateBr(destBlock)
 		c.currentBlock = nil
 	case 0x20: // jsr
 		pc := llvm.ConstInt(llvm.Int16Type(), uint64(i.Offset+2), false)

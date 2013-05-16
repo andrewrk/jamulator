@@ -1705,6 +1705,7 @@ func (c *Compilation) addNmiInterruptCode() {
 }
 
 func (c *Compilation) addResetInterruptCode() {
+	// TODO: move this reset initialization to a separate block
 	c.builder.SetInsertPointBefore(c.resetBlock.FirstInstruction())
 	// set registers
 	c0 := llvm.ConstInt(llvm.Int8Type(), 0, false)
