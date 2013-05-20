@@ -179,7 +179,13 @@ var interpretOps = [256]func(*Compilation) {
 	nil,
 	nil,
 	nil,
-	nil,
+	func (c *Compilation) {
+		// 0x85 sta zpg
+		addr := c.interpZpgAddr()
+		c.debugPrintf("sta $%02x\n", []llvm.Value{addr})
+		c.dynStore(addr, 0, 0xff, c.builder.CreateLoad(c.rA, ""))
+		c.cycle(3, -1)
+	},
 	nil,
 	nil,
 	nil,
@@ -397,6 +403,14 @@ func (c *Compilation) interpAbsAddr() llvm.Value {
 	oldPc := c.builder.CreateLoad(c.rPC, "")
 	addr := c.dynLoadWord(oldPc)
 	newPc := c.builder.CreateAdd(oldPc, llvm.ConstInt(oldPc.Type(), 2, false), "")
+	c.builder.CreateStore(newPc, c.rPC)
+	return addr
+}
+
+func (c *Compilation) interpZpgAddr() llvm.Value {
+	oldPc := c.builder.CreateLoad(c.rPC, "")
+	addr := c.dynLoad(oldPc, 0, 0xffff)
+	newPc := c.builder.CreateAdd(oldPc, llvm.ConstInt(oldPc.Type(), 1, false), "")
 	c.builder.CreateStore(newPc, c.rPC)
 	return addr
 }
