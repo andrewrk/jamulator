@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"bytes"
 )
 
 type Program struct {
@@ -326,9 +325,10 @@ func (s *DataStatement) Assemble(sg symbolGetter) error {
 			if s.Type != ByteDataStmt {
 				panic("expected ByteDataStmt")
 			}
-			str := string(*t)
-			bytes.NewBuffer(s.Payload[offset:]).WriteString(str)
-			offset += len(str)
+			for _, c := range string(*t) {
+				s.Payload[offset] = byte(c)
+				offset += 1
+			}
 		case *IntegerDataItem:
 			switch s.Type {
 			default: panic("unknown DataStatement Type")
