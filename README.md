@@ -1,20 +1,19 @@
 # jamulator
 
+See the writeup for this project:
+[Statically Recompiling NES Games into Native Executables with LLVM and Go](http://andrewkelley.me/post/jamulator.html)
+
+Note: This project is discontinued. See the above article for
+the explanation.
+
 ## Features
 
  * Recompile NES games into native executables
+   - Only known supported game is Super Mario Brothers 1
  * 6502 assembler / disassembler
  * Unpack & disassemble NES roms and then put them back together
  * Adds a small custom ABI which gives you `putchar` and `exit`
    for making test roms.
-
-## Roadmap
-
- * Support mappers
- * Switch from emulating PPU and APU to running them in a thread
- * Emulate using JIT and run PPU and APU in separate goroutines
- * Use shaders for graphics
- * Unpack CHR ROM into PCX files and vice versa
 
 ## Getting Started Developing
 
